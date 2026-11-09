@@ -202,7 +202,8 @@ docker compose up -d --wait postgres
 - Email обрезается по краям и приводится к нижнему регистру; точки и `+suffix` сохраняются. В миграции есть обычная уникальность email и функциональное ограничение `Lower(Trim(email))`.
 - Пароли обрабатываются штатными средствами Django. DRF использует только SessionAuthentication и требует входа по умолчанию; middleware CSRF подключён.
 - Session cookie — HttpOnly/SameSite=Lax, срок 14 дней. Secure для session/CSRF включён при `DJANGO_DEBUG=false`; локальный HTTP использует `DJANGO_DEBUG=true`. Это локальные настройки, не принятая конфигурация публичного deploy.
-- Vite проксирует `/api` на backend с сохранением Host/Origin. Сам Learner API, анонимные CSRF/register/login endpoints, snapshots, ownership, Content Admin и Django Admin ещё не реализованы; их требования сохраняются без изменений.
+- Технический Django Admin доступен по `/admin/` после применения миграций. Штатная команда `createsuperuser` создаёт администратора с email для входа.
+- Vite проксирует `/api` на backend с сохранением Host/Origin. Learner API, анонимные CSRF/register/login endpoints, snapshots, ownership и Content Admin запланированы.
 
 ## Что находится за пределами MVP
 

@@ -1,3 +1,4 @@
+from django.contrib import admin
 from django.http import HttpResponse
 from django.urls import path
 from django.views.decorators.http import require_safe
@@ -9,5 +10,7 @@ def index(request):
     return HttpResponse("QA Interview Lab backend\n", content_type="text/plain; charset=utf-8")
 
 
-# Learner API and Django Admin will be connected in their own tasks.
-urlpatterns = [path("", index, name="index")]
+urlpatterns = [
+    path("", index, name="index"),
+    path("admin/", admin.site.urls),
+]
