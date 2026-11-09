@@ -17,4 +17,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/v1/auth/csrf/", accounts_views.csrf_bootstrap, name="auth-csrf"),
     path("api/v1/auth/register/", accounts_views.register, name="auth-register"),
+    path("api/v1/auth/login/", accounts_views.login, name="auth-login"),
+    path("api/v1/auth/logout/", accounts_views.logout, name="auth-logout"),
+    path("api/v1/auth/me/", accounts_views.current_session, name="auth-me"),
 ]

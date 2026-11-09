@@ -10,16 +10,18 @@ from .harness import backend_http
 
 
 @pytest.fixture
-def api_client(transactional_db, django_db_modify_db_settings):
+def api_client(transactional_db, django_db_modify_db_settings, settings):
     """Serve committed test fixtures over TCP, then stop the server before DB cleanup."""
     database = django_db_modify_db_settings
     if connection.settings_dict["NAME"] != database:
         pytest.fail("Backend must use the active pytest PostgreSQL database", pytrace=False)
 
+    # Session fixtures and the backend use the same synthetic signing key.
+    settings.SECRET_KEY = token_urlsafe(32)
     env = dict(
         os.environ,
         DJANGO_SETTINGS_MODULE="config.settings",
-        DJANGO_SECRET_KEY=token_urlsafe(32),
+        DJANGO_SECRET_KEY=settings.SECRET_KEY,
         DJANGO_ALLOWED_HOSTS="127.0.0.1",
         DJANGO_DEBUG="true",  # Use the documented local cookie settings on loopback HTTP.
         POSTGRES_DB=database,

@@ -4,8 +4,17 @@ from django.db.models import Value
 from django.db.models.functions import Lower, Trim
 from psycopg.errors import UniqueViolation
 from rest_framework import serializers
+from rest_framework.settings import api_settings
 
 from .models import User
+
+
+def _has_credentials(data):
+    return (
+        isinstance(data, dict)
+        and data.keys() == {"email", "password"}
+        and all(isinstance(value, str) for value in data.values())
+    )
 
 
 class RegistrationSerializer(serializers.Serializer):
@@ -13,11 +22,7 @@ class RegistrationSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, trim_whitespace=False)
 
     def to_internal_value(self, data):
-        if (
-            not isinstance(data, dict)
-            or data.keys() != {"email", "password"}
-            or not all(isinstance(value, str) for value in data.values())
-        ):
+        if not _has_credentials(data):
             raise serializers.ValidationError("Expected email and password strings.")
         return super().to_internal_value({
             "email": User.objects.normalize_email(data["email"]),
@@ -39,3 +44,15 @@ class RegistrationSerializer(serializers.Serializer):
             if User.objects.alias(email_key=Lower(Trim("email"))).filter(email_key=email_key).exists():
                 raise serializers.ValidationError("Email is already registered.") from None
             raise
+
+
+class LoginSerializer(serializers.Serializer):
+    email = serializers.CharField(allow_blank=True, trim_whitespace=False)
+    password = serializers.CharField(allow_blank=True, trim_whitespace=False, write_only=True)
+
+    def to_internal_value(self, data):
+        if not _has_credentials(data):
+            raise serializers.ValidationError({
+                api_settings.NON_FIELD_ERRORS_KEY: ["Expected email and password strings."],
+            })
+        return super().to_internal_value(data)
