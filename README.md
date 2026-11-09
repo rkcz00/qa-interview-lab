@@ -56,7 +56,7 @@ QIL-003 / Этап C: пользователь сохранил действую
 
 Прямые зависимости backend перечислены в `backend/requirements.txt`, разрешённые версии — в `backend/requirements.lock`. Зависимости frontend фиксируются в `frontend/package.json` и `frontend/package-lock.json`. Python-пакеты находятся только в `.venv`, Node-пакеты — только во `frontend/node_modules`. `psycopg[binary]` позволяет подключаться к PostgreSQL без установки компилятора и системного клиента PostgreSQL.
 
-QA-зависимости: Pytest 9.1.1 и pytest-django 4.14.0. `backend/requirements-dev.txt` добавляет их поверх locked runtime, а `backend/requirements-dev.lock` фиксирует полное окружение разработки. Runtime lock-файл сохранён без изменений; глобальные пакеты не устанавливались.
+QA-зависимости: Pytest 9.1.1, pytest-django 4.14.0 и HTTPX 0.28.1. `backend/requirements-dev.txt` добавляет их поверх locked runtime, а `backend/requirements-dev.lock` фиксирует полное окружение разработки.
 
 ## Документация
 
@@ -163,17 +163,15 @@ npm.cmd run build
 npm.cmd run dev
 ```
 
-Первые проверки и сборка выполнены в этапе A с временными значениями секретов в памяти. В ручном этапе B проверены PostgreSQL, миграции и полный набор тестов; в этапе C Django checks проверены с загрузкой сохранённого `.env`. Пять Unit-тестов не обращаются к DB; сохранение User в них подменено. Они прошли и через runner Django, и через Pytest с плагином Django. Отдельный HTTPX harness ещё не создан. Frontend открывается на `http://127.0.0.1:5173`; `Ctrl+C` останавливает dev server. HTTP-проверка подтвердила выдачу страницы и преобразованного React-модуля, браузерный рендер не проверялся.
+Первые проверки и сборка выполнены в этапе A с временными значениями секретов в памяти. В ручном этапе B проверены PostgreSQL, миграции и полный набор тестов; в этапе C Django checks проверены с загрузкой сохранённого `.env`. Пять Unit-тестов не обращаются к DB; сохранение User в них подменено. Они прошли и через runner Django, и через Pytest с плагином Django. Frontend открывается на `http://127.0.0.1:5173`; `Ctrl+C` останавливает dev server. HTTP-проверка подтвердила выдачу страницы и преобразованного React-модуля, браузерный рендер не проверялся.
 
-После загрузки локального `.env` Unit-тесты через Pytest запускаются так; отдельный pytest-конфиг для этого не нужен:
+После загрузки локального `.env` Unit-тесты запускаются из корня проекта:
 
 ```powershell
-Set-Location backend
-..\.venv\Scripts\python.exe -m pytest apps/accounts/tests/test_user.py --ds=config.settings -q
-Set-Location ..
+.\.venv\Scripts\python.exe -m pytest backend/apps/accounts/tests/test_user.py -q
 ```
 
-Для полного прогона после готовности PostgreSQL замените `apps/accounts/tests/test_user.py` на `apps/accounts/tests`. Ручной прогон этапа B подтвердил 7 успешных тестов и 5 подтестов, включая 2 DB-теста; в этапе C он не повторялся.
+Для полного прогона дождитесь готовности PostgreSQL и выполните `.\.venv\Scripts\python.exe -m pytest -q` из корня проекта. Pytest создаёт отдельную базу `test_qil006_<uuid>` на каждый прогон и проверяет её удаление. Фикстура `api_client` запускает Django в отдельном процессе на свободном loopback-порту. HTTPX проверяет существующий маршрут `/` через TCP. После теста фикстура закрывает клиент и процесс до очистки данных.
 
 ### Запуск с PostgreSQL — в среде с доступом к Docker API
 
