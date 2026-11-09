@@ -201,7 +201,7 @@ docker compose up -d --wait postgres
 - Пароли обрабатываются штатными средствами Django. DRF использует только SessionAuthentication и требует входа по умолчанию; middleware CSRF подключён.
 - Session cookie — HttpOnly/SameSite=Lax, срок 14 дней. Secure для session/CSRF включён при `DJANGO_DEBUG=false`; локальный HTTP использует `DJANGO_DEBUG=true`. Это локальные настройки, не принятая конфигурация публичного deploy.
 - Технический Django Admin доступен по `/admin/` после применения миграций. Штатная команда `createsuperuser` создаёт администратора с email для входа.
-- Vite проксирует `/api` на backend с сохранением Host/Origin. Learner API, анонимные CSRF/register/login endpoints, snapshots, ownership и Content Admin запланированы.
+- Vite проксирует `/api` на backend с сохранением Host/Origin. `GET /api/v1/auth/csrf/` выдаёт CSRF cookie и токен. Гостевой `POST /api/v1/auth/register/` принимает email и пароль с CSRF cookie и `X-CSRFToken`, создаёт аккаунт и возвращает его публичные поля. Вход и остальные функции Learner API запланированы.
 
 ## Что находится за пределами MVP
 

@@ -21,6 +21,7 @@ def api_client(transactional_db, django_db_modify_db_settings):
         DJANGO_SETTINGS_MODULE="config.settings",
         DJANGO_SECRET_KEY=token_urlsafe(32),
         DJANGO_ALLOWED_HOSTS="127.0.0.1",
+        DJANGO_DEBUG="true",  # Use the documented local cookie settings on loopback HTTP.
         POSTGRES_DB=database,
         POSTGRES_TEST_DB=f"{database}_unused",
     )

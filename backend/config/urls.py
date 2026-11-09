@@ -3,6 +3,8 @@ from django.http import HttpResponse
 from django.urls import path
 from django.views.decorators.http import require_safe
 
+from apps.accounts import views as accounts_views
+
 
 @require_safe
 def index(request):
@@ -13,4 +15,6 @@ def index(request):
 urlpatterns = [
     path("", index, name="index"),
     path("admin/", admin.site.urls),
+    path("api/v1/auth/csrf/", accounts_views.csrf_bootstrap, name="auth-csrf"),
+    path("api/v1/auth/register/", accounts_views.register, name="auth-register"),
 ]
