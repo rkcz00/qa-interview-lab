@@ -1,0 +1,37 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.sqlite3
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+coverage/
+
+# Frontend and package-manager caches
+node_modules/
+dist/
+build/
+.cache/
+.vite/
+*.tsbuildinfo
+
+# Test and diagnostic artifacts
+test-results/
+playwright-report/
+*.log
+*.tmp
+tmp/
+
+# Editor and OS files
+.idea/
+.vscode/
+Thumbs.db
+.DS_Store
