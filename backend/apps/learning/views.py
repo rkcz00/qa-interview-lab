@@ -6,10 +6,10 @@ from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import never_cache
 from rest_framework.exceptions import ValidationError
 
-from config.api import authentication_required, error_response, method_not_allowed
+from config.api import authentication_required, error_response, method_not_allowed, pk_from_path
 
 from .models import TermTranslation, Topic, TopicStatus, TopicTranslation
-from .serializers import ArticleSerializer, ContentLanguageSerializer, TermSerializer, TopicSummarySerializer
+from .serializers import ArticleSerializer, TermSerializer, TopicSummarySerializer, language_from_query
 
 
 logger = logging.getLogger(__name__)
@@ -36,20 +36,8 @@ def _learner_read(view):
     return read
 
 
-def _language(query):
-    if set(query) - {"language"} or len(query.getlist("language")) > 1:
-        raise ValidationError("Expected only one language parameter.")
-    serializer = ContentLanguageSerializer(data=query.dict())
-    serializer.is_valid(raise_exception=True)
-    return serializer.validated_data["language"]
-
-
 def _published_topic_id(topic_id):
-    if len(topic_id) > 19 or not topic_id.isascii() or not topic_id.isdecimal():
-        raise Http404
-    pk = int(topic_id)
-    if str(pk) != topic_id or not 1 <= pk <= 2**63 - 1:
-        raise Http404
+    pk = pk_from_path(topic_id)
     if not Topic.objects.filter(pk=pk, status=TopicStatus.PUBLISHED).exists():
         raise Http404
     return pk
@@ -61,14 +49,14 @@ def _topic_translations(language):
 
 @_learner_read
 def topic_catalog(request):
-    translations = _topic_translations(_language(request.GET)).only("topic_id", "title").order_by("topic_id")
+    translations = _topic_translations(language_from_query(request.GET)).only("topic_id", "title").order_by("topic_id")
     return TopicSummarySerializer(translations, many=True).data
 
 
 @_learner_read
 def topic_article(request, topic_id):
     pk = _published_topic_id(topic_id)
-    translation = get_object_or_404(_topic_translations(_language(request.GET)), topic_id=pk)
+    translation = get_object_or_404(_topic_translations(language_from_query(request.GET)), topic_id=pk)
     return ArticleSerializer(translation).data
 
 
@@ -77,7 +65,7 @@ def topic_terms(request, topic_id):
     pk = _published_topic_id(topic_id)
     translations = list(
         TermTranslation.objects.select_related("term")
-        .filter(term__topic_id=pk, term__topic__status=TopicStatus.PUBLISHED, language=_language(request.GET))
+        .filter(term__topic_id=pk, term__topic__status=TopicStatus.PUBLISHED, language=language_from_query(request.GET))
         .order_by("term__position", "term_id")
     )
     if not translations:  # Every Published topic has a bilingual glossary.

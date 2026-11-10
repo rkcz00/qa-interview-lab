@@ -46,6 +46,12 @@ class QuestionKey:
 
 def score_answers(questions: Iterable[QuestionKey], answers: object) -> dict[str, int | float]:
     """Evaluate a learner answer array against server-side question keys."""
+    _, result = grade_answers(questions, answers)
+    return result
+
+
+def grade_answers(questions: Iterable[QuestionKey], answers: object):
+    """Return normalized answers for internal storage and the public result."""
     by_id = {}
     for question in questions:
         if question.question_id in by_id:
@@ -57,7 +63,7 @@ def score_answers(questions: Iterable[QuestionKey], answers: object) -> dict[str
     if not isinstance(answers, list):
         raise InvalidAnswers("Answers must be an array.")
 
-    answered = set()
+    answered = {}
     correct_count = 0
     for answer in answers:
         if not isinstance(answer, dict) or answer.keys() != {"question_id", "choice_ids"}:
@@ -77,10 +83,26 @@ def score_answers(questions: Iterable[QuestionKey], answers: object) -> dict[str
             raise InvalidAnswers("Invalid or duplicate choice ID for this question.")
         if question.question_type == QuestionType.SINGLE_CHOICE and len(selected) > 1:
             raise InvalidAnswers("Single-choice accepts at most one choice.")
-        answered.add(question_id)
+        answered[question_id] = sorted(selected)
         if selected == question.correct_choice_ids:
             correct_count += 1
 
+    normalized = [
+        {"question_id": question_id, "choice_ids": answered.get(question_id, [])}
+        for question_id in sorted(by_id)
+    ]
+    return normalized, result_from_counts(correct_count, total_count)
+
+
+def _validate_counts(correct_count, total_count):
+    if type(correct_count) is not int or type(total_count) is not int:
+        raise ValueError("Result counts must be integers.")
+    if total_count <= 0 or not 0 <= correct_count <= total_count:
+        raise ValueError("Invalid result counts.")
+
+
+def result_from_counts(correct_count: int, total_count: int) -> dict[str, int | float]:
+    _validate_counts(correct_count, total_count)
     # Round the exact ratio in hundredths of a percent using ROUND_HALF_UP.
     hundredths, remainder = divmod(10_000 * correct_count, total_count)
     if 2 * remainder >= total_count:
@@ -93,10 +115,7 @@ def is_mastered(*, article_read_at: datetime | None, submitted_counts: Iterable[
     if article_read_at is None:
         return False
     for correct_count, total_count in submitted_counts:
-        if type(correct_count) is not int or type(total_count) is not int:
-            raise ValueError("Result counts must be integers.")
-        if total_count <= 0 or not 0 <= correct_count <= total_count:
-            raise ValueError("Invalid result counts.")
+        _validate_counts(correct_count, total_count)
         if 100 * correct_count >= 80 * total_count:
             return True
     return False

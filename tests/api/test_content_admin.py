@@ -1,19 +1,20 @@
 from concurrent.futures import ThreadPoolExecutor
 from html.parser import HTMLParser
-from time import monotonic, sleep
 
 import httpx
 import pytest
 from django.conf import settings
 from django.contrib.admin.models import LogEntry
 from django.contrib.auth.models import Group
-from django.db import connection, transaction
+from django.db import transaction
 from django.urls import reverse
 
 from apps.accounts.models import User
 from apps.assessments.models import Choice, ChoiceTranslation, Question, QuestionTranslation
 from apps.learning.models import Language, Term, TermTranslation, Topic, TopicStatus, TopicTranslation
 from apps.learning.tests.test_content import bilingual_topic
+
+from .pg_locks import wait_for_lock_waiters
 
 
 TEST_PASSWORD = "qil-synthetic-content-admin-passphrase"
@@ -271,24 +272,6 @@ def test_publication_confirmation_rejects_a_stale_revision(editor, bilingual_top
     assert article.title == "New title"
 
 
-def wait_for_topic_lock_waiters(expected_count):
-    deadline = monotonic() + 5
-    with connection.cursor() as cursor:
-        while monotonic() < deadline:
-            cursor.execute("SELECT pg_stat_clear_snapshot()")
-            cursor.execute(
-                """
-                SELECT count(*) FROM pg_stat_activity
-                WHERE datname = current_database() AND pid <> pg_backend_pid()
-                  AND wait_event_type = 'Lock' AND query LIKE '%%learning_topic%%FOR UPDATE%%'
-                """
-            )
-            if cursor.fetchone()[0] == expected_count:
-                return
-            sleep(0.025)
-    pytest.fail(f"Expected {expected_count} HTTP writes waiting on the topic lock", pytrace=False)
-
-
 def test_two_parallel_admin_writes_preserve_the_first_edit(editor, bilingual_topic):
     topic = bilingual_topic
     article = topic.translations.get(language=Language.EN)
@@ -304,9 +287,9 @@ def test_two_parallel_admin_writes_preserve_the_first_edit(editor, bilingual_top
             with transaction.atomic():
                 Topic.objects.select_for_update().get(pk=topic.pk)
                 first = pool.submit(edit_article, editor, article, first_revision, "First title", "First body")
-                wait_for_topic_lock_waiters(1)
+                wait_for_lock_waiters("learning_topic", 1)
                 second = pool.submit(edit_article, second_editor, article, second_revision, "Second title", "Second body")
-                wait_for_topic_lock_waiters(2)
+                wait_for_lock_waiters("learning_topic", 2)
             assert first.result(timeout=15).status_code == 302
             assert_error(second.result(timeout=15), 409, "edit_conflict")
 

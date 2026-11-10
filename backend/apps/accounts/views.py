@@ -16,6 +16,7 @@ from rest_framework.parsers import JSONParser
 from config.api import authentication_required as _authentication_required
 from config.api import error_response as _error
 from config.api import method_not_allowed as _method_not_allowed
+from config.api import parse_json_payload as _session_payload
 
 from .serializers import LoginSerializer, RegistrationSerializer
 
@@ -25,15 +26,6 @@ logger = logging.getLogger(__name__)
 
 def _account_response(user, *, status=200):
     return JsonResponse({"data": {"user_id": str(user.pk), "email": user.email}}, status=status)
-
-
-def _session_payload(request):
-    if request.content_type != "application/json":
-        raise UnsupportedMediaType(request.content_type)
-    try:
-        return JSONParser().parse(BytesIO(request.body))
-    except (ParseError, RequestDataTooBig, UnreadablePostError, RecursionError):
-        raise ValidationError("Invalid JSON data.") from None
 
 
 def _session_error(exc):

@@ -1,6 +1,10 @@
 {% extends "admin/delete_confirmation.html" %}
 {% load i18n l10n %}
 
+{% block delete_protected %}
+  <p>Запись связана с сохранёнными данными и защищена от удаления.</p>
+{% endblock %}
+
 {% block delete_confirm %}
   <p>Будут удалены следующие записи.</p>
   {% include "admin/includes/object_delete_summary.html" %}

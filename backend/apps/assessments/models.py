@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
 
@@ -72,4 +73,54 @@ class ChoiceTranslation(models.Model):
             models.CheckConstraint(
                 condition=models.Q(language__in=Language.values), name="assessments_choice_translation_language_valid"
             ),
+        ]
+
+
+class AttemptStatus(models.TextChoices):
+    IN_PROGRESS = "in_progress", "In progress"
+    SUBMITTED = "submitted", "Submitted"
+
+
+class Attempt(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="attempts", editable=False)
+    topic = models.ForeignKey(Topic, on_delete=models.PROTECT, related_name="attempts", editable=False)
+    status = models.CharField(max_length=11, choices=AttemptStatus.choices, default=AttemptStatus.IN_PROGRESS)
+    created_at = models.DateTimeField(auto_now_add=True)
+    submitted_at = models.DateTimeField(null=True, editable=False)
+    submitted_language = models.CharField(max_length=2, choices=Language.choices, null=True, editable=False)
+    content_snapshot = models.JSONField(editable=False)
+    submitted_answers = models.JSONField(null=True, editable=False)
+    correct_count = models.PositiveIntegerField(null=True, editable=False)
+    total_count = models.PositiveIntegerField(null=True, editable=False)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(
+                        status=AttemptStatus.IN_PROGRESS,
+                        submitted_at__isnull=True,
+                        submitted_language__isnull=True,
+                        submitted_answers__isnull=True,
+                        correct_count__isnull=True,
+                        total_count__isnull=True,
+                    )
+                    | models.Q(
+                        status=AttemptStatus.SUBMITTED,
+                        submitted_at__isnull=False,
+                        submitted_language__isnull=False,
+                        submitted_language__in=Language.values,
+                        submitted_answers__isnull=False,
+                        correct_count__isnull=False,
+                        correct_count__gte=0,
+                        correct_count__lte=models.F("total_count"),
+                        total_count__isnull=False,
+                        total_count__gt=0,
+                    )
+                ),
+                name="assessments_attempt_valid_state",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=("user", "status", "-submitted_at", "-id"), name="attempt_owner_history_idx"),
         ]

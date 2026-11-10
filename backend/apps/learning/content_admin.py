@@ -2,6 +2,8 @@ from django import forms
 from django.contrib import admin
 from django.core.exceptions import ValidationError
 from django.db import models, router
+from django.db.models.deletion import ProtectedError
+from django.http import HttpResponseRedirect
 from django.template.response import TemplateResponse
 
 from .changes import ContentWriteError, EditConflict, InvalidRevision, edit_topics
@@ -154,6 +156,8 @@ class RevisionedContentAdmin(admin.ModelAdmin):
             return super().delete_view(request, object_id, extra_context)
         except ContentWriteError as error:
             return self.write_error(request, error)
+        except ProtectedError:
+            return HttpResponseRedirect(request.get_full_path())
 
     def write_error(self, request, error):
         context = {
