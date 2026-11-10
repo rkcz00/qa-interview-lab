@@ -32,7 +32,7 @@ Vite нужен для разработки и сборки React. PostgreSQL х
 | API-тесты | Pytest + HTTPX | Проверка HTTP-контракта через реальную сеть и работающий backend |
 | E2E | Playwright + Python + Pytest | Проверка пользовательских сценариев с тем же языком автоматизации |
 | Инфраструктура | Docker + Docker Compose | Повторяемое локальное окружение |
-| CI/CD | GitLab CI | Автоматические проверки, сборка и диагностические артефакты |
+| CI/CD | GitHub Actions | Автоматические проверки, сборка и диагностические артефакты |
 
 Версии и необходимые адаптеры/драйверы согласуются в QIL-002. Ссылки на документацию Django 5.2 в этом документе объясняют механизм и не фиксируют runtime-версию проекта.
 
@@ -55,7 +55,7 @@ QA Interview Lab/
 │   ├── api/                # Pytest + HTTPX против поднятого backend
 │   └── e2e/                # Playwright + Python + Pytest
 ├── compose.yaml            # Будущая локальная инфраструктура
-└── .gitlab-ci.yml          # Будущий pipeline
+└── .github/workflows/ci.yml # Проверки GitHub Actions
 ```
 
 На QIL-001 существуют только шесть Markdown-документов. Остальные пути — план, а не готовые файлы. Модульные и интеграционные тесты Django будут размещаться внутри соответствующих backend-модулей в каталогах `tests/`.
@@ -260,7 +260,7 @@ Result содержит только три агрегата. Метаданны
 
 Будущие настройки поступают из окружения. В репозиторий попадёт только шаблон с фиктивными значениями; реальные секреты не коммитятся. Конкретный DB-драйвер, адаптеры Pytest и способ установки Python/Node-зависимостей согласуются до добавления.
 
-GitLab CI развивается вместе с кодом: `backend_api` с отдельной PostgreSQL, затем `frontend_check_build`, затем `playwright_e2e` на реальном frontend/backend/PostgreSQL. Минимальный обязательный состав jobs и критерии провала заданы в разделе 8 [QA-стратегии](QA_STRATEGY.md); для приёмки MVP обязательны все три.
+GitHub Actions запускает `backend_api`, `frontend_check_build` и `playwright_e2e` на GitHub-hosted Ubuntu. `backend_api` использует отдельный service container PostgreSQL и временные значения переменных окружения. `playwright_e2e` начинает с браузерного smoke production-сборки. Для приёмки MVP он должен проверять реальную связку frontend, backend и PostgreSQL. Все три job и критерии их прохождения описаны в разделе 8 [QA-стратегии](QA_STRATEGY.md).
 
 Jobs сохраняют JUnit-отчёты, а E2E при сбоях — очищенную диагностику только с синтетическими данными и без session/CSRF-секретов по правилам QA-стратегии. Ненулевой код проверки должен проваливать job: наличие XML-отчёта само по себе этого не обеспечивает. Автоматический deploy в текущий объём не входит.
 
@@ -274,9 +274,9 @@ Jobs сохраняют JUnit-отчёты, а E2E при сбоях — очи�
 | Оценка по округлённым значениям | Целочисленное сравнение порога 80%, граничные unit-тесты |
 | Редактирование вопроса во время попытки | Неизменяемый двуязычный снимок и транзакции |
 | Структурно полный, но неверный перевод | Ручная содержательная проверка администратором |
-| Неизвестный GitLab Runner или Docker-доступ | Проверить до реализации CI; не предполагать доступность привилегированного Docker |
+| Доступность GitHub Actions и service container PostgreSQL | Подтвердить реальным запуском на GitHub-hosted Ubuntu |
 
-Настройки времени жизни sessions, версии, точные DB-типы и CI executor будут выбраны в соответствующих задачах. Архитектура не утверждает их проверенную совместимость на текущем компьютере.
+Настройки времени жизни sessions, версии и точные DB-типы будут выбраны в соответствующих задачах. Архитектура не утверждает их проверенную совместимость на текущем компьютере.
 
 ## 12. Первичные источники
 
@@ -285,4 +285,4 @@ Jobs сохраняют JUnit-отчёты, а E2E при сбоях — очи�
 - [DRF: SessionAuthentication и CSRF](https://www.django-rest-framework.org/api-guide/authentication/#sessionauthentication).
 - [DRF: ограничения object permissions для списков и создания объектов](https://www.django-rest-framework.org/api-guide/permissions/#limitations-of-object-level-permissions).
 - [Playwright Python: интеграция с Pytest](https://playwright.dev/python/docs/test-runners).
-- [GitLab: JUnit test reports и статус job](https://docs.gitlab.com/ci/testing/unit_test_reports/).
+- [GitHub Actions — PostgreSQL service container](https://docs.github.com/en/actions/tutorials/use-containerized-services/create-postgresql-service-containers).

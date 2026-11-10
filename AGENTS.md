@@ -38,7 +38,7 @@
 
 ## Архитектурные правила
 
-- Сохранять согласованный стек: React + TypeScript + Vite; Python + Django + DRF; PostgreSQL; Django Admin; Pytest + HTTPX; Playwright + Python + Pytest; Docker Compose; GitLab CI.
+- Сохранять согласованный стек: React + TypeScript + Vite; Python + Django + DRF; PostgreSQL; Django Admin; Pytest + HTTPX; Playwright + Python + Pytest; Docker Compose; GitHub Actions.
 - Развивать модульный монолит в одном репозитории. Добавление сервиса, библиотеки или отдельного хранилища требует объяснения конкретной необходимости.
 - Не добавлять зависимости только ради удобства генерации кода. Сначала проверять возможности согласованных инструментов.
 - Объяснять новое решение: какую задачу оно решает, почему подходит проекту, какие имеет ограничения и чем проверяется.

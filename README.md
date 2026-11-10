@@ -2,7 +2,7 @@
 
 QA Interview Lab — учебное веб-приложение для подготовки Middle/Senior QA Engineers к техническим собеседованиям на русском и английском языках.
 
-Вторая цель проекта — портфолио с проверяемыми примерами работы с Codex, Python, React, PostgreSQL, Pytest, Playwright, Docker и GitLab CI.
+Вторая цель проекта — портфолио с проверяемыми примерами работы с Codex, Python, React, PostgreSQL, Pytest, Playwright, Docker и GitHub Actions.
 
 ## Текущий статус
 
@@ -48,7 +48,7 @@ QIL-003 / Этап C: пользователь сохранил действую
 | API-тесты | Python + Pytest + HTTPX |
 | E2E-тесты | Playwright + Python + Pytest |
 | Локальная инфраструктура | Docker + Docker Compose |
-| CI/CD | GitLab CI |
+| CI/CD | GitHub Actions |
 
 Архитектура — модульный монолит в одном репозитории: один Django backend с внутренними модулями, один React frontend и одна PostgreSQL.
 
@@ -204,12 +204,26 @@ docker compose up -d --wait postgres
 - Vite проксирует `/api` на backend с сохранением Host/Origin. `GET /api/v1/auth/csrf/` выдаёт CSRF cookie и токен. Гостевой `POST /api/v1/auth/register/` принимает email и пароль с CSRF cookie и `X-CSRFToken`, создаёт аккаунт и возвращает его публичные поля.
 - `POST /api/v1/auth/login/` создаёт Django-сессию по email и паролю. После входа получите актуальный CSRF-токен через bootstrap. `GET /api/v1/auth/me/` возвращает публичные поля текущего пользователя. `POST /api/v1/auth/logout/` принимает `{}` с CSRF и инвалидирует сессию.
 
+## Проверки в GitHub Actions
+
+[Workflow CI](.github/workflows/ci.yml) настроен на push в `main`, pull request в `main` и ручной запуск. `backend_api` применяет миграции в отдельной PostgreSQL 17.11 и запускает backend/API-тесты. `frontend_check_build` устанавливает зависимости через `npm ci` и запускает `npm run build`, который включает проверку типов. `playwright_e2e` открывает production-сборку в Chromium и проверяет видимый заголовок стартовой страницы. При падении браузерного теста GitHub Actions сохраняет JUnit-отчёт. Продуктовые E2E остаются в QIL-022 и QIL-023.
+
+Для локального smoke сначала установите пакеты из `backend/requirements-dev.lock` и соберите frontend. Затем выполните команды из корня проекта.
+
+```powershell
+$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location) '.venv\playwright-browsers'
+.\.venv\Scripts\python.exe -m playwright install --only-shell chromium
+.\.venv\Scripts\python.exe -m pytest -c tests/e2e/pytest.ini tests/e2e -q
+```
+
+Этот smoke использует локальный HTTP-сервер для `frontend/dist`. Django, PostgreSQL и `.env` для него не нужны.
+
 ## Что находится за пределами MVP
 
 Практические задания, открытые вопросы, повторение сложных тем, подтверждение email и восстановление пароля. Для них нет задач реализации в текущем MVP backlog.
 
-Публичный хостинг и автоматический deploy пока не выбраны. GitLab CI в MVP обеспечивает сборку и проверки; стратегия развёртывания согласуется отдельно.
+Публичный хостинг и автоматический deploy пока не выбраны. GitHub Actions в MVP обеспечивает сборку и проверки; стратегия развёртывания согласуется отдельно.
 
 ## Ограничения и решения перед разработкой
 
-Нужно выбрать версии инструментов, GitLab Runner и начальные учебные материалы. Язык интерфейса отдельно не согласован: рабочее предположение — русский интерфейс с независимыми переключателями языка статьи и тестирования. Полный перечень вопросов находится в PRD.
+Нужно выбрать версии инструментов и начальные учебные материалы, а также подтвердить первый запуск GitHub Actions. Язык интерфейса отдельно не согласован: рабочее предположение — русский интерфейс с независимыми переключателями языка статьи и тестирования. Полный перечень вопросов находится в PRD.
