@@ -4,6 +4,7 @@ from django.urls import path
 from django.views.decorators.http import require_safe
 
 from apps.accounts import views as accounts_views
+from apps.learning import views as learning_views
 
 
 @require_safe
@@ -20,4 +21,7 @@ urlpatterns = [
     path("api/v1/auth/login/", accounts_views.login, name="auth-login"),
     path("api/v1/auth/logout/", accounts_views.logout, name="auth-logout"),
     path("api/v1/auth/me/", accounts_views.current_session, name="auth-me"),
+    path("api/v1/topics/", learning_views.topic_catalog, name="topic-catalog"),
+    path("api/v1/topics/<str:topic_id>/", learning_views.topic_article, name="topic-article"),
+    path("api/v1/topics/<str:topic_id>/terms/", learning_views.topic_terms, name="topic-terms"),
 ]

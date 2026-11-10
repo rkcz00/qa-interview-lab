@@ -15,8 +15,7 @@ from apps.learning.models import (
 )
 
 
-@pytest.fixture
-def bilingual_topic(db):
+def create_bilingual_topic():
     topic = Topic.objects.create()
     for language in Language.values:
         TopicTranslation.objects.create(
@@ -48,6 +47,11 @@ def bilingual_topic(db):
                     choice=choice, language=language, text=f"{language} choice {choice_position}"
                 )
     return topic
+
+
+@pytest.fixture
+def bilingual_topic(db):
+    return create_bilingual_topic()
 
 
 @pytest.fixture

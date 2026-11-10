@@ -13,26 +13,18 @@ from django.views.decorators.cache import never_cache
 from rest_framework.exceptions import ParseError, UnsupportedMediaType, ValidationError
 from rest_framework.parsers import JSONParser
 
+from config.api import authentication_required as _authentication_required
+from config.api import error_response as _error
+from config.api import method_not_allowed as _method_not_allowed
+
 from .serializers import LoginSerializer, RegistrationSerializer
 
 
 logger = logging.getLogger(__name__)
 
 
-def _error(code, message, status, *, headers=None):
-    return JsonResponse({"error": {"code": code, "message": message}}, status=status, headers=headers)
-
-
-def _method_not_allowed(method):
-    return _error("method_not_allowed", "Method not allowed.", 405, headers={"Allow": method})
-
-
 def _account_response(user, *, status=200):
     return JsonResponse({"data": {"user_id": str(user.pk), "email": user.email}}, status=status)
-
-
-def _authentication_required():
-    return _error("authentication_required", "Authentication is required.", 403)
 
 
 def _session_payload(request):
