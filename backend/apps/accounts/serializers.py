@@ -9,12 +9,15 @@ from rest_framework.settings import api_settings
 from .models import User
 
 
-def _has_credentials(data):
-    return (
+def _validate_credential_shape(data):
+    if not (
         isinstance(data, dict)
         and data.keys() == {"email", "password"}
         and all(isinstance(value, str) for value in data.values())
-    )
+    ):
+        raise serializers.ValidationError({
+            api_settings.NON_FIELD_ERRORS_KEY: ["Expected email and password strings."],
+        })
 
 
 class RegistrationSerializer(serializers.Serializer):
@@ -22,8 +25,7 @@ class RegistrationSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True, trim_whitespace=False)
 
     def to_internal_value(self, data):
-        if not _has_credentials(data):
-            raise serializers.ValidationError("Expected email and password strings.")
+        _validate_credential_shape(data)
         return super().to_internal_value({
             "email": User.objects.normalize_email(data["email"]),
             "password": data["password"],
@@ -51,8 +53,5 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField(allow_blank=True, trim_whitespace=False, write_only=True)
 
     def to_internal_value(self, data):
-        if not _has_credentials(data):
-            raise serializers.ValidationError({
-                api_settings.NON_FIELD_ERRORS_KEY: ["Expected email and password strings."],
-            })
+        _validate_credential_shape(data)
         return super().to_internal_value(data)

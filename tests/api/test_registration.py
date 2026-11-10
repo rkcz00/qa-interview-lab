@@ -74,8 +74,18 @@ def test_csrf_failure_does_not_create_an_account(api_client, case):
 
 @pytest.mark.parametrize(
     ("email", "password"),
-    [("not-an-email", TEST_PASSWORD), (TEST_EMAIL, "abc")],
-    ids=["invalid-email", "weak-password"],
+    [
+        ("not-an-email", TEST_PASSWORD),
+        (TEST_EMAIL, "abc"),
+        (TEST_EMAIL, 123456789),
+        (TEST_EMAIL, None),
+        (TEST_EMAIL, ["abc"]),
+        (TEST_EMAIL, {"value": "abc"}),
+    ],
+    ids=[
+        "invalid-email", "weak-password", "numeric-password",
+        "null-password", "array-password", "object-password",
+    ],
 )
 def test_invalid_registration_does_not_create_an_account(api_client, email, password):
     count = User.objects.count()

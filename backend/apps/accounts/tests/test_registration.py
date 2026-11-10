@@ -81,6 +81,19 @@ class RegistrationRequestTests(SimpleTestCase):
                 self.assertEqual(response.status_code, status)
                 self.assertEqual(response.json()["error"]["code"], code)
 
+    def test_numeric_password_returns_validation_error_without_saving(self):
+        token = self.client.get(CSRF_URL).json()["data"]["csrf_token"]
+        with patch.object(RegistrationSerializer, "save") as save:
+            response = self.client.post(
+                REGISTER_URL, {"email": TEST_EMAIL, "password": 123456789},
+                content_type="application/json", headers={"X-CSRFToken": token},
+            )
+        self.assertEqual(response.status_code, 400)
+        self.assertTrue(response.json() == {
+            "error": {"code": "validation_error", "message": "Invalid registration data."},
+        })
+        save.assert_not_called()
+
     def test_unexpected_error_uses_safe_json_message(self):
         token = self.client.get(CSRF_URL).json()["data"]["csrf_token"]
         with patch.object(RegistrationSerializer, "save", side_effect=RuntimeError("synthetic detail")):
