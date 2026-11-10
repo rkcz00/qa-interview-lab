@@ -1,5 +1,5 @@
 from django.core.exceptions import ValidationError
-from django.db import models, router, transaction
+from django.db import models, router
 
 
 class Language(models.TextChoices):
@@ -28,19 +28,22 @@ def require_translations(translations, *, fields, label):
 
 class TopicQuerySet(models.QuerySet):
     def update(self, **kwargs):
-        if "status" in kwargs:
-            raise ValidationError("Статус темы меняется через сохранение модели.", code="bulk_status")
+        if {"status", "revision"}.intersection(kwargs):
+            raise ValidationError("Статус и ревизия меняются через операцию записи темы.", code="bulk_status")
         return super().update(**kwargs)
 
     def bulk_create(self, objs, **kwargs):
         topics = list(objs)
-        if any(topic.status != TopicStatus.DRAFT for topic in topics):
-            raise ValidationError("Новые темы создаются в Draft.", code="draft_required")
+        if any(topic.status != TopicStatus.DRAFT or topic.revision != 1 for topic in topics):
+            raise ValidationError("Новые темы создаются в Draft с ревизией 1.", code="draft_required")
+        if {"status", "revision"}.intersection(kwargs.get("update_fields") or ()):
+            raise ValidationError("Статус и ревизия меняются через операцию записи темы.", code="bulk_status")
         return super().bulk_create(topics, **kwargs)
 
 
 class Topic(models.Model):
     status = models.CharField(max_length=9, choices=TopicStatus.choices, default=TopicStatus.DRAFT)
+    revision = models.PositiveBigIntegerField(default=1, editable=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -51,6 +54,7 @@ class Topic(models.Model):
             models.CheckConstraint(
                 condition=models.Q(status__in=TopicStatus.values), name="learning_topic_status_valid"
             ),
+            models.CheckConstraint(condition=models.Q(revision__gte=1), name="learning_topic_revision_positive"),
         ]
 
     def _require_saved_topic(self):
@@ -79,19 +83,38 @@ class Topic(models.Model):
             self.validate_for_publication()
 
     def save(self, *, force_insert=False, force_update=False, using=None, update_fields=None):
-        options = dict(force_insert=force_insert, force_update=force_update, update_fields=update_fields)
-        if self.status == TopicStatus.DRAFT:
-            return super().save(using=using, **options)
-
-        if self.status != TopicStatus.PUBLISHED:
+        if self.status not in TopicStatus.values:
             raise ValidationError("Допустимые статусы темы: Draft и Published.", code="invalid_status")
 
-        self._require_saved_topic()
+        if self._state.adding or self.pk is None or force_insert:
+            if self.status != TopicStatus.DRAFT or self.revision != 1:
+                raise ValidationError("Новые темы создаются в Draft с ревизией 1.", code="draft_required")
+            return super().save(
+                force_insert=force_insert or not force_update, force_update=force_update,
+                using=using, update_fields=update_fields,
+            )
+
+        if update_fields is not None:
+            update_fields = tuple(update_fields)
+            if "revision" in update_fields:
+                raise ValidationError("Ревизия меняется через операцию записи темы.", code="invalid_revision")
+            if "status" not in update_fields:
+                return super().save(force_update=force_update, using=using, update_fields=update_fields)
+
+        from .changes import edit_topics
+
         using = using or router.db_for_write(type(self), instance=self)
-        with transaction.atomic(using=using):
-            stored = type(self).objects.using(using).select_for_update().get(pk=self.pk)
-            stored.validate_for_publication()
-            return super().save(using=using, **options)
+        with edit_topics({self.pk: self.revision}, using=using) as topics:
+            stored = topics[self.pk]
+            stored.status = self.status
+        self.revision = stored.revision
+        self.updated_at = stored.updated_at
+
+    def _save_content_revision(self, using):
+        if self.status == TopicStatus.PUBLISHED:
+            self.validate_for_publication()
+        self.revision += 1
+        super().save(using=using, update_fields=("status", "revision", "updated_at"))
 
 
 class TopicTranslation(models.Model):

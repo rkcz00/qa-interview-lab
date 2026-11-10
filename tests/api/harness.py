@@ -104,7 +104,11 @@ def _publish_status(ready_file, status):
 
 
 def _serve_django(database, ready_file):
-    from wsgiref.simple_server import make_server
+    from socketserver import ThreadingMixIn
+    from wsgiref.simple_server import WSGIServer, make_server
+
+    class ThreadedWSGIServer(ThreadingMixIn, WSGIServer):
+        daemon_threads = True
 
     try:
         if not re.fullmatch(r"test_qil006_[0-9a-f]{32}", database):
@@ -125,7 +129,7 @@ def _serve_django(database, ready_file):
         connection.close()
 
         # The OS selects and holds the port in this single, non-reloading process.
-        with make_server(LOOPBACK, 0, application) as server:
+        with make_server(LOOPBACK, 0, application, server_class=ThreadedWSGIServer) as server:
             _publish_status(ready_file, str(server.server_port))
             server.serve_forever()
     except Exception as exc:

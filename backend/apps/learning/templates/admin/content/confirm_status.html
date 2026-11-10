@@ -1,0 +1,22 @@
+{% extends "admin/base_site.html" %}
+{% load l10n %}
+
+{% block content %}
+<p>Новый статус выбранных тем: {{ target_status }}.</p>
+<form method="post">
+  {% csrf_token %}
+  <ul>
+    {% for topic in topics %}
+      <li>
+        {{ topic }} (ревизия {{ topic.revision }})
+        <input type="hidden" name="{{ checkbox_name }}" value="{{ topic.pk|unlocalize }}">
+        <input type="hidden" name="expected_revision" value="{{ topic.pk|unlocalize }}:{{ topic.revision|unlocalize }}">
+      </li>
+    {% endfor %}
+  </ul>
+  <input type="hidden" name="action" value="{{ action }}">
+  <input type="hidden" name="confirm" value="yes">
+  <input type="submit" value="Подтвердить">
+  <a class="button" href="{{ request.path }}">Отмена</a>
+</form>
+{% endblock %}

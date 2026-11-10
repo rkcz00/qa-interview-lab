@@ -1,0 +1,8 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<ul class="errorlist" data-error-code="{{ error_code }}">
+  {% for detail in details %}<li>{{ detail }}</li>{% endfor %}
+</ul>
+<a class="button" href="{{ retry_url }}">Открыть актуальную страницу</a>
+{% endblock %}
