@@ -140,12 +140,12 @@
 - Приёмка: решён OQ-03; сборка и проверка типов проходят; нет несогласованных UI-библиотек; приложение сообщает об ошибках соединения.
 - Проверки: TypeScript/Vite build и локальный smoke; продуктовые функции не объявляются готовыми.
 
-### QIL-017 — Frontend build в CI
+### QIL-017 — Frontend unit-тесты и build в CI
 
-- Статус: TODO. Зависимости: QIL-009, QIL-016. Требования: NFR-02.
-- Результат: действующий job `frontend_check_build` в GitHub Actions проверяет frontend после QIL-016 по разделу 8 QA-стратегии.
-- Приёмка: реальный pipeline выполняет и TypeScript type-check, и production build Vite, а также сохраняет `backend_api`; ошибка типов/сборки делает job неуспешным. Одна сборка не заменяет проверку типов.
-- Проверки: выполненный pipeline и его артефакты/логи, без deploy.
+- Статус: `frontend_unit` реализован в workflow и проверен локально. GitHub Actions нового commit — `NOT_RUN` до отдельно согласованного push. Зависимости: QIL-009, QIL-016. Требования: NFR-02.
+- Результат: отдельный `frontend_unit` выполняет `npm ci` и текущий `npm test` из `frontend` на Node.js 24.22.2; `frontend_check_build`, `backend_api` и `playwright_e2e` сохранены по разделу 8 QA-стратегии.
+- Приёмка: на push и pull request в `main` запускаются все четыре job; ошибка unit-теста, типов или сборки делает workflow неуспешным. Одна сборка не заменяет проверку типов. Подтверждение на GitHub требует фактического run.
+- Проверки: YAML/структура workflow, локальные npm ci, unit-тесты, type-check/build, backend regression и доступный Playwright smoke; отдельная проверка GitHub Actions после разрешённого push, без deploy.
 
 ### QIL-018 — UI регистрации, входа и выхода
 
@@ -186,7 +186,7 @@
 
 - Статус: TODO. Зависимости: QIL-017, QIL-022. Требования: NFR-02.
 - Результат: job `playwright_e2e` запускает продуктовые сценарии QIL-022 на реальной связке frontend/backend/PostgreSQL в Chromium по разделу 8 QA-стратегии.
-- Приёмка: обязательный E2E smoke проходит в GitHub Actions; провал виден как провал job; JUnit и разрешённая диагностика доступны, session/CSRF-секреты и auth state не публикуются. Для MVP все три job (`backend_api`, `frontend_check_build`, `playwright_e2e`) обязательны на push и pull request в `main`, без `continue-on-error` или условного пропуска.
+- Приёмка: обязательный E2E smoke проходит в GitHub Actions; провал виден как провал job; JUnit и разрешённая диагностика доступны, session/CSRF-секреты и auth state не публикуются. Для MVP все четыре job (`backend_api`, `frontend_unit`, `frontend_check_build`, `playwright_e2e`) обязательны на push и pull request в `main`, без `continue-on-error` или условного пропуска.
 - Проверки: фактический запуск workflow на GitHub и проверка артефактов.
 
 ### QIL-024 — Приёмка MVP и демонстрационная тема

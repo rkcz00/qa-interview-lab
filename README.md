@@ -6,6 +6,10 @@ QA Interview Lab — учебное веб-приложение для подг�
 
 ## Текущий статус
 
+QIL-017: отдельный `frontend_unit` добавлен; локальные npm ci, unit-тесты, type-check/build, backend regression и Playwright smoke пройдены. GitHub Actions для нового commit — `NOT_RUN` до отдельно согласованного push; наличие workflow не подтверждает успешный запуск CI.
+
+Далее приведены исторические результаты подготовки QIL-003.
+
 QIL-003 / Этап A: создан минимальный каркас Django/DRF и React/TypeScript/Vite, custom User и начальная миграция, Compose-конфигурация PostgreSQL и локальные настройки. Git-репозитория и CI pipeline пока нет.
 
 В этапе A проверены Django checks, пять Unit-тестов User без DB, согласованность файлов моделей/миграций, HTTP-ответ backend через WSGI без базы, HTTP-ответ Vite, TypeScript и production build. Каркас не является готовым MVP.
@@ -206,13 +210,12 @@ docker compose up -d --wait postgres
 
 ## Проверки в GitHub Actions
 
-[Workflow CI](.github/workflows/ci.yml) настроен на push в `main`, pull request в `main` и ручной запуск. `backend_api` применяет миграции в отдельной PostgreSQL 17.11 и запускает backend/API-тесты. `frontend_check_build` устанавливает зависимости через `npm ci` и запускает `npm run build`, который включает проверку типов. `playwright_e2e` открывает production-сборку в Chromium и проверяет видимый заголовок стартовой страницы. При падении браузерного теста GitHub Actions сохраняет JUnit-отчёт. Продуктовые E2E остаются в QIL-022 и QIL-023.
+[Workflow CI](.github/workflows/ci.yml) настроен на push в `main`, pull request в `main` и ручной запуск. `backend_api` применяет миграции в отдельной PostgreSQL 17.11 и запускает backend/API-тесты. Отдельный `frontend_unit` использует Node.js 24.22.2, устанавливает зависимости через `npm ci` в `frontend` и выполняет `npm test`. `frontend_check_build` запускает `npm run build`, который включает проверку типов. `playwright_e2e` открывает production-сборку в Chromium и проверяет видимый заголовок стартовой страницы. Все четыре job обязательны: ошибка unit-теста не подавляется и делает workflow неуспешным. При падении браузерного теста GitHub Actions сохраняет JUnit-отчёт. Продуктовые E2E остаются в QIL-022 и QIL-023.
 
-Для локального smoke сначала установите пакеты из `backend/requirements-dev.lock` и соберите frontend. Затем выполните команды из корня проекта.
+Для локального smoke нужны пакеты из `backend/requirements-dev.lock`, собранный frontend и согласованный браузер Playwright в `.venv/ms-playwright` из QIL-016. Установка браузеров согласуется отдельно. Затем выполните команды из корня проекта.
 
 ```powershell
-$env:PLAYWRIGHT_BROWSERS_PATH = Join-Path (Get-Location) '.venv\playwright-browsers'
-.\.venv\Scripts\python.exe -m playwright install --only-shell chromium
+$env:PLAYWRIGHT_BROWSERS_PATH = (Resolve-Path '.venv\ms-playwright').Path
 .\.venv\Scripts\python.exe -m pytest -c tests/e2e/pytest.ini tests/e2e -q
 ```
 

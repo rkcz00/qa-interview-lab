@@ -120,15 +120,16 @@ Content Admin без superuser вручную оценивает смысл и �
 
 ## 8. GitHub Actions и диагностические артефакты
 
-Для приёмки MVP обязательны три именованных job из [workflow CI](../.github/workflows/ci.yml).
+Для приёмки MVP обязательны четыре именованных job из [workflow CI](../.github/workflows/ci.yml).
 
 | Job | Минимальные обязательные проверки | Критерий успеха |
 | --- | --- | --- |
 | `backend_api` | Django checks и согласованность миграций; unit/integration и Pytest + HTTPX API на отдельной PostgreSQL с реальным backend. Покрываются ownership, разрешённые схемы до/после submit, 409/idempotency, Draft и Content Admin | Все проверки выполнены и успешны; API и DB-поведение не подменены mocks/SQLite |
+| `frontend_unit` | Node.js согласованной версии, `npm ci` и `npm test` из `frontend`; unit-тесты типизированного API-клиента с подменённым Fetch | Все unit-тесты успешны; ненулевой exit code делает job и workflow неуспешными |
 | `frontend_check_build` | TypeScript type-check и production build Vite | И проверка типов, и сборка успешны; один build без проверки типов недостаточен |
 | `playwright_e2e` | Playwright + Python + Pytest, Chromium, реальный frontend/backend/PostgreSQL; основной путь, четыре пары языков, сохранённый прогресс и изоляция пользователей | Обязательные E2E выполнены и успешны; критический путь не использует mock API |
 
-QIL-009 добавляет все три job для текущего каркаса. `playwright_e2e` сейчас открывает собранную стартовую страницу в Chromium и проверяет заголовок. QIL-017 проверяет сборку продуктового frontend, QIL-023 добавляет продуктовые E2E из QIL-022. Для приёмки полного MVP все три job запускаются на push и pull request в `main`. Отсутствующий, skipped, BLOCKED или NOT_RUN job не считается PASS. Обязательные проверки выполняются без `continue-on-error` и условного пропуска.
+QIL-009 подготовил три исходных job для каркаса. QIL-017 добавляет отдельный `frontend_unit`, сохраняя `frontend_check_build` и остальные проверки. `playwright_e2e` сейчас открывает собранную стартовую страницу в Chromium и проверяет заголовок; QIL-023 добавляет продуктовые E2E из QIL-022. Для приёмки полного MVP все четыре job запускаются на push и pull request в `main`. Отсутствующий, skipped, BLOCKED или NOT_RUN job не считается PASS. Обязательные проверки выполняются без `continue-on-error` и условного пропуска. В QIL-017 локальные проверки пройдены; запуск GitHub Actions нового commit — `NOT_RUN` до отдельно согласованного push.
 
 Workflow также поддерживает ручной запуск. Jobs выполняются на GitHub-hosted Ubuntu с правом `contents: read`. PostgreSQL для backend запускается как service container с временными настройками. Успешный локальный прогон подтверждает проверки в локальной среде. Результат GitHub Actions подтверждается фактическим запуском на GitHub.
 

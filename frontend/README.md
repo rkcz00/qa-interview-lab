@@ -56,6 +56,8 @@ npm.cmd run build
 
 Тесты используют встроенный `node:test` Node 24 и подменённый Fetch. Они проверяют клиентский контракт, не заменяя backend HTTPX/DB-тесты. Проверки типов дополнительно подтверждают отсутствие внутренних полей в публичных DTO. Новых npm-зависимостей для тестирования нет.
 
+QIL-017 добавляет отдельный job `frontend_unit` в [workflow CI](../.github/workflows/ci.yml): Node.js 24.22.2, `npm ci` и `npm test` из `frontend`. Он запускается на push и pull request в `main`, а также вручную; ошибка теста завершает job с ошибкой. `frontend_check_build`, `backend_api` и `playwright_e2e` сохраняются. Локальные проверки пройдены; GitHub Actions нового commit — `NOT_RUN` до отдельно согласованного push.
+
 Существующий `tests/e2e/test_frontend_smoke.py` проверяет стартовую production-страницу в Chromium. Этот smoke не является проверкой ещё не реализованных пользовательских UI-сценариев. Браузер для установленного Playwright 1.65.0 размещается в проектной `.venv/ms-playwright`; его установка требует отдельного согласования по AGENTS.md. Переменная ниже задаётся только в текущем PowerShell и не изменяет системный PATH. Запускать smoke нужно из его конфигурации, отдельно от Django:
 
 ```powershell

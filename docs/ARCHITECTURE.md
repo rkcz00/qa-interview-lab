@@ -262,7 +262,7 @@ Result содержит только три агрегата. Метаданны
 
 Будущие настройки поступают из окружения. В репозиторий попадёт только шаблон с фиктивными значениями; реальные секреты не коммитятся. Конкретный DB-драйвер, адаптеры Pytest и способ установки Python/Node-зависимостей согласуются до добавления.
 
-GitHub Actions запускает `backend_api`, `frontend_check_build` и `playwright_e2e` на GitHub-hosted Ubuntu. `backend_api` использует отдельный service container PostgreSQL и временные значения переменных окружения. `playwright_e2e` начинает с браузерного smoke production-сборки. Для приёмки MVP он должен проверять реальную связку frontend, backend и PostgreSQL. Все три job и критерии их прохождения описаны в разделе 8 [QA-стратегии](QA_STRATEGY.md).
+GitHub Actions запускает `backend_api`, `frontend_unit`, `frontend_check_build` и `playwright_e2e` на GitHub-hosted Ubuntu. `backend_api` использует отдельный service container PostgreSQL и временные значения переменных окружения. `frontend_unit` отдельно проверяет frontend unit-тесты; `frontend_check_build` сохраняет type-check и production build. `playwright_e2e` начинает с браузерного smoke production-сборки. Для приёмки MVP он должен проверять реальную связку frontend, backend и PostgreSQL. Все четыре job и критерии их прохождения описаны в разделе 8 [QA-стратегии](QA_STRATEGY.md).
 
 Jobs сохраняют JUnit-отчёты, а E2E при сбоях — очищенную диагностику только с синтетическими данными и без session/CSRF-секретов по правилам QA-стратегии. Ненулевой код проверки должен проваливать job: наличие XML-отчёта само по себе этого не обеспечивает. Автоматический deploy в текущий объём не входит.
 
