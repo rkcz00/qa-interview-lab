@@ -6,7 +6,7 @@ QA Interview Lab — учебное веб-приложение для подг�
 
 ## Текущий статус
 
-QIL-017: отдельный `frontend_unit` добавлен; локальные npm ci, unit-тесты, type-check/build, backend regression и Playwright smoke пройдены. GitHub Actions для нового commit — `NOT_RUN` до отдельно согласованного push; наличие workflow не подтверждает успешный запуск CI.
+QIL-018 / Этап B: реализован русский Auth UI — `/register`, `/login`, `/session`, восстановление сессии и выход через существующий API-клиент. Стартовая `/` сохранена. Локально проверены frontend unit-тесты, type-check/build, Django checks, backend regression и реальные Playwright Auth UI/старый smoke. GitHub Actions для этих изменений — `NOT_RUN`: push не выполнялся. Learning UI пока не реализован.
 
 Далее приведены исторические результаты подготовки QIL-003.
 
@@ -90,7 +90,7 @@ QA Interview Lab/
 │   ├── requirements-dev.txt
 │   └── requirements-dev.lock
 ├── frontend/
-│   ├── src/                      # Минимальная React-страница
+│   ├── src/                      # Стартовая страница, Auth UI и API-клиент
 │   ├── package.json
 │   └── package-lock.json
 ├── compose.yaml                  # Только PostgreSQL
@@ -210,16 +210,23 @@ docker compose up -d --wait postgres
 
 ## Проверки в GitHub Actions
 
-[Workflow CI](.github/workflows/ci.yml) настроен на push в `main`, pull request в `main` и ручной запуск. `backend_api` применяет миграции в отдельной PostgreSQL 17.11 и запускает backend/API-тесты. Отдельный `frontend_unit` использует Node.js 24.22.2, устанавливает зависимости через `npm ci` в `frontend` и выполняет `npm test`. `frontend_check_build` запускает `npm run build`, который включает проверку типов. `playwright_e2e` открывает production-сборку в Chromium и проверяет видимый заголовок стартовой страницы. Все четыре job обязательны: ошибка unit-теста не подавляется и делает workflow неуспешным. При падении браузерного теста GitHub Actions сохраняет JUnit-отчёт. Продуктовые E2E остаются в QIL-022 и QIL-023.
+[Workflow CI](.github/workflows/ci.yml) настроен на push в `main`, pull request в `main` и ручной запуск. `backend_api` применяет миграции в отдельной PostgreSQL 17.11 и запускает backend/API-тесты. Отдельный `frontend_unit` использует Node.js 24.22.2, устанавливает зависимости через `npm ci` в `frontend` и выполняет `npm test`. `frontend_check_build` запускает `npm run build`, который включает проверку типов. `playwright_e2e` сохраняет исходный smoke и проверяет Auth UI через production-сборку, реальный Django и отдельную PostgreSQL 17.11; дополнительно проверяет совпадение frontend-политики пароля с Django. Все четыре job обязательны: ошибки не подавляются. При падении браузерного теста сохраняется безопасный JUnit-отчёт. Полные Learning/Assessment/Progress E2E остаются в QIL-022 и QIL-023.
 
-Для локального smoke нужны пакеты из `backend/requirements-dev.lock`, собранный frontend и согласованный браузер Playwright в `.venv/ms-playwright` из QIL-016. Установка браузеров согласуется отдельно. Затем выполните команды из корня проекта.
+Для полного локального браузерного прогона нужны пакеты из `backend/requirements-dev.lock`, собранный frontend, работающая PostgreSQL и согласованный браузер Playwright в `.venv/ms-playwright` из QIL-016. Предварительно загрузите существующий `.env` в процесс PowerShell по инструкции выше; новые секреты не требуются. Установка браузеров согласуется отдельно. Из корня проекта:
 
 ```powershell
 $env:PLAYWRIGHT_BROWSERS_PATH = (Resolve-Path '.venv\ms-playwright').Path
+.\.venv\Scripts\python.exe -B frontend/tools/check_password_policy.py
 .\.venv\Scripts\python.exe -m pytest -c tests/e2e/pytest.ini tests/e2e -q
 ```
 
-Этот smoke использует локальный HTTP-сервер для `frontend/dist`. Django, PostgreSQL и `.env` для него не нужны.
+Auth E2E создаёт собственную случайную базу, применяет миграции, запускает Django и Vite preview на свободных loopback-портах. После прогона закрываются browser contexts, оба процесса и только созданная тестовая база. Dev-данные не используются. Безопасный отдельный smoke без Django/PostgreSQL: укажите `tests/e2e/test_frontend_smoke.py` вместо всей папки.
+
+## Как проверить Auth UI вручную
+
+После запуска PostgreSQL и backend на `127.0.0.1:8000` откройте отдельный терминал в `frontend` и выполните `npm.cmd run dev`. В браузере откройте `http://127.0.0.1:5173/register`, создайте локальный тестовый аккаунт, войдите на `/login`, обновите `/session` и нажмите «Выйти». Регистрация сама не выполняет вход. Поля подписаны, поддерживают Tab/Enter, во время отправки отключаются. Прямые переходы обслуживаются SPA fallback Vite; `next`/`returnTo` не применяются.
+
+Интерфейс MVP русский, без переключателя языка UI; RU/EN учебных материалов и тестирования остаются независимыми. Пароль регистрации проверяется по текущей политике Django, при входе — только заполненность. Клиент использует общий CSRF bootstrap и Django sessions, без хранения пароля/токенов в Web Storage. Подробности слоёв, обработки ошибок и тестов — в [frontend/README.md](frontend/README.md).
 
 ## Что находится за пределами MVP
 
@@ -229,4 +236,4 @@ $env:PLAYWRIGHT_BROWSERS_PATH = (Resolve-Path '.venv\ms-playwright').Path
 
 ## Ограничения и решения перед разработкой
 
-Нужно выбрать версии инструментов и начальные учебные материалы, а также подтвердить первый запуск GitHub Actions. Язык интерфейса отдельно не согласован: рабочее предположение — русский интерфейс с независимыми переключателями языка статьи и тестирования. Полный перечень вопросов находится в PRD.
+Версии инструментов и русский UI MVP согласованы. Английский UI отложен; материалы и тестирование остаются двуязычными. Предстоят Learning UI, остальные сквозные проверки MVP и согласование начальных учебных материалов. Изменённый Auth E2E job нужно подтвердить фактическим GitHub Actions run после отдельного разрешения на push. Полный перечень продуктовых вопросов находится в PRD.

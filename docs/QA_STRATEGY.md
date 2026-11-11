@@ -83,6 +83,14 @@
 
 Порядок действий также параметризуется: сначала тест, потом «Прочитано» и наоборот. Словарь не участвует ни в одном условии.
 
+### 4.3. Auth UI — QIL-018
+
+Frontend unit-тесты проверяют политику регистрации, отсутствие этих ограничений при login, фиксированные маршруты, безопасные русские сообщения и запоздалые ответы восстановления сессии. Публичный словарь распространённых паролей и Unicode-правила сверяются с locked Django/Python командой `python frontend/tools/check_password_policy.py`; 218 примеров проверяются без обращения к DB. Backend остаётся окончательным валидатором.
+
+Playwright запускает production-сборку через Vite preview и реальный Django с отдельной случайной PostgreSQL-базой. Проверяются прямые маршруты, регистрация без auto-login, вход, восстановление после reload, выход/просроченная сессия, duplicate email, already_authenticated, CSRF-отказ, двойной submit, loading/disabled, timeout/network error, неизвестное состояние при сбое `auth/me/`, клавиатура и мобильная ширина. Успешные запросы и серверные отказы проходят настоящий API; только сетевые сбои/потеря CSRF управляются прерыванием запроса. Пароль и cookies не должны попадать в UI/console/Web Storage.
+
+Fixtures закрывают browser contexts, завершают собственные Django/Vite-процессы и удаляют только свою тестовую базу даже при падении. Исходный `test_frontend_smoke.py` сохранён без изменений и работает без DB/backend. Auth E2E не создаёт trace/HAR/video/auth state с секретами. Это покрытие Auth, не приёмка ещё не реализованного Learning UI или всего MVP.
+
 ## 5. Тестовые данные и изоляция
 
 - Пользователи A и B, отдельный Content Admin в одноимённой Django-группе без superuser и отдельный технический superuser; только синтетические email/пароли. Последний не используется вместо Content Admin в проверках permissions.
@@ -125,13 +133,13 @@ Content Admin без superuser вручную оценивает смысл и �
 | Job | Минимальные обязательные проверки | Критерий успеха |
 | --- | --- | --- |
 | `backend_api` | Django checks и согласованность миграций; unit/integration и Pytest + HTTPX API на отдельной PostgreSQL с реальным backend. Покрываются ownership, разрешённые схемы до/после submit, 409/idempotency, Draft и Content Admin | Все проверки выполнены и успешны; API и DB-поведение не подменены mocks/SQLite |
-| `frontend_unit` | Node.js согласованной версии, `npm ci` и `npm test` из `frontend`; unit-тесты типизированного API-клиента с подменённым Fetch | Все unit-тесты успешны; ненулевой exit code делает job и workflow неуспешными |
+| `frontend_unit` | Node.js согласованной версии, `npm ci` и `npm test` из `frontend`; unit-тесты API-клиента, Auth-валидации, маршрутов и состояния сессии | Все unit-тесты успешны; ненулевой exit code делает job и workflow неуспешными |
 | `frontend_check_build` | TypeScript type-check и production build Vite | И проверка типов, и сборка успешны; один build без проверки типов недостаточен |
 | `playwright_e2e` | Playwright + Python + Pytest, Chromium, реальный frontend/backend/PostgreSQL; основной путь, четыре пары языков, сохранённый прогресс и изоляция пользователей | Обязательные E2E выполнены и успешны; критический путь не использует mock API |
 
-QIL-009 подготовил три исходных job для каркаса. QIL-017 добавляет отдельный `frontend_unit`, сохраняя `frontend_check_build` и остальные проверки. `playwright_e2e` сейчас открывает собранную стартовую страницу в Chromium и проверяет заголовок; QIL-023 добавляет продуктовые E2E из QIL-022. Для приёмки полного MVP все четыре job запускаются на push и pull request в `main`. Отсутствующий, skipped, BLOCKED или NOT_RUN job не считается PASS. Обязательные проверки выполняются без `continue-on-error` и условного пропуска. В QIL-017 локальные проверки пройдены; запуск GitHub Actions нового commit — `NOT_RUN` до отдельно согласованного push.
+QIL-009 подготовил три исходных job, QIL-017 добавил `frontend_unit`. QIL-018 расширяет `playwright_e2e`: прежний smoke, проверка совпадения политики пароля и реальные Auth UI-сценарии с отдельным service container PostgreSQL 17.11. QIL-022/QIL-023 сохраняют ответственность за полные продуктовые E2E Learning/Assessment/Progress. Для приёмки полного MVP все четыре job запускаются на push и pull request в `main`. Отсутствующий, skipped, BLOCKED или NOT_RUN job не считается PASS. Обязательные проверки выполняются без `continue-on-error` и условного пропуска. GitHub Actions для изменений QIL-018 — `NOT_RUN` до отдельно согласованного push; локальный PASS не заменяет CI.
 
-Workflow также поддерживает ручной запуск. Jobs выполняются на GitHub-hosted Ubuntu с правом `contents: read`. PostgreSQL для backend запускается как service container с временными настройками. Успешный локальный прогон подтверждает проверки в локальной среде. Результат GitHub Actions подтверждается фактическим запуском на GitHub.
+Workflow также поддерживает ручной запуск. Jobs выполняются на GitHub-hosted Ubuntu с правом `contents: read`. Backend и Auth E2E используют раздельные PostgreSQL service containers с временными настройками. Успешный локальный прогон подтверждает проверки в локальной среде. Результат GitHub Actions подтверждается фактическим запуском на GitHub.
 
 GitHub Actions хранит JUnit XML backend-прогона и JUnit XML браузерного smoke при падении теста семь дней. Для продуктовых E2E на сбое сохраняется разрешённая диагностика: скриншот и trace только после удаления секретов. Cookies, auth state, session/CSRF-токены, включая тестовые, не публикуются как артефакты; синтетический аккаунт сам по себе не делает сырой trace безопасным. Если безопасный trace получить нельзя, он не публикуется, ограничение явно указывается и сохраняется очищенная диагностика.
 
