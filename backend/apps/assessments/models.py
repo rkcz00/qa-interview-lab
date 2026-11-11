@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.utils import timezone
 
 from apps.learning.models import Language, Topic, require_translations
 
@@ -123,4 +124,17 @@ class Attempt(models.Model):
         ]
         indexes = [
             models.Index(fields=("user", "status", "-submitted_at", "-id"), name="attempt_owner_history_idx"),
+        ]
+
+
+class TopicProgress(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="topic_progress", editable=False,
+    )
+    topic = models.ForeignKey(Topic, on_delete=models.PROTECT, related_name="progress", editable=False)
+    article_read_at = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("user", "topic"), name="assessments_topic_progress_owner_unique"),
         ]

@@ -13,15 +13,23 @@ from apps.learning.serializers import language_from_query
 from config.api import authentication_required, error_response, method_not_allowed, parse_json_payload, pk_from_path
 
 from .attempts import build_snapshot, grade_snapshot
-from .models import Attempt, AttemptStatus
+from .models import Attempt, AttemptStatus, TopicProgress
+from .progress import progress_after_read, user_progress
 from .scoring import InvalidAnswers
-from .serializers import PendingAttemptSerializer, StartAttemptSerializer, SubmitAttemptSerializer, SubmittedAttemptSerializer
+from .serializers import (
+    PendingAttemptSerializer,
+    ProgressSerializer,
+    ReadTopicSerializer,
+    StartAttemptSerializer,
+    SubmitAttemptSerializer,
+    SubmittedAttemptSerializer,
+)
 
 
 logger = logging.getLogger(__name__)
 
 
-def _attempt_endpoint(method):
+def _learner_endpoint(method, *, resource="Attempt"):
     def decorate(view):
         @wraps(view)
         @never_cache
@@ -37,10 +45,10 @@ def _attempt_endpoint(method):
             except UnsupportedMediaType:
                 return error_response("unsupported_media_type", "Expected application/json.", 415)
             except (InvalidAnswers, ValidationError):
-                return error_response("validation_error", "Invalid attempt request.", 400)
+                return error_response("validation_error", f"Invalid {resource.lower()} request.", 400)
             except Exception as exc:
-                logger.error("Attempt request failed (%s)", type(exc).__name__)
-                return error_response("internal_error", "Attempt request could not be completed.", 500)
+                logger.error("%s request failed (%s)", resource, type(exc).__name__)
+                return error_response("internal_error", f"{resource} request could not be completed.", 500)
 
         return endpoint
 
@@ -63,7 +71,7 @@ def _owned_attempt(request, queryset, attempt_id):
     return get_object_or_404(queryset, pk=pk_from_path(attempt_id), user_id=request.user.pk)
 
 
-@_attempt_endpoint("POST")
+@_learner_endpoint("POST")
 @transaction.atomic
 def start_attempt(request, topic_id):
     topics = Topic.objects.select_for_update().prefetch_related(
@@ -76,7 +84,7 @@ def start_attempt(request, topic_id):
     return JsonResponse({"data": payload}, status=201)
 
 
-@_attempt_endpoint("GET")
+@_learner_endpoint("GET")
 def attempt_detail(request, attempt_id):
     attempt = _owned_attempt(request, Attempt.objects.all(), attempt_id)
     language = language_from_query(request.GET)
@@ -87,7 +95,7 @@ def attempt_detail(request, attempt_id):
     return JsonResponse({"data": payload})
 
 
-@_attempt_endpoint("POST")
+@_learner_endpoint("POST")
 @transaction.atomic
 def submit_attempt(request, attempt_id):
     attempt = _owned_attempt(request, Attempt.objects.select_for_update(), attempt_id)
@@ -111,7 +119,7 @@ def submit_attempt(request, attempt_id):
     return JsonResponse({"data": SubmittedAttemptSerializer(attempt).data})
 
 
-@_attempt_endpoint("GET")
+@_learner_endpoint("GET")
 def attempt_history(request):
     _require_no_query(request)
     attempts = (
@@ -120,3 +128,21 @@ def attempt_history(request):
         .order_by("-submitted_at", "-pk")
     )
     return JsonResponse({"data": SubmittedAttemptSerializer(attempts, many=True).data})
+
+
+@_learner_endpoint("POST", resource="Progress")
+@transaction.atomic
+def mark_article_read(request, topic_id):
+    # Serialize the publication check and mark with the existing Topic editor.
+    topic = get_object_or_404(
+        Topic.objects.select_for_update(), pk=pk_from_path(topic_id), status=TopicStatus.PUBLISHED,
+    )
+    _request_data(request, ReadTopicSerializer)
+    mark, _ = TopicProgress.objects.get_or_create(user_id=request.user.pk, topic=topic)
+    return JsonResponse({"data": ProgressSerializer(progress_after_read(mark)).data})
+
+
+@_learner_endpoint("GET", resource="Progress")
+def progress_list(request):
+    _require_no_query(request)
+    return JsonResponse({"data": ProgressSerializer(user_progress(request.user.pk), many=True).data})

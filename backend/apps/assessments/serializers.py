@@ -6,19 +6,38 @@ from apps.learning.models import Language
 from .scoring import result_from_counts
 
 
-class StartAttemptSerializer(serializers.Serializer):
-    language = serializers.ChoiceField(choices=Language.values)
-
+class _StrictRequestSerializer(serializers.Serializer):
     def to_internal_value(self, data):
         if not isinstance(data, dict) or set(data) != set(self.fields):
             raise serializers.ValidationError({
-                api_settings.NON_FIELD_ERRORS_KEY: ["Unexpected attempt request fields."],
+                api_settings.NON_FIELD_ERRORS_KEY: ["Unexpected request fields."],
             })
         return super().to_internal_value(data)
 
 
+class StartAttemptSerializer(_StrictRequestSerializer):
+    language = serializers.ChoiceField(choices=Language.values)
+
+
 class SubmitAttemptSerializer(StartAttemptSerializer):
     answers = serializers.ListField()
+
+
+class ReadTopicSerializer(_StrictRequestSerializer):
+    pass
+
+
+class ResultSerializer(serializers.Serializer):
+    correct_count = serializers.IntegerField(read_only=True)
+    total_count = serializers.IntegerField(read_only=True)
+    percentage = serializers.FloatField(read_only=True)
+
+
+class ProgressSerializer(serializers.Serializer):
+    topic_id = serializers.CharField(read_only=True)
+    article_read_at = serializers.DateTimeField(format="iso-8601", allow_null=True, read_only=True)
+    best_result = ResultSerializer(allow_null=True, read_only=True)
+    mastered = serializers.BooleanField(read_only=True)
 
 
 class _LocalizedItemSerializer(serializers.Serializer):
