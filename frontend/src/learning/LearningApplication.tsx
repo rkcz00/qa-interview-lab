@@ -9,6 +9,8 @@ import { LearningStore } from './model.ts'
 import { learningDestination } from './routing.ts'
 import type { LearningLocation } from './routing.ts'
 import { learningRu as text } from './texts.ts'
+import { assessmentDestination } from '../assessment/routing.ts'
+import { assessmentRu } from '../assessment/texts.ts'
 
 interface Props {
   location: LearningLocation
@@ -86,6 +88,7 @@ export default function LearningApplication({ location, navigate, requireLogin }
           <h2 id="article-heading">{text.article}</h2>
           <div className="article-body" lang={location.language}>{content.article.article_body}</div>
         </article>
+        <p className="assessment-entry"><NavigationLink to={assessmentDestination({ kind: 'start', id: content.article.topic_id, language: 'ru' })} navigate={navigate}>{assessmentRu.entry}</NavigationLink></p>
         <section className="reading-card" aria-labelledby="reading-heading">
           <h2 id="reading-heading">{text.readHeading}</h2>
           <p className="help-text">{text.readHelp}</p>

@@ -19,7 +19,7 @@ def main():
     from django.db import connection, transaction
     from apps.learning.models import Language, Term, TermTranslation, Topic, TopicStatus, TopicTranslation
     from apps.learning.tests.test_content import create_bilingual_topic
-    from apps.assessments.models import TopicProgress
+    from apps.assessments.models import Attempt, AttemptStatus, TopicProgress
 
     with connection.cursor() as cursor:
         cursor.execute("SELECT current_database()")
@@ -54,6 +54,7 @@ def main():
             TopicTranslation.objects.create(topic=draft, language="ru", title="Невидимый черновик", article_body="Draft content")
             result = {"first": topics[0], "second": topics[1], "draft": str(draft.pk), "ids": [*topics, str(draft.pk)]}
         elif action == "cleanup":
+            Attempt.objects.filter(topic_id__in=ids).delete()
             TopicProgress.objects.filter(topic_id__in=ids).delete()
             Topic.objects.filter(pk__in=ids).delete()
             result = {"cleanup": "PASS"}
@@ -63,7 +64,9 @@ def main():
                 topic.save(update_fields=("status",))
             result = {"draft": "PASS"}
         else:
-            result = {"read_count": TopicProgress.objects.filter(topic_id__in=ids).count()}
+            result = {"read_count": TopicProgress.objects.filter(topic_id__in=ids).count(),
+                      "attempt_count": Attempt.objects.filter(topic_id__in=ids).count(),
+                      "submitted_count": Attempt.objects.filter(topic_id__in=ids, status=AttemptStatus.SUBMITTED).count()}
     connection.close()
     print(json.dumps(result))
 

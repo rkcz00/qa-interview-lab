@@ -24,6 +24,8 @@ QIL-019 расширяет этот роутинг каталогом `/topics` 
 
 Vite нужен для разработки и сборки React. PostgreSQL хранит пользователей, контент, сессии, попытки и отметки чтения. Для MVP не нужны отдельные сервисы авторизации, очереди или дополнительные хранилища.
 
+QIL-020 добавляет UI-маршруты `/topics/{topic_id}/test` (явный start) и `/attempts/{attempt_id}` (вопросы или серверный результат). На этих адресах `language` относится только к тесту. Выбор по ID и текущий вопрос хранятся в памяти экрана и переживают перевод/Back/Forward внутри попытки; GET после reload восстанавливает вопросы либо завершённый результат, но не неотправленные ответы. На неопределённом submit payload блокируется, состояние подтверждается GET; явный повтор использует тот же payload. После 409 допустим только GET сохранённого результата. UI-роуты не являются новыми API endpoints, backend/scoring и контракт snapshot не меняются.
+
 ## 2. Стек и решения
 
 | Область | Решение | Обоснование |
@@ -266,7 +268,7 @@ Result содержит только три агрегата. Метаданны
 
 Будущие настройки поступают из окружения. В репозиторий попадёт только шаблон с фиктивными значениями; реальные секреты не коммитятся. Конкретный DB-драйвер, адаптеры Pytest и способ установки Python/Node-зависимостей согласуются до добавления.
 
-GitHub Actions запускает `backend_api`, `frontend_unit`, `frontend_check_build` и `playwright_e2e` на GitHub-hosted Ubuntu. `backend_api` использует отдельный service container PostgreSQL и временные значения переменных окружения. `frontend_unit` отдельно проверяет frontend unit-тесты; `frontend_check_build` сохраняет type-check и production build. В QIL-018 `playwright_e2e` добавил Auth UI через реальный Django и PostgreSQL 17.11, сохранив исходный smoke. QIL-019 добавляет Learning и чтение в существующий сбор тестов; workflow не меняется. Полные Assessment/Progress/MVP E2E ещё предстоят. Все четыре job и критерии описаны в разделе 8 [QA-стратегии](QA_STRATEGY.md).
+GitHub Actions запускает `backend_api`, `frontend_unit`, `frontend_check_build` и `playwright_e2e` на GitHub-hosted Ubuntu. `backend_api` использует отдельный PostgreSQL service container и временное окружение. `frontend_unit` проверяет frontend unit-тесты, `frontend_check_build` — типы и production build. QIL-018 добавил Auth E2E с реальным Django/PostgreSQL 17.11, сохранив исходный smoke; QIL-019/QIL-020 добавляют Learning/Assessment в существующий сбор тестов без изменения workflow. Полная приёмка истории/прогресса и MVP ещё предстоит. Все четыре job и критерии описаны в разделе 8 [QA-стратегии](QA_STRATEGY.md).
 
 Jobs сохраняют JUnit-отчёты, а E2E при сбоях — очищенную диагностику только с синтетическими данными и без session/CSRF-секретов по правилам QA-стратегии. Ненулевой код проверки должен проваливать job: наличие XML-отчёта само по себе этого не обеспечивает. Автоматический deploy в текущий объём не входит.
 

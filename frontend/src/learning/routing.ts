@@ -1,5 +1,6 @@
 import type { Language } from '../api/types.ts'
 import type { Destination, LearningRoute, Route } from '../auth/routing.ts'
+import { assessmentDestination, assessmentLocation, isAssessmentRoute } from '../assessment/routing.ts'
 
 export interface LearningLocation {
   topicId: string | null
@@ -7,7 +8,7 @@ export interface LearningLocation {
 }
 
 export function isLearningRoute(route: Route | null): route is LearningRoute {
-  return route === '/topics' || Boolean(route?.startsWith('/topics/'))
+  return route === '/topics' || Boolean(route && /^\/topics\/[^/?#]+$/u.test(route))
 }
 
 export function learningLocation(route: LearningRoute, search: string): LearningLocation | null {
@@ -27,10 +28,14 @@ export function learningDestination(location: LearningLocation): Destination {
   return location.language === 'ru' ? path : `${path}?language=en`
 }
 
-// Return targets come only from an already parsed Learning location, never from URL redirect parameters.
+// Only parsed internal Learning/Assessment destinations, never redirect query parameters.
 export function authDestination(pending: Destination | undefined): Destination {
   if (pending) {
     const [path, search = ''] = pending.split('?')
+    if (isAssessmentRoute(path as Route)) {
+      const location = assessmentLocation(path as Route, search)
+      if (location) return assessmentDestination(location)
+    }
     if (isLearningRoute(path as Route)) {
       const location = learningLocation(path as LearningRoute, search)
       if (location) return learningDestination(location)

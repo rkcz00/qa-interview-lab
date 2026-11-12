@@ -6,9 +6,9 @@ QA Interview Lab — учебное веб-приложение для подг�
 
 ## Текущий статус
 
-QIL-019: реализованы каталог `/topics`, статья `/topics/{topic_id}`, RU/EN материалов, словарь и отметка «Прочитано». Auth и стартовая `/` сохранены; гость возвращается в Learning после входа. Локально пройдены 89 frontend unit-тестов, type-check/build, Django checks, 221 backend-тест + 22 подтеста и 24 Playwright-теста. Backend/API и зависимости не менялись. GitHub Actions для QIL-019 — `NOT_RUN`, push не выполнялся; Quiz/attempts/scoring UI ещё предстоят.
+QIL-020: добавлены `/topics/{topic_id}/test` и `/attempts/{attempt_id}` — независимый язык теста, Single-choice/Multiple-choice, отправка и серверный результат. Сохранены Auth/Learning и `/`. Локально пройдены 111 frontend unit-тестов, type-check/build, Django checks, 221 backend-тест + 22 подтеста и 43 Playwright-теста. Backend/API/scoring и зависимости не менялись. GitHub Actions QIL-020 — `NOT_RUN`, push не выполнялся. Dashboard прогресса и отдельный экран истории ещё предстоят.
 
-QIL-018/C опубликован и подтверждён [GitHub Actions run #43175377203](https://github.com/rkcz00/qa-interview-lab/actions/runs/43175377203): все четыре job успешны для SHA `5a32a005072fb83d52eb506b119256ec9131d7fe`.
+QIL-019/B опубликован и подтверждён [GitHub Actions run #43181500158](https://github.com/rkcz00/qa-interview-lab/actions/runs/43181500158): все четыре job успешны для SHA `e7faf6fa57cb30fe4e618bbecd9a9f6178feb1bd`.
 
 Далее приведены исторические результаты подготовки QIL-003.
 
@@ -92,7 +92,7 @@ QA Interview Lab/
 │   ├── requirements-dev.txt
 │   └── requirements-dev.lock
 ├── frontend/
-│   ├── src/                      # Стартовая страница, Auth/Learning и API-клиент
+│   ├── src/                      # Стартовая страница, Auth/Learning/Assessment и API-клиент
 │   ├── package.json
 │   └── package-lock.json
 ├── compose.yaml                  # Только PostgreSQL
@@ -212,7 +212,7 @@ docker compose up -d --wait postgres
 
 ## Проверки в GitHub Actions
 
-[Workflow CI](.github/workflows/ci.yml) настроен на push в `main`, pull request в `main` и ручной запуск. `backend_api` применяет миграции в отдельной PostgreSQL 17.11 и запускает backend/API-тесты. `frontend_unit` использует Node.js 24.22.2, `npm ci` и `npm test`; `frontend_check_build` — `npm run build` с проверкой типов. `playwright_e2e` собирает все `tests/e2e`: исходный smoke, Auth и Learning через production-сборку, реальный Django и отдельную PostgreSQL 17.11; дополнительно сверяет политику пароля с Django. Все четыре job обязательны, ошибки не подавляются. При падении сохраняется безопасный JUnit-отчёт. Полная приёмка MVP остаётся в QIL-022/QIL-023. Workflow в QIL-019 не менялся, запуск нового commit требует отдельного разрешения на push.
+[Workflow CI](.github/workflows/ci.yml) настроен на push в `main`, pull request в `main` и ручной запуск. `backend_api` применяет миграции в отдельной PostgreSQL 17.11 и запускает backend/API-тесты. `frontend_unit` использует Node.js 24.22.2, `npm ci` и `npm test`; `frontend_check_build` — `npm run build` с проверкой типов. `playwright_e2e` собирает все `tests/e2e`: исходный smoke, Auth/Learning/Assessment через production-сборку, реальный Django и отдельную PostgreSQL 17.11; дополнительно сверяет политику пароля с Django. Все четыре job обязательны, ошибки не подавляются. При падении сохраняется безопасный JUnit-отчёт. Полная приёмка MVP остаётся в QIL-022/QIL-023. Workflow не менялся; запуск нового commit требует отдельного разрешения на push.
 
 Для полного локального браузерного прогона нужны пакеты из `backend/requirements-dev.lock`, собранный frontend, работающая PostgreSQL и согласованный браузер Playwright в `.venv/ms-playwright` из QIL-016. Предварительно загрузите существующий `.env` в процесс PowerShell по инструкции выше; новые секреты не требуются. Установка браузеров согласуется отдельно. Из корня проекта:
 
@@ -222,7 +222,7 @@ $env:PLAYWRIGHT_BROWSERS_PATH = (Resolve-Path '.venv\ms-playwright').Path
 .\.venv\Scripts\python.exe -m pytest -c tests/e2e/pytest.ini tests/e2e -q
 ```
 
-Auth/Learning E2E создаёт собственную случайную базу, применяет миграции, запускает Django и Vite preview на свободных loopback-портах. После прогона закрываются browser contexts, оба процесса и только созданная тестовая база. Learning fixture удаляет только свой тестовый контент; dev-данные не используются. Отдельный smoke без Django/PostgreSQL: укажите `tests/e2e/test_frontend_smoke.py` вместо папки.
+Auth/Learning/Assessment E2E создаёт собственную случайную базу, применяет миграции, запускает Django и Vite preview на свободных loopback-портах. После прогона закрываются browser contexts, оба процесса и только созданная тестовая база. Fixture удаляет лишь свой контент, попытки и отметки; dev-данные не используются. Отдельный smoke без Django/PostgreSQL: укажите `tests/e2e/test_frontend_smoke.py` вместо папки.
 
 ## Как проверить Auth UI вручную
 
@@ -236,6 +236,12 @@ Auth/Learning E2E создаёт собственную случайную ба�
 
 Открытие статьи само не меняет чтение. Кнопка «Отметить «Прочитано»» сохраняет единую для RU/EN отметку; она остаётся после обновления. Реальный локальный аккаунт и отметка сохраняются в dev-БД, в отличие от автоматически очищаемых E2E-данных. Произвольные `next`/`returnTo` не используются. Возврат к Learning держится в памяти вкладки; обновление самой `/login` очищает его, после входа тогда открывается `/session`. Подробности — в [frontend README](frontend/README.md).
 
+## Как проверить Assessment UI вручную
+
+Откройте опубликованную тему и нажмите «Пройти тест». Выберите язык теста отдельно от статьи и нажмите «Начать тест». Выбирайте варианты, переходите между вопросами, смените язык — выбор и номер вопроса сохранятся. После отправки будут показаны только число верных ответов, число вопросов и серверный процент. Обновление завершённой попытки возвращает тот же результат.
+
+Прямой `/attempts/{id}` загружает существующую собственную попытку. Reload незавершённой попытки сбрасывает неотправленный выбор: API его не хранит. При потере ответа submit UI сначала проверяет результат через GET; явный повтор отправляет тот же payload. При потере ответа start UI предупреждает: новый явный запуск может создать ещё одну незавершённую попытку. Локальные действия пользователя сохраняются в dev-БД; автоматические E2E работают в отдельной очищаемой базе. Подробности — в [frontend README](frontend/README.md).
+
 ## Что находится за пределами MVP
 
 Практические задания, открытые вопросы, повторение сложных тем, подтверждение email и восстановление пароля. Для них нет задач реализации в текущем MVP backlog.
@@ -244,4 +250,4 @@ Auth/Learning E2E создаёт собственную случайную ба�
 
 ## Ограничения и решения перед разработкой
 
-Версии инструментов и русский UI MVP согласованы. Английский UI отложен; материалы и тестирование остаются двуязычными. Предстоят Assessment/Progress UI, полные сквозные проверки MVP и согласование начальных материалов. Новые Learning-тесты нужно подтвердить GitHub Actions run после отдельного разрешения на push. Полный перечень продуктовых вопросов находится в PRD.
+Версии инструментов и русский UI MVP согласованы. Английский UI отложен; материалы и тестирование двуязычны. Предстоят dashboard прогресса/история, полные сквозные проверки MVP и согласование начальных материалов. Новые Assessment-тесты нужно подтвердить GitHub Actions run после отдельного разрешения на push. Полный перечень продуктовых вопросов находится в PRD.
