@@ -1,5 +1,6 @@
 """Real Auth UI: one disposable PostgreSQL database and two owned loopback processes."""
 
+import json
 import os
 from pathlib import Path
 import secrets
@@ -55,6 +56,23 @@ def auth_app():
             timeout=60)
         if migrated.returncode:
             pytest.fail("Auth E2E disposable database migration failed", pytrace=False)
+        owned_topics = set()
+
+        def learning_data(action, topic_ids=()):
+            if action != "create" and (not topic_ids or not set(topic_ids).issubset(owned_topics)):
+                pytest.fail("Learning E2E may change only topics created by this fixture", pytrace=False)
+            result = subprocess.run([sys.executable, "-B", str(ROOT / "tests/e2e/learning_data.py"),
+                database, action, *topic_ids], cwd=ROOT, env=backend_env, stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+            if result.returncode:
+                pytest.fail("Learning E2E fixture operation failed; credentials were not logged", pytrace=False)
+            data = json.loads(result.stdout)
+            if action == "create":
+                owned_topics.update(data["ids"])
+            if action == "cleanup":
+                owned_topics.difference_update(topic_ids)
+            return data
+
         with backend_http([sys.executable, "-B", str(ROOT / "tests/api/harness.py"), database],
                 cwd=ROOT / "backend", env=backend_env) as (backend, backend_process):
             processes.append(backend_process)
@@ -65,7 +83,7 @@ def auth_app():
             with backend_http([node, str(ROOT / "frontend/tests/preview-server.mjs")],
                     cwd=ROOT / "frontend", env=frontend_env) as (frontend, frontend_process):
                 processes.append(frontend_process)
-                yield SimpleNamespace(url=str(frontend.base_url).rstrip("/"))
+                yield SimpleNamespace(url=str(frontend.base_url).rstrip("/"), learning_data=learning_data)
     finally:
         try:
             if created:
@@ -102,3 +120,12 @@ def auth_page(auth_app, auth_browser):
         yield page
     finally:
         context.close()
+
+
+@pytest.fixture
+def learning_topics(auth_app):
+    data = auth_app.learning_data("create")
+    try:
+        yield data
+    finally:
+        auth_app.learning_data("cleanup", data["ids"])

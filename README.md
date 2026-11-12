@@ -6,7 +6,9 @@ QA Interview Lab — учебное веб-приложение для подг�
 
 ## Текущий статус
 
-QIL-018 / Этап B: реализован русский Auth UI — `/register`, `/login`, `/session`, восстановление сессии и выход через существующий API-клиент. Стартовая `/` сохранена. Локально проверены frontend unit-тесты, type-check/build, Django checks, backend regression и реальные Playwright Auth UI/старый smoke. GitHub Actions для этих изменений — `NOT_RUN`: push не выполнялся. Learning UI пока не реализован.
+QIL-019: реализованы каталог `/topics`, статья `/topics/{topic_id}`, RU/EN материалов, словарь и отметка «Прочитано». Auth и стартовая `/` сохранены; гость возвращается в Learning после входа. Локально пройдены 89 frontend unit-тестов, type-check/build, Django checks, 221 backend-тест + 22 подтеста и 24 Playwright-теста. Backend/API и зависимости не менялись. GitHub Actions для QIL-019 — `NOT_RUN`, push не выполнялся; Quiz/attempts/scoring UI ещё предстоят.
+
+QIL-018/C опубликован и подтверждён [GitHub Actions run #43175377203](https://github.com/rkcz00/qa-interview-lab/actions/runs/43175377203): все четыре job успешны для SHA `5a32a005072fb83d52eb506b119256ec9131d7fe`.
 
 Далее приведены исторические результаты подготовки QIL-003.
 
@@ -90,7 +92,7 @@ QA Interview Lab/
 │   ├── requirements-dev.txt
 │   └── requirements-dev.lock
 ├── frontend/
-│   ├── src/                      # Стартовая страница, Auth UI и API-клиент
+│   ├── src/                      # Стартовая страница, Auth/Learning и API-клиент
 │   ├── package.json
 │   └── package-lock.json
 ├── compose.yaml                  # Только PostgreSQL
@@ -210,7 +212,7 @@ docker compose up -d --wait postgres
 
 ## Проверки в GitHub Actions
 
-[Workflow CI](.github/workflows/ci.yml) настроен на push в `main`, pull request в `main` и ручной запуск. `backend_api` применяет миграции в отдельной PostgreSQL 17.11 и запускает backend/API-тесты. Отдельный `frontend_unit` использует Node.js 24.22.2, устанавливает зависимости через `npm ci` в `frontend` и выполняет `npm test`. `frontend_check_build` запускает `npm run build`, который включает проверку типов. `playwright_e2e` сохраняет исходный smoke и проверяет Auth UI через production-сборку, реальный Django и отдельную PostgreSQL 17.11; дополнительно проверяет совпадение frontend-политики пароля с Django. Все четыре job обязательны: ошибки не подавляются. При падении браузерного теста сохраняется безопасный JUnit-отчёт. Полные Learning/Assessment/Progress E2E остаются в QIL-022 и QIL-023.
+[Workflow CI](.github/workflows/ci.yml) настроен на push в `main`, pull request в `main` и ручной запуск. `backend_api` применяет миграции в отдельной PostgreSQL 17.11 и запускает backend/API-тесты. `frontend_unit` использует Node.js 24.22.2, `npm ci` и `npm test`; `frontend_check_build` — `npm run build` с проверкой типов. `playwright_e2e` собирает все `tests/e2e`: исходный smoke, Auth и Learning через production-сборку, реальный Django и отдельную PostgreSQL 17.11; дополнительно сверяет политику пароля с Django. Все четыре job обязательны, ошибки не подавляются. При падении сохраняется безопасный JUnit-отчёт. Полная приёмка MVP остаётся в QIL-022/QIL-023. Workflow в QIL-019 не менялся, запуск нового commit требует отдельного разрешения на push.
 
 Для полного локального браузерного прогона нужны пакеты из `backend/requirements-dev.lock`, собранный frontend, работающая PostgreSQL и согласованный браузер Playwright в `.venv/ms-playwright` из QIL-016. Предварительно загрузите существующий `.env` в процесс PowerShell по инструкции выше; новые секреты не требуются. Установка браузеров согласуется отдельно. Из корня проекта:
 
@@ -220,13 +222,19 @@ $env:PLAYWRIGHT_BROWSERS_PATH = (Resolve-Path '.venv\ms-playwright').Path
 .\.venv\Scripts\python.exe -m pytest -c tests/e2e/pytest.ini tests/e2e -q
 ```
 
-Auth E2E создаёт собственную случайную базу, применяет миграции, запускает Django и Vite preview на свободных loopback-портах. После прогона закрываются browser contexts, оба процесса и только созданная тестовая база. Dev-данные не используются. Безопасный отдельный smoke без Django/PostgreSQL: укажите `tests/e2e/test_frontend_smoke.py` вместо всей папки.
+Auth/Learning E2E создаёт собственную случайную базу, применяет миграции, запускает Django и Vite preview на свободных loopback-портах. После прогона закрываются browser contexts, оба процесса и только созданная тестовая база. Learning fixture удаляет только свой тестовый контент; dev-данные не используются. Отдельный smoke без Django/PostgreSQL: укажите `tests/e2e/test_frontend_smoke.py` вместо папки.
 
 ## Как проверить Auth UI вручную
 
 После запуска PostgreSQL и backend на `127.0.0.1:8000` откройте отдельный терминал в `frontend` и выполните `npm.cmd run dev`. В браузере откройте `http://127.0.0.1:5173/register`, создайте локальный тестовый аккаунт, войдите на `/login`, обновите `/session` и нажмите «Выйти». Регистрация сама не выполняет вход. Поля подписаны, поддерживают Tab/Enter, во время отправки отключаются. Прямые переходы обслуживаются SPA fallback Vite; `next`/`returnTo` не применяются.
 
 Интерфейс MVP русский, без переключателя языка UI; RU/EN учебных материалов и тестирования остаются независимыми. Пароль регистрации проверяется по текущей политике Django, при входе — только заполненность. Клиент использует общий CSRF bootstrap и Django sessions, без хранения пароля/токенов в Web Storage. Подробности слоёв, обработки ошибок и тестов — в [frontend/README.md](frontend/README.md).
+
+## Как проверить Learning UI вручную
+
+После запуска backend/frontend откройте `http://127.0.0.1:5173/topics`. Если вы гость, войдите — приложение вернёт вас к каталогу. При отсутствии опубликованных тем показано пустое состояние. Откройте существующую Published-тему, переключите «Язык материала» на English, обновите страницу и проверьте Back/Forward. Словарь находится под статьёй и следует её языку; интерфейс остаётся русским.
+
+Открытие статьи само не меняет чтение. Кнопка «Отметить «Прочитано»» сохраняет единую для RU/EN отметку; она остаётся после обновления. Реальный локальный аккаунт и отметка сохраняются в dev-БД, в отличие от автоматически очищаемых E2E-данных. Произвольные `next`/`returnTo` не используются. Возврат к Learning держится в памяти вкладки; обновление самой `/login` очищает его, после входа тогда открывается `/session`. Подробности — в [frontend README](frontend/README.md).
 
 ## Что находится за пределами MVP
 
@@ -236,4 +244,4 @@ Auth E2E создаёт собственную случайную базу, пр
 
 ## Ограничения и решения перед разработкой
 
-Версии инструментов и русский UI MVP согласованы. Английский UI отложен; материалы и тестирование остаются двуязычными. Предстоят Learning UI, остальные сквозные проверки MVP и согласование начальных учебных материалов. Изменённый Auth E2E job нужно подтвердить фактическим GitHub Actions run после отдельного разрешения на push. Полный перечень продуктовых вопросов находится в PRD.
+Версии инструментов и русский UI MVP согласованы. Английский UI отложен; материалы и тестирование остаются двуязычными. Предстоят Assessment/Progress UI, полные сквозные проверки MVP и согласование начальных материалов. Новые Learning-тесты нужно подтвердить GitHub Actions run после отдельного разрешения на push. Полный перечень продуктовых вопросов находится в PRD.

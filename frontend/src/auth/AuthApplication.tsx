@@ -3,20 +3,21 @@ import type { FormEvent } from 'react'
 import { api, ApiError } from '../api/index.ts'
 import { NavigationLink } from './NavigationLink.tsx'
 import type { Navigate } from './NavigationLink.tsx'
-import type { Route } from './routing.ts'
+import type { AuthRoute } from './routing.ts'
 import { authError, SessionStore } from './session.ts'
 import { ru } from './texts.ts'
 import { trimEmail, validateForm } from './validation.ts'
 import type { FormErrors } from './validation.ts'
 
 interface Props {
-  route: Exclude<Route, '/'>
+  route: AuthRoute
   navigate: Navigate
   registeredEmail?: string
   onRegistered: (email: string) => void
+  onAuthenticated: () => void
 }
 
-export default function AuthApplication({ route, navigate, registeredEmail, onRegistered }: Props) {
+export default function AuthApplication({ route, navigate, registeredEmail, onRegistered, onAuthenticated }: Props) {
   const [session] = useState(() => new SessionStore(api.auth))
   const state = useSyncExternalStore(session.subscribe, session.getSnapshot)
   const [email, setEmail] = useState(registeredEmail ?? '')
@@ -38,9 +39,9 @@ export default function AuthApplication({ route, navigate, registeredEmail, onRe
   }, [session])
 
   useEffect(() => {
-    if (state.kind === 'authenticated' && route !== '/session') navigate('/session', true)
+    if (state.kind === 'authenticated' && route !== '/session') onAuthenticated()
     if (state.kind === 'anonymous' && route === '/session') navigate('/login', true)
-  }, [state.kind, route, navigate])
+  }, [state.kind, route, navigate, onAuthenticated])
 
   useEffect(() => { if (state.kind !== 'checking') title.current?.focus() }, [state.kind])
   useEffect(() => { if (message) errorBox.current?.focus() }, [message, state.kind])
@@ -65,7 +66,7 @@ export default function AuthApplication({ route, navigate, registeredEmail, onRe
         if (active.current) onRegistered(account.email)
       } else {
         await api.auth.login(trimEmail(email), password)
-        if (active.current) navigate('/session', true)
+        if (active.current) onAuthenticated()
       }
     } catch (error) {
       if (!active.current) return
@@ -123,6 +124,7 @@ export default function AuthApplication({ route, navigate, registeredEmail, onRe
           <p>{ru.signedIn}</p>
           <dl><dt>{ru.sessionEmail}</dt><dd className="session-email">{state.user.email}</dd></dl>
           <p className="help-text">{ru.sessionHelp}</p>
+          <p><NavigationLink to="/topics" navigate={navigate}>{ru.topics}</NavigationLink></p>
           {notice}
           <button disabled={pending} onClick={() => { void logout() }}>{pending ? ru.signingOut : ru.logout}</button>
           {pending && <p role="status">{ru.signingOut}</p>}

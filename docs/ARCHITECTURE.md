@@ -20,6 +20,8 @@ Frontend и API планируются под одним origin: общей сх
 
 В QIL-018 Auth UI использует фиксированные `/register`, `/login`, `/session` и History API браузера без новой router-библиотеки. Vite dev/preview обеспечивают SPA fallback и proxy `/api` с сохранением Host/Origin. Прямой переход и обновление auth-страницы заново проверяют `auth/me/`; только `authentication_required` означает гостя, ошибки связи оставляют сессию неизвестной. Русские тексты отделены от компонентов для будущего английского UI; язык учебных материалов не связан с языком UI. Публичная раздача SPA требует отдельного решения; backend/API-контракты этим этапом не меняются.
 
+QIL-019 расширяет этот роутинг каталогом `/topics` и статьёй `/topics/{topic_id}`; словарь — секция статьи. `?language=en` хранит язык материала для reload и Back/Forward, отсутствие параметра означает `ru`. Он не задаёт язык тестирования. Для гостя проверенный Learning-маршрут держится только в памяти вкладки и восстанавливается после входа; без него действует прежний переход на `/session`. Произвольные `next`/`returnTo` не принимаются. UI использует существующие GET контента/прогресса и явный POST `read`; публичные API и модель прогресса сохраняются.
+
 Vite нужен для разработки и сборки React. PostgreSQL хранит пользователей, контент, сессии, попытки и отметки чтения. Для MVP не нужны отдельные сервисы авторизации, очереди или дополнительные хранилища.
 
 ## 2. Стек и решения
@@ -264,7 +266,7 @@ Result содержит только три агрегата. Метаданны
 
 Будущие настройки поступают из окружения. В репозиторий попадёт только шаблон с фиктивными значениями; реальные секреты не коммитятся. Конкретный DB-драйвер, адаптеры Pytest и способ установки Python/Node-зависимостей согласуются до добавления.
 
-GitHub Actions запускает `backend_api`, `frontend_unit`, `frontend_check_build` и `playwright_e2e` на GitHub-hosted Ubuntu. `backend_api` использует отдельный service container PostgreSQL и временные значения переменных окружения. `frontend_unit` отдельно проверяет frontend unit-тесты; `frontend_check_build` сохраняет type-check и production build. В QIL-018 `playwright_e2e` сохраняет smoke production-сборки и добавляет Auth UI через реальный Django и собственную тестовую базу на PostgreSQL 17.11 service container. Для приёмки MVP потребуются также Learning/Assessment/Progress E2E. Все четыре job и критерии их прохождения описаны в разделе 8 [QA-стратегии](QA_STRATEGY.md).
+GitHub Actions запускает `backend_api`, `frontend_unit`, `frontend_check_build` и `playwright_e2e` на GitHub-hosted Ubuntu. `backend_api` использует отдельный service container PostgreSQL и временные значения переменных окружения. `frontend_unit` отдельно проверяет frontend unit-тесты; `frontend_check_build` сохраняет type-check и production build. В QIL-018 `playwright_e2e` добавил Auth UI через реальный Django и PostgreSQL 17.11, сохранив исходный smoke. QIL-019 добавляет Learning и чтение в существующий сбор тестов; workflow не меняется. Полные Assessment/Progress/MVP E2E ещё предстоят. Все четыре job и критерии описаны в разделе 8 [QA-стратегии](QA_STRATEGY.md).
 
 Jobs сохраняют JUnit-отчёты, а E2E при сбоях — очищенную диагностику только с синтетическими данными и без session/CSRF-секретов по правилам QA-стратегии. Ненулевой код проверки должен проваливать job: наличие XML-отчёта само по себе этого не обеспечивает. Автоматический deploy в текущий объём не входит.
 

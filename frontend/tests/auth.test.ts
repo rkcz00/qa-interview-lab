@@ -37,8 +37,8 @@ test('registration checks email and Unicode code-point length', () => {
 })
 
 test('UI routing accepts only fixed routes and does not resolve redirect targets', () => {
-  for (const route of ['/', '/register', '/login', '/session'] as const) assert.equal(resolveRoute(route), route)
-  for (const route of ['/logout', '/topics', 'https://outside.example.invalid', '//outside.example.invalid', '/login?next=/elsewhere']) {
+  for (const route of ['/', '/register', '/login', '/session', '/topics', '/topics/12'] as const) assert.equal(resolveRoute(route), route)
+  for (const route of ['/logout', 'https://outside.example.invalid', '//outside.example.invalid', '/login?next=/elsewhere']) {
     assert.equal(resolveRoute(route), null)
   }
 })
