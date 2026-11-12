@@ -2,6 +2,7 @@ export const ru = {
   brand: 'QA Interview Lab',
   home: 'На главную',
   topics: 'Темы подготовки',
+  progress: 'Мой прогресс',
   intro: 'Подготовка к техническим собеседованиям на русском и английском языках.',
   audience: 'Middle / Senior QA Engineers',
   login: 'Вход',

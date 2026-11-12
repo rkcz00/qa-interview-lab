@@ -8,10 +8,12 @@ import { authDestination, isLearningRoute, learningDestination, learningLocation
 import { learningRu } from './learning/texts.ts'
 import { assessmentLocation, isAssessmentRoute } from './assessment/routing.ts'
 import { assessmentRu } from './assessment/texts.ts'
+import { progressRu } from './progress/texts.ts'
 
 const AuthApplication = lazy(() => import('./auth/AuthApplication.tsx'))
 const LearningApplication = lazy(() => import('./learning/LearningApplication.tsx'))
 const AssessmentApplication = lazy(() => import('./assessment/AssessmentApplication.tsx'))
+const ProgressApplication = lazy(() => import('./progress/ProgressApplication.tsx'))
 
 export default function App() {
   const [address, setAddress] = useState(window.location.pathname + window.location.search)
@@ -62,9 +64,12 @@ export default function App() {
     return () => window.removeEventListener('popstate', changed)
   }, [])
   useEffect(() => {
-    document.title = route === '/' ? ru.brand : `${route === '/register' ? ru.register : route === '/login' ? ru.login : route === '/session' ? ru.session : isAssessmentRoute(route) ? assessmentRu.title : isLearningRoute(route) ? learningRu.catalog : ru.notFound} — ${ru.brand}`
+    document.title = route === '/' ? ru.brand : `${route === '/register' ? ru.register : route === '/login' ? ru.login : route === '/session' ? ru.session : route === '/progress' ? progressRu.title : isAssessmentRoute(route) ? assessmentRu.title : isLearningRoute(route) ? learningRu.catalog : ru.notFound} — ${ru.brand}`
   }, [route])
 
+  if (route === '/progress') return <Suspense fallback={<main><p role="status">{ru.checking}</p></main>}>
+    <ProgressApplication navigate={navigate} requireLogin={requireLogin} />
+  </Suspense>
   if (isAssessmentRoute(route)) return assessment ? <Suspense fallback={<main><p role="status">{ru.checking}</p></main>}>
     <AssessmentApplication key={pathname} location={assessment} navigate={navigate} requireLogin={requireLogin} articleLink={articleLink} />
   </Suspense> : <main><h1>{assessmentRu.title}</h1><p role="alert">{assessmentRu.invalidRoute}</p><NavigationLink to="/topics" navigate={navigate}>{ru.topics}</NavigationLink></main>
@@ -82,6 +87,7 @@ export default function App() {
       <p>{ru.intro}</p>
       <nav className="home-actions" aria-label="Вход и регистрация">
         <NavigationLink to="/topics" navigate={navigate}>{ru.topics}</NavigationLink>
+        <NavigationLink to="/progress" navigate={navigate}>{ru.progress}</NavigationLink>
         <NavigationLink to="/login" navigate={navigate}>{ru.loginAction}</NavigationLink>
         <NavigationLink to="/register" navigate={navigate}>{ru.register}</NavigationLink>
       </nav>

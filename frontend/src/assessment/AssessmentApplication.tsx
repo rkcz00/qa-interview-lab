@@ -145,6 +145,7 @@ export default function AssessmentApplication(props: Props) {
     <nav className="learning-nav" aria-label="Навигация тестирования">
       <NavigationLink to="/" navigate={props.navigate}>{ru.home}</NavigationLink>
       <NavigationLink to="/topics" navigate={props.navigate}>{text.topics}</NavigationLink>
+      <NavigationLink to="/progress" navigate={props.navigate}>{ru.progress}</NavigationLink>
       <NavigationLink to="/session" navigate={props.navigate}>{text.account}</NavigationLink>
     </nav>
     {(state.kind === 'checking' || state.kind === 'anonymous') && <p role="status">{ru.checking}</p>}

@@ -28,8 +28,9 @@ export function learningDestination(location: LearningLocation): Destination {
   return location.language === 'ru' ? path : `${path}?language=en`
 }
 
-// Only parsed internal Learning/Assessment destinations, never redirect query parameters.
+// Only known internal Learning/Assessment/Progress destinations, never redirect query parameters.
 export function authDestination(pending: Destination | undefined): Destination {
+  if (pending === '/progress') return '/progress'
   if (pending) {
     const [path, search = ''] = pending.split('?')
     if (isAssessmentRoute(path as Route)) {

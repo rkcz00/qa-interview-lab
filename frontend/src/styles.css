@@ -101,6 +101,17 @@ ul.field-error { padding-left: 20px; }
 .result-summary > div { padding: 24px; border: 1px solid #d7deea; border-radius: 10px; background: #fff; }
 .result-summary dt { color: #495873; }
 .result-summary dd { margin: 8px 0 0; font-size: 2rem; font-weight: 650; overflow-wrap: anywhere; }
+.progress-shell h1 { font-size: clamp(2rem, 6vw, 3rem); }
+.progress-shell h1:focus { outline: none; }
+.progress-refresh { margin: 12px 0 24px; }
+.topic-progress-list, .attempt-history-list { display: grid; gap: 16px; padding: 0; list-style: none; }
+.progress-card { padding: 24px; border: 1px solid #d7deea; border-radius: 10px; background: #fff; }
+.progress-card h3 { margin: 0 0 12px; font-size: 1.2rem; overflow-wrap: anywhere; }
+.progress-stats { display: flex; flex-wrap: wrap; gap: 16px 32px; margin: 20px 0; }
+.progress-stats > div { flex: 1 1 160px; min-width: 0; }
+.progress-stats dt { font-size: 0.9rem; color: #495873; }
+.progress-stats dd { margin: 4px 0 0; font-weight: 650; overflow-wrap: anywhere; }
+.progress-history { margin-top: 40px; }
 @media (max-width: 480px) {
   .auth-shell { margin: 0 auto; padding: 16px; }
   .auth-card { padding: 24px 20px; }

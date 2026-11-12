@@ -52,6 +52,7 @@ export default function LearningApplication({ location, navigate, requireLogin }
     <nav className="learning-nav" aria-label="Навигация обучения">
       <NavigationLink to="/" navigate={navigate}>{ru.home}</NavigationLink>
       {location.topicId !== null && <NavigationLink to={learningDestination({ topicId: null, language: location.language })} navigate={navigate}>{text.back}</NavigationLink>}
+      <NavigationLink to="/progress" navigate={navigate}>{ru.progress}</NavigationLink>
       <NavigationLink to="/session" navigate={navigate}>{text.session}</NavigationLink>
     </nav>
     {!authorized && authentication.kind !== 'error' && <p role="status">{ru.checking}</p>}

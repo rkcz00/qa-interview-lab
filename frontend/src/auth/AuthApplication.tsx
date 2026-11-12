@@ -125,6 +125,7 @@ export default function AuthApplication({ route, navigate, registeredEmail, onRe
           <dl><dt>{ru.sessionEmail}</dt><dd className="session-email">{state.user.email}</dd></dl>
           <p className="help-text">{ru.sessionHelp}</p>
           <p><NavigationLink to="/topics" navigate={navigate}>{ru.topics}</NavigationLink></p>
+          <p><NavigationLink to="/progress" navigate={navigate}>{ru.progress}</NavigationLink></p>
           {notice}
           <button disabled={pending} onClick={() => { void logout() }}>{pending ? ru.signingOut : ru.logout}</button>
           {pending && <p role="status">{ru.signingOut}</p>}
