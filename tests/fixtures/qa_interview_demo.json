@@ -1,0 +1,46 @@
+{
+  "translations": {
+    "ru": {
+      "title": "Тест-дизайн API: классы эквивалентности и границы",
+      "article_body": "Представим API корзины: поле quantity обязательно и принимает только целое число от 1 до 100 включительно. Это учебное правило для примера, а не новый контракт QA Interview Lab.\n\nСначала определите классы эквивалентности: допустимые целые 1–100, целые меньше 1, целые больше 100, отсутствующее поле и значения неподходящего типа. Один представитель класса полезен, если есть обоснование, что система обрабатывает его элементы одинаково; это допущение нужно проверять.\n\nДля анализа граничных значений возьмите 0, 1, 100 и 101: каждую границу и ближайшее целое снаружи. Дополнительное значение 50 представляет середину допустимого диапазона, но не заменяет проверки границ.\n\nОракул задаётся контрактом: 1 и 100 принимаются, 0 и 101 отклоняются. Проверяйте не только HTTP-статус и документированную ошибку, но и отсутствие частично изменённой корзины при отказе. Конкретные коды ошибок должны быть согласованы с владельцем API, а не придуманы тестом.\n\nНа интервью объясните, почему выбраны классы и границы, какие допущения сделаны и какие риски остались. Уточните правила для null, дробей, строк, неизвестных полей и конкурентных запросов. Такая аргументация важнее случайного большого набора значений."
+    },
+    "en": {
+      "title": "API test design: equivalence partitions and boundaries",
+      "article_body": "Consider a shopping-cart API: quantity is required and accepts only an integer from 1 to 100 inclusive. This is a teaching example, not a new QA Interview Lab API contract.\n\nFirst identify equivalence partitions: valid integers 1–100, integers below 1, integers above 100, an absent field, and values of the wrong type. One representative is useful when there is a reason to expect the same processing throughout a partition; that assumption still needs checking.\n\nFor boundary value analysis, use 0, 1, 100 and 101: each boundary and the nearest integer outside it. An additional value of 50 represents the middle of the valid range but does not replace boundary checks.\n\nThe contract supplies the oracle: 1 and 100 are accepted; 0 and 101 are rejected. Check the HTTP status, the documented error and the absence of partial cart changes after rejection. Agree specific error codes with the API owner instead of inventing them in a test.\n\nIn an interview, explain your partitions, boundaries, assumptions and remaining risks. Clarify the rules for null, fractions, strings, unknown fields and concurrent requests. This reasoning matters more than a large random collection of values."
+    }
+  },
+  "terms": [
+    {"position": 10, "translations": {
+      "ru": {"name": "Класс эквивалентности", "definition": "Группа входных значений, для которых ожидается сходное поведение системы относительно выбранного правила."},
+      "en": {"name": "Equivalence partition", "definition": "A group of input values expected to produce similar system behaviour for the rule being tested."}
+    }},
+    {"position": 20, "translations": {
+      "ru": {"name": "Граничное значение", "definition": "Значение на границе допустимой области или рядом с ней; помогает обнаружить ошибки сравнения и смещения на единицу."},
+      "en": {"name": "Boundary value", "definition": "A value at or near the edge of a valid domain, useful for detecting comparison and off-by-one errors."}
+    }},
+    {"position": 30, "translations": {
+      "ru": {"name": "Тестовый оракул", "definition": "Источник ожидаемого результата: например, согласованный API-контракт или бизнес-правило."},
+      "en": {"name": "Test oracle", "definition": "A source of the expected outcome, such as an agreed API contract or business rule."}
+    }}
+  ],
+  "questions": [
+    {"position": 10, "question_type": "single_choice", "translations": {
+      "ru": "quantity принимает целые от 1 до 100 включительно. Какое значение проверяет допустимую нижнюю границу?",
+      "en": "quantity accepts integers from 1 to 100 inclusive. Which value tests the valid lower boundary?"
+    }, "choices": [
+      {"position": 10, "is_correct": true, "translations": {"ru": "1", "en": "1"}},
+      {"position": 20, "is_correct": false, "translations": {"ru": "50", "en": "50"}},
+      {"position": 30, "is_correct": false, "translations": {"ru": "101", "en": "101"}}
+    ]},
+    {"position": 20, "question_type": "multiple_choice", "translations": {
+      "ru": "Выберите каждую границу диапазона целых 1–100 и ближайшее целое снаружи каждой границы.",
+      "en": "Select both boundaries of the integer range 1–100 and the nearest integer outside each boundary."
+    }, "choices": [
+      {"position": 10, "is_correct": true, "translations": {"ru": "0", "en": "0"}},
+      {"position": 20, "is_correct": true, "translations": {"ru": "1", "en": "1"}},
+      {"position": 30, "is_correct": true, "translations": {"ru": "100", "en": "100"}},
+      {"position": 40, "is_correct": true, "translations": {"ru": "101", "en": "101"}},
+      {"position": 50, "is_correct": false, "translations": {"ru": "50", "en": "50"}}
+    ]}
+  ]
+}

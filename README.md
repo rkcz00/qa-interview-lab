@@ -6,7 +6,11 @@ QA Interview Lab — учебное веб-приложение для подг�
 
 ## Текущий статус
 
-QIL-023: локальная приёмка безопасных CI-отчётов — PASS. Для backend, frontend unit и Playwright добавлен общий formatter JUnit: публикуются только ограниченные метаданные, без сырых ошибок/логов и browser recordings. Пройдены 130 frontend unit, 221 backend-тест и 22 подтеста, 59 Playwright, type-check/build и проверки formatter. Приложение, API, тесты и зависимости сохранены. Новый CI run и ZIP/XML проверяются после публикации; политика и доказательства — в [CI_REPORTS.md](docs/CI_REPORTS.md).
+QIL-024: техническая локальная приёмка — PASS: 227 backend/HTTPX-тестов, 130 frontend unit, 60 Playwright, Django/миграции/pip, type-check/build и cleanup. Подготовлены [демонстрационная тема RU/EN и явный загрузчик](docs/DEMO_CONTENT.md), добавлен сквозной [редакторский сценарий](docs/CONTENT_ADMIN_ACCEPTANCE.md). Он создаёт контент через настоящий Content Admin и проверяет его в learner UI на отдельной PostgreSQL. CI нового SHA проверяется после публикации. Смысловая редактура переводов человеком перед публичным использованием остаётся отдельной проверкой; dev-БД не заполняется автоматически.
+
+QIL-023 опубликован: [run #43434926130](https://github.com/rkcz00/qa-interview-lab/actions/runs/43434926130), SHA `b9ae51c2e66f36a548f02e2abe946bcafe5ce65d`, все четыре jobs — PASS. Через REST API проверены три ZIP, каждый только с `junit.xml`, срок хранения семь дней; лишних файлов и обнаруженных секретов нет.
+
+QIL-023: локальная приёмка безопасных CI-отчётов — PASS. Для backend, frontend unit и Playwright добавлен общий formatter JUnit: публикуются только ограниченные метаданные, без сырых ошибок/логов и browser recordings. Пройдены 130 frontend unit, 221 backend-тест и 22 подтеста, 59 Playwright, type-check/build и проверки formatter. Приложение, API, тесты и зависимости сохранены. Публикация подтверждена выше; политика — в [CI_REPORTS.md](docs/CI_REPORTS.md).
 
 QIL-022: сквозная приёмка Auth/Learning/Assessment/Progress и все четыре CI jobs — PASS в [run #43428542799](https://github.com/rkcz00/qa-interview-lab/actions/runs/43428542799), SHA `19bb5eea74ac6870f5a3f32811cdd24280f8de05`. Локально пройдены 59 Playwright, 130 frontend unit, 221 backend-тест и 22 подтеста. Матрица — в [отчёте приёмки](docs/MVP_ACCEPTANCE.md).
 
@@ -218,7 +222,7 @@ docker compose up -d --wait postgres
 
 ## Проверки в GitHub Actions
 
-[Workflow CI](.github/workflows/ci.yml) настроен на push в `main`, pull request в `main` и ручной запуск. `backend_api` применяет миграции в отдельной PostgreSQL 17.11 и запускает backend/API-тесты. `frontend_unit` использует Node.js 24.22.2, `npm ci` и тот же Node test/glob, что в `npm test`, с JUnit reporter; `frontend_check_build` — `npm run build`. `playwright_e2e` собирает всю папку E2E через production-сборку, реальный Django и свою PostgreSQL; дополнительно сверяет политику пароля с Django. Все четыре jobs обязательны, ошибки не подавляются. Три тестовых job публикуют только обезличенный JUnit с хранением семь дней; build artifact не создаёт. Raw XML/logs, screenshots/trace/video/HTML и окружение не публикуются. Политика и компромисс диагностики — в [CI_REPORTS.md](docs/CI_REPORTS.md). CI проверяется для точного SHA после разрешённой публикации; редакторская приёмка контента остаётся QIL-024.
+[Workflow CI](.github/workflows/ci.yml) настроен на push в `main`, pull request в `main` и ручной запуск. `backend_api` применяет миграции в отдельной PostgreSQL 17.11 и запускает backend/API-тесты. `frontend_unit` использует Node.js 24.22.2, `npm ci` и тот же Node test/glob, что в `npm test`, с JUnit reporter; `frontend_check_build` — `npm run build`. `playwright_e2e` собирает всю папку E2E через production-сборку, реальный Django и свою PostgreSQL; дополнительно сверяет политику пароля с Django. Все четыре jobs обязательны, ошибки не подавляются. Три тестовых job публикуют только обезличенный JUnit с хранением семь дней; build artifact не создаёт. Raw XML/logs, screenshots/trace/video/HTML и окружение не публикуются. Политика и компромисс диагностики — в [CI_REPORTS.md](docs/CI_REPORTS.md). CI проверяется для точного SHA после разрешённой публикации; QIL-024 добавляет редакторский сценарий в существующий сбор E2E без изменения workflow.
 
 Для полного локального браузерного прогона нужны пакеты из `backend/requirements-dev.lock`, собранный frontend, работающая PostgreSQL и согласованный браузер Playwright в `.venv/ms-playwright` из QIL-016. Предварительно загрузите существующий `.env` в процесс PowerShell по инструкции выше; новые секреты не требуются. Установка браузеров согласуется отдельно. Из корня проекта:
 
@@ -254,6 +258,10 @@ Auth/Learning/Assessment/Progress E2E создаёт собственную сл
 
 В истории показаны дата в часовом поясе браузера, язык теста и только три агрегата; ссылка открывает существующий `/attempts/{id}`. Проверьте обновление, Back/Forward и повторный вход. У снятой с публикации темы сохраняются прогресс и история, но нет ссылки на статью. Если у такой темы нет завершённой попытки, API не предоставляет название: показаны ID и «Название недоступно». Новых API для этого не добавлялось.
 
+## Демонстрационная тема и Content Admin
+
+[DEMO_CONTENT.md](docs/DEMO_CONTENT.md) содержит описание учебной темы, безопасную явную команду загрузки и порядок публикации через Content Admin. Загрузчик создаёт только новую полную Draft-тему без аккаунтов и секретов, отклоняет повтор с тем же названием и ничего не публикует автоматически. [Матрица QIL-024](docs/CONTENT_ADMIN_ACCEPTANCE.md) описывает реальные Admin/learner-проверки, временную PostgreSQL и ограничения. Не используйте технического superuser вместо Content Admin при приёмке прав.
+
 ## Что находится за пределами MVP
 
 Практические задания, открытые вопросы, повторение сложных тем, подтверждение email и восстановление пароля. Для них нет задач реализации в текущем MVP backlog.
@@ -262,4 +270,4 @@ Auth/Learning/Assessment/Progress E2E создаёт собственную сл
 
 ## Ограничения и решения перед разработкой
 
-Версии инструментов и русский UI MVP согласованы. Английский UI отложен; материалы и тестирование двуязычны. Сквозная приёмка QIL-022 описана в [отчёте](docs/MVP_ACCEPTANCE.md), политика CI-артефактов — в [CI_REPORTS.md](docs/CI_REPORTS.md). Предстоит согласование начальных материалов; автоматический успех на синтетическом контенте не заменяет редакторскую проверку QIL-024. Полный перечень продуктовых вопросов находится в PRD.
+Версии инструментов и русский UI MVP согласованы. Английский UI отложен; материалы и тестирование двуязычны. Сквозная приёмка QIL-022 описана в [отчёте](docs/MVP_ACCEPTANCE.md), редакторская — в [матрице QIL-024](docs/CONTENT_ADMIN_ACCEPTANCE.md), политика CI-артефактов — в [CI_REPORTS.md](docs/CI_REPORTS.md). Демо-набор подготовлен, но автоматический успех не заменяет человеческую оценку смысла и качества переводов перед публичным использованием. Полный перечень продуктовых вопросов находится в PRD.

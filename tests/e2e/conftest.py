@@ -73,6 +73,26 @@ def auth_app():
                 owned_topics.difference_update(topic_ids)
             return data
 
+        owned_admin_topics = set()
+
+        def content_admin_data(action, **payload):
+            if action == "own" and set(payload) == {"topic_id"} and str(payload["topic_id"]).isdigit():
+                owned_admin_topics.add(payload["topic_id"])
+                return {"owned": True}
+            if action == "cleanup" and payload.get("topic_id") not in owned_admin_topics:
+                pytest.fail("Content Admin cleanup is limited to topics created by this scenario", pytrace=False)
+            if action not in {"editor", "inspect", "cleanup"}:
+                pytest.fail("Unknown Content Admin fixture action", pytrace=False)
+            result = subprocess.run([sys.executable, "-B", str(ROOT / "tests/e2e/content_admin_data.py"), database, action],
+                cwd=ROOT, env=backend_env, input=json.dumps(payload).encode("utf-8"),
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+            if result.returncode:
+                pytest.fail("Content Admin fixture failed; private data was not logged", pytrace=False)
+            data = json.loads(result.stdout)
+            if action == "cleanup":
+                owned_admin_topics.remove(payload["topic_id"])
+            return data
+
         with backend_http([sys.executable, "-B", str(ROOT / "tests/api/harness.py"), database],
                 cwd=ROOT / "backend", env=backend_env) as (backend, backend_process):
             processes.append(backend_process)
@@ -83,7 +103,9 @@ def auth_app():
             with backend_http([node, str(ROOT / "frontend/tests/preview-server.mjs")],
                     cwd=ROOT / "frontend", env=frontend_env) as (frontend, frontend_process):
                 processes.append(frontend_process)
-                yield SimpleNamespace(url=str(frontend.base_url).rstrip("/"), learning_data=learning_data)
+                yield SimpleNamespace(url=str(frontend.base_url).rstrip("/"),
+                    admin_url=str(backend.base_url).rstrip("/"), learning_data=learning_data,
+                    content_admin_data=content_admin_data)
     finally:
         try:
             if created:
