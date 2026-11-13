@@ -6,7 +6,9 @@ QA Interview Lab — учебное веб-приложение для подг�
 
 ## Текущий статус
 
-QIL-022: локальная сквозная приёмка существующих Auth/Learning/Assessment/Progress — PASS на production-сборке, реальном Django и отдельной PostgreSQL. Пройдены 59 Playwright-тестов (54 прежних и 5 новых), 130 frontend unit-тестов, 221 backend-тест и 22 подтеста, type-check/build и Django/миграции/pip check. Добавлены полный путь для четырёх пар RU/EN и сценарий Draft/редактирования/ownership; продуктовый код, API и зависимости не менялись. Матрица и фактические проверки — в [отчёте приёмки](docs/MVP_ACCEPTANCE.md); CI нового SHA проверяется после публикации.
+QIL-023: локальная приёмка безопасных CI-отчётов — PASS. Для backend, frontend unit и Playwright добавлен общий formatter JUnit: публикуются только ограниченные метаданные, без сырых ошибок/логов и browser recordings. Пройдены 130 frontend unit, 221 backend-тест и 22 подтеста, 59 Playwright, type-check/build и проверки formatter. Приложение, API, тесты и зависимости сохранены. Новый CI run и ZIP/XML проверяются после публикации; политика и доказательства — в [CI_REPORTS.md](docs/CI_REPORTS.md).
+
+QIL-022: сквозная приёмка Auth/Learning/Assessment/Progress и все четыре CI jobs — PASS в [run #43428542799](https://github.com/rkcz00/qa-interview-lab/actions/runs/43428542799), SHA `19bb5eea74ac6870f5a3f32811cdd24280f8de05`. Локально пройдены 59 Playwright, 130 frontend unit, 221 backend-тест и 22 подтеста. Матрица — в [отчёте приёмки](docs/MVP_ACCEPTANCE.md).
 
 QIL-021 опубликован; все четыре jobs подтверждены через GitHub REST API в [run #43205889191, attempt 2](https://github.com/rkcz00/qa-interview-lab/actions/runs/43205889191) для SHA `a36e705816a7ef355abca9752a97fcc26af59fb7`. Повтор был отдельно разрешён после отказа отмены завершённой первой попытки.
 
@@ -216,7 +218,7 @@ docker compose up -d --wait postgres
 
 ## Проверки в GitHub Actions
 
-[Workflow CI](.github/workflows/ci.yml) настроен на push в `main`, pull request в `main` и ручной запуск. `backend_api` применяет миграции в отдельной PostgreSQL 17.11 и запускает backend/API-тесты. `frontend_unit` использует Node.js 24.22.2, `npm ci` и `npm test`; `frontend_check_build` — `npm run build` с проверкой типов. `playwright_e2e` собирает все `tests/e2e`: исходный smoke, Auth/Learning/Assessment/Progress и сквозные сценарии QIL-022 через production-сборку, реальный Django и отдельную PostgreSQL 17.11; дополнительно сверяет политику пароля с Django. Все четыре job обязательны, ошибки не подавляются. При падении сохраняется безопасный JUnit-отчёт. Workflow не менялся; результат CI проверяется для точного SHA после разрешённой публикации. Приёмка отчётов CI и учебного контента остаётся QIL-023/QIL-024.
+[Workflow CI](.github/workflows/ci.yml) настроен на push в `main`, pull request в `main` и ручной запуск. `backend_api` применяет миграции в отдельной PostgreSQL 17.11 и запускает backend/API-тесты. `frontend_unit` использует Node.js 24.22.2, `npm ci` и тот же Node test/glob, что в `npm test`, с JUnit reporter; `frontend_check_build` — `npm run build`. `playwright_e2e` собирает всю папку E2E через production-сборку, реальный Django и свою PostgreSQL; дополнительно сверяет политику пароля с Django. Все четыре jobs обязательны, ошибки не подавляются. Три тестовых job публикуют только обезличенный JUnit с хранением семь дней; build artifact не создаёт. Raw XML/logs, screenshots/trace/video/HTML и окружение не публикуются. Политика и компромисс диагностики — в [CI_REPORTS.md](docs/CI_REPORTS.md). CI проверяется для точного SHA после разрешённой публикации; редакторская приёмка контента остаётся QIL-024.
 
 Для полного локального браузерного прогона нужны пакеты из `backend/requirements-dev.lock`, собранный frontend, работающая PostgreSQL и согласованный браузер Playwright в `.venv/ms-playwright` из QIL-016. Предварительно загрузите существующий `.env` в процесс PowerShell по инструкции выше; новые секреты не требуются. Установка браузеров согласуется отдельно. Из корня проекта:
 
@@ -260,4 +262,4 @@ Auth/Learning/Assessment/Progress E2E создаёт собственную сл
 
 ## Ограничения и решения перед разработкой
 
-Версии инструментов и русский UI MVP согласованы. Английский UI отложен; материалы и тестирование двуязычны. Сквозная приёмка QIL-022 и результаты описаны в [отчёте](docs/MVP_ACCEPTANCE.md); предстоят проверка CI-артефактов и согласование начальных материалов. Полный перечень продуктовых вопросов находится в PRD. Успех на синтетическом контенте не заменяет редакторскую проверку QIL-024.
+Версии инструментов и русский UI MVP согласованы. Английский UI отложен; материалы и тестирование двуязычны. Сквозная приёмка QIL-022 описана в [отчёте](docs/MVP_ACCEPTANCE.md), политика CI-артефактов — в [CI_REPORTS.md](docs/CI_REPORTS.md). Предстоит согласование начальных материалов; автоматический успех на синтетическом контенте не заменяет редакторскую проверку QIL-024. Полный перечень продуктовых вопросов находится в PRD.

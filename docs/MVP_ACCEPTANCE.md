@@ -41,7 +41,7 @@ Playwright открывает production-сборку React через Vite prev
 - Полный Playwright: 59 тестов за 307.76 с, включая 54 прежних и 5 новых; пропусков нет — PASS. Направленный прогон новых сценариев: 5 PASS. Временные БД, browser contexts, процессы backend/frontend и временные файлы очищены.
 - Визуальная проверка desktop/mobile, Python syntax, Markdown/локальные ссылки, YAML, сбор новых тестов существующим workflow, lock-файлы, проверка секретов и `git diff --check` — PASS. Прежние E2E/smoke и продуктовый код не менялись.
 
-Результат GitHub Actions проверяется после разрешённой публикации для точного SHA и всех четырёх jobs. Локальный PASS не заменяет этот результат; итог нового run приводится в отчёте QIL-022. QIL-021 подтверждён [run 43205889191, attempt 2](https://github.com/rkcz00/qa-interview-lab/actions/runs/43205889191) для SHA `a36e705816a7ef355abca9752a97fcc26af59fb7`.
+Все четыре jobs QIL-022 подтверждены [run 43428542799](https://github.com/rkcz00/qa-interview-lab/actions/runs/43428542799), attempt 1, SHA `19bb5eea74ac6870f5a3f32811cdd24280f8de05`; локальный PASS не подменял CI. Последующая политика безопасных JUnit и аудит artifacts описаны в [CI_REPORTS.md](CI_REPORTS.md). QIL-021 ранее подтверждён [run 43205889191, attempt 2](https://github.com/rkcz00/qa-interview-lab/actions/runs/43205889191) для SHA `a36e705816a7ef355abca9752a97fcc26af59fb7`.
 
 ## Повторный запуск
 

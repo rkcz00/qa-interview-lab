@@ -58,14 +58,79 @@ jobs:
           python backend/manage.py migrate --noinput
           python backend/manage.py makemigrations --check --dry-run
           python backend/manage.py check
-          python -m pytest -q --show-capture=no --junitxml=test-results/backend.xml
-      - name: Upload backend test report
-        if: ${{ always() }}
+          python -m pytest -q --tb=no --show-capture=no --no-summary -o junit_logging=no -o junit_log_passing_tests=false --junitxml="$RUNNER_TEMP/qil-raw-junit.xml" > "$RUNNER_TEMP/qil-raw-test.log" 2>&1
+      - &safe-junit
+        name: Build safe JUnit report
+        id: report
+        if: ${{ always() && !cancelled() }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import math
+          import os
+          from pathlib import Path
+          import sys
+          import xml.etree.ElementTree as ET
+
+          job = os.environ["GITHUB_JOB"]
+          if job not in {"backend_api", "frontend_unit", "playwright_e2e"}:
+              raise SystemExit("SAFE_JUNIT=BLOCKED unknown job")
+          root = Path(os.environ["RUNNER_TEMP"]).resolve(strict=True)
+          raw = root / "qil-raw-junit.xml"
+          directory = root / "qil-safe-report"
+          target = directory / "junit.xml"
+          if directory.is_symlink() or target.exists() or target.is_symlink():
+              raise SystemExit("SAFE_JUNIT=BLOCKED unsafe output path")
+          directory.mkdir(exist_ok=True)
+          if directory.resolve().parent != root:
+              raise SystemExit("SAFE_JUNIT=BLOCKED output outside runner temp")
+
+          def duration(value):
+              try:
+                  number = float(value)
+                  return number if math.isfinite(number) and 0 <= number <= 86400 else 0.0
+              except (TypeError, ValueError):
+                  return 0.0
+
+          invalid = False
+          try:
+              if raw.is_symlink() or not raw.is_file() or raw.stat().st_size > 20000000:
+                  raise ValueError("Invalid report input")
+              content = raw.read_bytes()
+              if b"<!DOCTYPE" in content.upper() or b"<!ENTITY" in content.upper():
+                  raise ValueError("XML declarations are forbidden")
+              cases = list(ET.fromstring(content).iter("testcase"))
+              if not 1 <= len(cases) <= 10000:
+                  raise ValueError("Invalid test count")
+              records = [(duration(case.get("time")), next((tag for tag in ("error", "failure", "skipped") if case.find(tag) is not None), None)) for case in cases]
+          except (OSError, ValueError, ET.ParseError):
+              invalid = True
+              records = [(0.0, "error")]
+
+          counts = {tag: sum(status == tag for _, status in records) for tag in ("failure", "error", "skipped")}
+          tree = ET.Element("testsuites")
+          suite = ET.SubElement(tree, "testsuite", name=job, tests=str(len(records)), failures=str(counts["failure"]), errors=str(counts["error"]), skipped=str(counts["skipped"]), time=f"{sum(seconds for seconds, _ in records):.6f}")
+          for index, (seconds, status) in enumerate(records, 1):
+              case = ET.SubElement(suite, "testcase", classname=job, name=f"case_{index:04d}", time=f"{seconds:.6f}")
+              if status:
+                  ET.SubElement(case, status, message="Report unavailable" if invalid else "Details omitted by CI privacy policy")
+          ET.indent(tree)
+          with target.open("xb") as stream:
+              ET.ElementTree(tree).write(stream, encoding="utf-8", xml_declaration=True)
+          with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
+              stream.write("ready=true\n")
+          print(f"SAFE_JUNIT={job} tests={len(records)} failures={counts['failure']} errors={counts['error']} skipped={counts['skipped']}")
+          raise SystemExit(1 if invalid else 0)
+          PY
+      - &upload-junit
+        name: Upload safe JUnit report
+        if: ${{ always() && !cancelled() && steps.report.outputs.ready == 'true' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: backend-test-report
-          path: test-results/backend.xml
-          if-no-files-found: warn
+          name: ${{ github.job }}-junit
+          path: ${{ runner.temp }}/qil-safe-report/junit.xml
+          if-no-files-found: error
+          include-hidden-files: false
           retention-days: 7
 
   frontend_unit:
@@ -86,7 +151,9 @@ jobs:
       - name: Install locked frontend dependencies
         run: npm ci --no-audit --no-fund
       - name: Run frontend unit tests
-        run: npm test
+        run: node --test --test-reporter=junit --test-reporter-destination="$RUNNER_TEMP/qil-raw-junit.xml" "tests/**/*.test.ts" > "$RUNNER_TEMP/qil-raw-test.log" 2>&1
+      - *safe-junit
+      - *upload-junit
 
   frontend_check_build:
     runs-on: ubuntu-24.04
@@ -152,17 +219,11 @@ jobs:
         run: |
           python -m pip install -r backend/requirements-dev.lock
           python -m playwright install --with-deps --only-shell chromium
-      - name: Run smoke and Auth UI against real Django and PostgreSQL
+      - name: Run full E2E against real Django and PostgreSQL
         run: |
           export POSTGRES_PASSWORD="ci-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           echo "::add-mask::$POSTGRES_PASSWORD"
           python frontend/tools/check_password_policy.py
-          python -m pytest -c tests/e2e/pytest.ini tests/e2e -q --show-capture=no --junitxml=test-results/playwright.xml
-      - name: Upload browser test report on failure
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: playwright-test-report
-          path: test-results/playwright.xml
-          if-no-files-found: warn
-          retention-days: 7
+          python -m pytest -c tests/e2e/pytest.ini tests/e2e -q --tb=no --show-capture=no --no-summary -o junit_logging=no -o junit_log_passing_tests=false --junitxml="$RUNNER_TEMP/qil-raw-junit.xml" > "$RUNNER_TEMP/qil-raw-test.log" 2>&1
+      - *safe-junit
+      - *upload-junit
