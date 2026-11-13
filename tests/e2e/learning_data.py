@@ -11,15 +11,16 @@ def main():
     database, action, *ids = sys.argv[1:]
     if not re.fullmatch(r"test_qil006_[0-9a-f]{32}", database) or os.environ.get("POSTGRES_DB") != database:
         raise RuntimeError("Expected the owning disposable database")
-    if action not in {"create", "cleanup", "draft", "info"} or any(not value.isascii() or not value.isdigit() for value in ids):
+    if action not in {"create", "cleanup", "draft", "revise_draft", "info"} or any(not value.isascii() or not value.isdigit() for value in ids):
         raise RuntimeError("Invalid fixture action")
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
     import django
     django.setup()
     from django.db import connection, transaction
     from apps.learning.models import Language, Term, TermTranslation, Topic, TopicStatus, TopicTranslation
+    from apps.learning.changes import edit_topics
     from apps.learning.tests.test_content import create_bilingual_topic
-    from apps.assessments.models import Attempt, AttemptStatus, TopicProgress
+    from apps.assessments.models import Attempt, AttemptStatus, ChoiceTranslation, QuestionTranslation, TopicProgress
 
     with connection.cursor() as cursor:
         cursor.execute("SELECT current_database()")
@@ -63,6 +64,18 @@ def main():
                 topic.status = TopicStatus.DRAFT
                 topic.save(update_fields=("status",))
             result = {"draft": "PASS"}
+        elif action == "revise_draft":
+            topics = list(Topic.objects.filter(pk__in=ids))
+            if len(topics) != len(set(ids)) or any(topic.status != TopicStatus.DRAFT for topic in topics):
+                raise RuntimeError("Revision requires owned Draft topics")
+            with edit_topics({topic.pk: topic.revision for topic in topics}, using="default") as locked:
+                for topic in locked.values():
+                    for language in Language.values:
+                        revised = "Изменено после начала попытки" if language == "ru" else "Revised after the attempt started"
+                        TopicTranslation.objects.filter(topic=topic, language=language).update(title=revised, article_body=revised)
+                        QuestionTranslation.objects.filter(question__topic=topic, language=language).update(text=revised)
+                        ChoiceTranslation.objects.filter(choice__question__topic=topic, language=language).update(text=revised)
+            result = {"revised": "PASS"}
         else:
             result = {"read_count": TopicProgress.objects.filter(topic_id__in=ids).count(),
                       "attempt_count": Attempt.objects.filter(topic_id__in=ids).count(),

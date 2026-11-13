@@ -125,7 +125,7 @@ npm.cmd run build
 
 Тесты используют встроенный `node:test` Node 24: API-контракты с подменённым Fetch, Auth/Learning, выбор и payload ответов, независимые языки, безопасный результат, гонки, двойной submit, точный повтор и проекции прогресса/истории. Они не заменяют backend HTTPX/DB-тесты. Проверки типов подтверждают отсутствие внутренних полей в DTO. Новых npm-зависимостей нет.
 
-Job `frontend_unit` в [workflow CI](../.github/workflows/ci.yml) выполняет Node.js 24.22.2, `npm ci` и `npm test`. Он запускается на push и pull request в `main` и вручную; ошибка завершает job с ошибкой. Сохраняются `frontend_check_build`, `backend_api`, `playwright_e2e`. QIL-020 подтверждён [run #43198463146](https://github.com/rkcz00/qa-interview-lab/actions/runs/43198463146); QIL-021 в GitHub Actions — `NOT_RUN` до отдельно разрешённого push.
+Job `frontend_unit` в [workflow CI](../.github/workflows/ci.yml) выполняет Node.js 24.22.2, `npm ci` и `npm test`. Он запускается на push и pull request в `main` и вручную; ошибка завершает job с ошибкой. Сохраняются `frontend_check_build`, `backend_api`, `playwright_e2e`. QIL-021 подтверждён [run #43205889191, attempt 2](https://github.com/rkcz00/qa-interview-lab/actions/runs/43205889191); CI новых приёмочных тестов QIL-022 проверяется для нового SHA после публикации.
 
 Из корня проекта после загрузки существующего `.env` в процесс PowerShell и сборки frontend:
 
@@ -145,4 +145,6 @@ $env:PLAYWRIGHT_BROWSERS_PATH = (Resolve-Path '.venv\ms-playwright').Path
 
 `test_progress_ui.py` проверяет пустой и заполненный прогресс, независимые RU/EN в истории, лучший результат после худшей попытки, Draft с историей и без неё, прямой вход/Back/Forward/reload, безопасные ошибки и отсутствие доступа B к истории/прогрессу/результату A напрямую через реальный API. Состояние готовится реальными read/start/submit-запросами только в изолированной E2E-БД; успешные ответы не подменяются. Проверка узкого viewport и безопасные снимки синтетического прогресса не сохраняют cookies/CSRF.
 
-Прежний `tests/e2e/test_frontend_smoke.py` сохранён без изменений: он проверяет `/` без backend и DB. Для запуска только его укажите этот файл вместо папки. Браузер установленного Playwright находится в `.venv/ms-playwright`; новая установка требует согласования. Полная E2E-приёмка MVP остаётся QIL-022/QIL-023.
+`test_mvp_acceptance.py` объединяет регистрацию без auto-login, login/reload, RU/EN-материалы/словарь, чтение, оба типа вопросов, независимый язык теста, submit, нормализованный повтор/409, прогресс/историю и logout/новый вход в четыре полных прохода. Desktop/mobile и клавиатура проверяются в этих же историях. Отдельный сценарий снимает тему с публикации, меняет публичные тексты только принадлежащей fixture Draft-темы и подтверждает старую попытку и изоляцию второго browser context напрямую через API. Успешные запросы не подменяются. Матрица, команды и результаты — в [отчёте QIL-022](../docs/MVP_ACCEPTANCE.md).
+
+Прежний `tests/e2e/test_frontend_smoke.py` сохранён без изменений: он проверяет `/` без backend и DB. Для запуска только его укажите этот файл вместо папки. Браузер установленного Playwright находится в `.venv/ms-playwright`; новая установка требует согласования. CI-артефакты и редакторская приёмка контента остаются отдельными этапами.

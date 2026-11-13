@@ -6,7 +6,9 @@ QA Interview Lab — учебное веб-приложение для подг�
 
 ## Текущий статус
 
-QIL-021: добавлен защищённый `/progress` — состояние чтения, серверные освоение/лучший результат и история завершённых попыток с переходом к сохранённому результату. Прогресс общий для RU/EN, язык каждой попытки указан отдельно. Локально PASS: 130 frontend unit-тестов, type-check/build, 221 backend-тест + 22 подтеста, 54 Playwright-теста, Django/миграции/pip check. Сохранены Auth/Learning/Assessment и `/`. Backend/API/scoring и зависимости не менялись. GitHub Actions нового commit — `NOT_RUN`, push не выполнялся; подробности — в [backlog](docs/BACKLOG.md).
+QIL-022: локальная сквозная приёмка существующих Auth/Learning/Assessment/Progress — PASS на production-сборке, реальном Django и отдельной PostgreSQL. Пройдены 59 Playwright-тестов (54 прежних и 5 новых), 130 frontend unit-тестов, 221 backend-тест и 22 подтеста, type-check/build и Django/миграции/pip check. Добавлены полный путь для четырёх пар RU/EN и сценарий Draft/редактирования/ownership; продуктовый код, API и зависимости не менялись. Матрица и фактические проверки — в [отчёте приёмки](docs/MVP_ACCEPTANCE.md); CI нового SHA проверяется после публикации.
+
+QIL-021 опубликован; все четыре jobs подтверждены через GitHub REST API в [run #43205889191, attempt 2](https://github.com/rkcz00/qa-interview-lab/actions/runs/43205889191) для SHA `a36e705816a7ef355abca9752a97fcc26af59fb7`. Повтор был отдельно разрешён после отказа отмены завершённой первой попытки.
 
 QIL-020 опубликован и подтверждён [GitHub Actions run #43198463146](https://github.com/rkcz00/qa-interview-lab/actions/runs/43198463146) для SHA `b3fa54c672eb3e8438ef137c364c3cdda239d11a`: все четыре job успешны.
 
@@ -214,7 +216,7 @@ docker compose up -d --wait postgres
 
 ## Проверки в GitHub Actions
 
-[Workflow CI](.github/workflows/ci.yml) настроен на push в `main`, pull request в `main` и ручной запуск. `backend_api` применяет миграции в отдельной PostgreSQL 17.11 и запускает backend/API-тесты. `frontend_unit` использует Node.js 24.22.2, `npm ci` и `npm test`; `frontend_check_build` — `npm run build` с проверкой типов. `playwright_e2e` собирает все `tests/e2e`: исходный smoke, Auth/Learning/Assessment/Progress через production-сборку, реальный Django и отдельную PostgreSQL 17.11; дополнительно сверяет политику пароля с Django. Все четыре job обязательны, ошибки не подавляются. При падении сохраняется безопасный JUnit-отчёт. Полная приёмка MVP остаётся в QIL-022/QIL-023. Workflow не менялся; запуск нового commit требует отдельного разрешения на push.
+[Workflow CI](.github/workflows/ci.yml) настроен на push в `main`, pull request в `main` и ручной запуск. `backend_api` применяет миграции в отдельной PostgreSQL 17.11 и запускает backend/API-тесты. `frontend_unit` использует Node.js 24.22.2, `npm ci` и `npm test`; `frontend_check_build` — `npm run build` с проверкой типов. `playwright_e2e` собирает все `tests/e2e`: исходный smoke, Auth/Learning/Assessment/Progress и сквозные сценарии QIL-022 через production-сборку, реальный Django и отдельную PostgreSQL 17.11; дополнительно сверяет политику пароля с Django. Все четыре job обязательны, ошибки не подавляются. При падении сохраняется безопасный JUnit-отчёт. Workflow не менялся; результат CI проверяется для точного SHA после разрешённой публикации. Приёмка отчётов CI и учебного контента остаётся QIL-023/QIL-024.
 
 Для полного локального браузерного прогона нужны пакеты из `backend/requirements-dev.lock`, собранный frontend, работающая PostgreSQL и согласованный браузер Playwright в `.venv/ms-playwright` из QIL-016. Предварительно загрузите существующий `.env` в процесс PowerShell по инструкции выше; новые секреты не требуются. Установка браузеров согласуется отдельно. Из корня проекта:
 
@@ -258,4 +260,4 @@ Auth/Learning/Assessment/Progress E2E создаёт собственную сл
 
 ## Ограничения и решения перед разработкой
 
-Версии инструментов и русский UI MVP согласованы. Английский UI отложен; материалы и тестирование двуязычны. Предстоят полные сквозные проверки MVP и согласование начальных материалов. Новые Progress-тесты нужно подтвердить GitHub Actions run после отдельного разрешения на push. Полный перечень продуктовых вопросов находится в PRD.
+Версии инструментов и русский UI MVP согласованы. Английский UI отложен; материалы и тестирование двуязычны. Сквозная приёмка QIL-022 и результаты описаны в [отчёте](docs/MVP_ACCEPTANCE.md); предстоят проверка CI-артефактов и согласование начальных материалов. Полный перечень продуктовых вопросов находится в PRD. Успех на синтетическом контенте не заменяет редакторскую проверку QIL-024.
