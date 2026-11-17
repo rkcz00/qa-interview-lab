@@ -14,6 +14,10 @@ import { assessmentRu } from '../assessment/texts.ts'
 import { AppShell } from '../ui/AppShell.tsx'
 import { LanguageSelector } from '../ui/LanguageSelector.tsx'
 import { usePageHeadingFocus } from '../ui/usePageHeadingFocus.ts'
+import { Button } from '../ui/Button.tsx'
+import { Notice } from '../ui/Notice.tsx'
+import { LoadingState } from '../ui/LoadingState.tsx'
+import { EmptyState } from '../ui/EmptyState.tsx'
 
 interface Props {
   location: LearningLocation
@@ -52,10 +56,10 @@ export default function LearningApplication({ location, navigate, requireLogin }
   const authorized = authentication.kind === 'authenticated' && content.kind !== 'authentication'
   return <AppShell navigate={navigate} canLogout={authentication.kind === 'authenticated'}>
     {location.topicId !== null && <p><NavigationLink to={learningDestination({ topicId: null, language: location.language })} navigate={navigate}>{text.back}</NavigationLink></p>}
-    {!authorized && authentication.kind !== 'error' && <p role="status">{ru.checking}</p>}
+    {!authorized && authentication.kind !== 'error' && <LoadingState message={ru.checking} />}
     {authentication.kind === 'error' && <section className="learning-card">
-      <h1>{text.catalog}</h1><p role="alert">{ru.sessionError}</p>
-      <button onClick={() => { void session.restore() }}>{ru.retry}</button>
+      <h1>{text.catalog}</h1><Notice>{ru.sessionError}</Notice>
+      <Button variant="secondary" onClick={() => { void session.restore() }}>{ru.retry}</Button>
     </section>}
     {authorized && <>
       <header className="learning-header">
@@ -66,13 +70,11 @@ export default function LearningApplication({ location, navigate, requireLogin }
           choose={language => navigate(learningDestination({ ...location, language }))} />}
         {content.kind === 'topic' && <p className="help-text">{text.languageHelp}</p>}
       </header>
-      {content.kind === 'loading' && <p role="status">{text.loading}</p>}
-      {content.kind === 'error' && <div className="learning-card"><p role="alert">{content.message}</p>
-        <button onClick={() => { void store.load() }}>{text.retry}</button></div>}
-      {content.kind === 'not_found' && <p role="alert">{text.notFoundHelp}</p>}
-      {content.kind === 'catalog' && (content.topics.length === 0 ? <section className="learning-card">
-        <h2>{text.empty}</h2><p>{text.emptyHelp}</p>
-      </section> : <ul className="topic-list">{content.topics.map(topic => <li key={topic.topic_id}>
+      {content.kind === 'loading' && <LoadingState message={text.loading} />}
+      {content.kind === 'error' && <div className="learning-card"><Notice>{content.message}</Notice>
+        <Button variant="secondary" onClick={() => { void store.load() }}>{text.retry}</Button></div>}
+      {content.kind === 'not_found' && <Notice>{text.notFoundHelp}</Notice>}
+      {content.kind === 'catalog' && (content.topics.length === 0 ? <EmptyState title={text.empty} description={text.emptyHelp} heading /> : <ul className="topic-list">{content.topics.map(topic => <li key={topic.topic_id}>
         <NavigationLink to={learningDestination({ topicId: topic.topic_id, language: location.language })} navigate={navigate}>{topic.title}</NavigationLink>
       </li>)}</ul>)}
       {content.kind === 'topic' && <>
@@ -80,20 +82,20 @@ export default function LearningApplication({ location, navigate, requireLogin }
           <h2 id="article-heading">{text.article}</h2>
           <div className="article-body" lang={location.language}>{content.article.article_body}</div>
         </article>
-        <p className="assessment-entry"><NavigationLink to={assessmentDestination({ kind: 'start', id: content.article.topic_id, language: 'ru' })} navigate={navigate}>{assessmentRu.entry}</NavigationLink></p>
+        <p className="assessment-entry"><NavigationLink to={assessmentDestination({ kind: 'start', id: content.article.topic_id, language: 'ru' })} navigate={navigate} className="ui-button ui-button--primary">{assessmentRu.entry}</NavigationLink></p>
         <section className="reading-card" aria-labelledby="reading-heading">
           <h2 id="reading-heading">{text.readHeading}</h2>
           <p className="help-text">{text.readHelp}</p>
-          {read.kind === 'loading' && <p role="status">{text.readLoading}</p>}
+          {read.kind === 'loading' && <LoadingState message={text.readLoading} />}
           {read.kind === 'error' && <>
-            <div role="alert" className="form-alert" tabIndex={-1} ref={errorBox}>{read.message}</div>
-            <button onClick={() => { void store.refreshRead() }}>{text.readRetry}</button>
+            <Notice tabIndex={-1} ref={errorBox}>{read.message}</Notice>
+            <Button variant="secondary" onClick={() => { void store.refreshRead() }}>{text.readRetry}</Button>
           </>}
           {read.kind === 'ready' && <>
-            <p role="status">{read.pending ? text.marking : read.at ? text.read : text.unread}</p>
-            <button disabled={read.pending || read.at !== null} onClick={() => { void store.markRead() }}>
+            {read.pending ? <LoadingState message={text.marking} /> : <Notice tone={read.at ? 'success' : 'info'}>{read.at ? text.read : text.unread}</Notice>}
+            <Button busy={read.pending} disabled={read.at !== null} onClick={() => { void store.markRead() }}>
               {read.pending ? text.marking : read.at ? text.marked : text.markRead}
-            </button>
+            </Button>
           </>}
         </section>
         <section className="learning-card glossary" aria-labelledby="terms-heading">

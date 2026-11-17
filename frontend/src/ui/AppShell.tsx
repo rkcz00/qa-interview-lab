@@ -6,6 +6,9 @@ import type { Navigate } from '../auth/NavigationLink.tsx'
 import { ru } from '../auth/texts.ts'
 import { learnerNavigation } from './navigation.ts'
 import { LogoutStore } from './logout.ts'
+import { Button } from './Button.tsx'
+import { Notice } from './Notice.tsx'
+import { LoadingState } from './LoadingState.tsx'
 
 interface Props {
   navigate: Navigate
@@ -26,12 +29,12 @@ export function AppShell({ navigate, canLogout, className = '', children }: Prop
       <NavigationLink to="/" navigate={navigate}>{ru.home}</NavigationLink>
       {learnerNavigation(window.location.pathname).map(item =>
         <NavigationLink key={item.to} to={item.to} navigate={navigate} current={item.current}>{item.label}</NavigationLink>)}
-      {canLogout && <button disabled={state.kind === 'pending'} onClick={() => { void logout.logout() }}>
+      {canLogout && <Button variant="secondary" busy={state.kind === 'pending'} onClick={() => { void logout.logout() }}>
         {state.kind === 'pending' ? ru.signingOut : ru.logout}
-      </button>}
+      </Button>}
     </nav>
-    {state.kind === 'pending' && <p role="status">{ru.signingOut}</p>}
-    {state.kind === 'error' && <div className="form-alert" role="alert" tabIndex={-1} ref={errorBox}>{state.message}</div>}
+    {state.kind === 'pending' && <LoadingState message={ru.signingOut} />}
+    {state.kind === 'error' && <Notice tabIndex={-1} ref={errorBox}>{state.message}</Notice>}
     {children}
   </main>
 }

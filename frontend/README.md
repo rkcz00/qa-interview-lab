@@ -86,6 +86,16 @@ Learning, Assessment, Progress и `/session` используют один `AppS
 
 Unit-проверки дополнены правилами focus/navigation/logout и сменой языка без пересоздания Learning store. `tests/e2e/test_focus_navigation.py` использует настоящий Django/HTTP/PostgreSQL: стрелки RU→EN→RU, однократный фокус h1, сохранение radio/checkbox и номера вопроса, active-навигация, topic→test→result→progress, контекст после reload и logout. Размеры — 1280×900 и 390×844. Опциональный `QIL_FOCUS_VISUAL_DIR` разрешает только `.cache/qil026-*` для локальных снимков синтетического контента; CI recordings/artifacts не меняются.
 
+## Общие стили и состояния — QIL-027
+
+`src/tokens.css` — единый набор CSS-переменных: прежняя синяя палитра, контрастные текст и границы контролов, типографика, отступы, радиусы и focus ring. `src/styles.css` применяет их к Auth, Learning, Assessment и Progress. h1 имеет размер 28–36 px, h2 — 20–24 px; карточки используют один радиус 12 px, контролы — 8 px. Новых шрифтов и зависимостей нет.
+
+Компоненты `Button`, `Notice`, `LoadingState` и `EmptyState` находятся в `src/ui`. Основное действие синее, вспомогательное — с контуром. `Button` по умолчанию имеет `type=button`; отправка Auth-формы явно использует `type=submit`. `busy` блокирует действие, добавляет `aria-busy`, подпись процесса и индикатор; обычный `disabled` не объявляется загрузкой. `Notice` различает error (`alert`), success и info (`status`), не меняя фокус самостоятельно. Loading сообщает текст через `status`, декоративный индикатор скрыт от assistive technology. При `prefers-reduced-motion: reduce` вращение отключено. Фокус полей, кнопок и ссылок виден; программный фокус h1 и заголовка вопроса сохраняет поведение QIL-026 без лишней рамки.
+
+Длинная статья ограничена 68ch, имеет межстрочный интервал 1.75 и перенос длинных последовательностей. Исходные абзацы и текст API сохраняются через `white-space: pre-wrap`; HTML не интерпретируется. На mobile карточки имеют отступ 16 px, сводка результата складывается в колонку, навигация переносится без горизонтального скролла. Языки статьи/теста, маршруты, Back/Forward, `aria-current` и focus management не меняются.
+
+`tests/presentation.test.ts` проверяет состояния и контраст используемых цветов; это не полная сертификация доступности. `tests/e2e/test_visual_system.py` проверяет реальные страницы, keyboard focus-visible, busy/disabled, сообщения, empty/error и длинную RU/EN-статью на 1280×900 и 390×844. Длинный материал создаётся только в принадлежащей прогону временной PostgreSQL, без изменения демо-текста. Опциональный `QIL_VISUAL_SYSTEM_DIR` разрешает снимки только в `.cache/qil027-*`; снимаются синтетический публичный контент и пустые формы. По умолчанию снимки не создаются и не публикуются в CI. Политика [CI_REPORTS](../docs/CI_REPORTS.md) сохранена.
+
 ## Локальный запуск и SPA fallback
 
 Запустите backend на `127.0.0.1:8000` по [основной инструкции](../README.md), затем из `frontend` выполните `npm.cmd run dev`. Откройте `http://127.0.0.1:5173/topics` либо существующие `/register`, `/login`, `/session`. Прямые `/topics/{topic_id}` обслуживаются тем же SPA fallback Vite dev/preview; `/api` проксируется с сохранением Host/Origin для Django CSRF. Для production preview: `npm.cmd run build`, затем `npm.cmd run preview -- --port 4173`.

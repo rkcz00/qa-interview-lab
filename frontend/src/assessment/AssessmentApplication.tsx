@@ -13,6 +13,9 @@ import { assessmentRu as text } from './texts.ts'
 import { AppShell } from '../ui/AppShell.tsx'
 import { LanguageSelector } from '../ui/LanguageSelector.tsx'
 import { usePageHeadingFocus } from '../ui/usePageHeadingFocus.ts'
+import { Button } from '../ui/Button.tsx'
+import { Notice } from '../ui/Notice.tsx'
+import { LoadingState } from '../ui/LoadingState.tsx'
 
 interface Props {
   location: AssessmentLocation
@@ -21,10 +24,10 @@ interface Props {
   articleLink: (topicId: string) => Destination
 }
 
-function Notice({ message }: { message: string }) {
+function FocusedNotice({ message }: { message: string }) {
   const box = useRef<HTMLDivElement>(null)
   useEffect(() => { box.current?.focus() }, [message])
-  return <div className="form-alert" role="alert" tabIndex={-1} ref={box}>{message}</div>
+  return <Notice tabIndex={-1} ref={box}>{message}</Notice>
 }
 
 function StartScreen({ location, navigate, articleLink, expired }: Props & { expired: () => void }) {
@@ -47,16 +50,16 @@ function StartScreen({ location, navigate, articleLink, expired }: Props & { exp
         choose={language => navigate(assessmentDestination({ ...location, language }))} />
       <p className="help-text">{text.languageHelp}</p>
     </>}
-    {(state.kind === 'loading' || state.kind === 'authentication') && <p role="status">{text.loading}</p>}
-    {state.kind === 'not_found' && <p role="alert">{text.notFoundHelp}</p>}
+    {(state.kind === 'loading' || state.kind === 'authentication') && <LoadingState message={text.loading} />}
+    {state.kind === 'not_found' && <Notice>{text.notFoundHelp}</Notice>}
     {state.kind === 'ready' && <>
       <p>{text.startHelp}</p>
-      {state.message && <Notice message={state.message} />}
-      <button onClick={() => { void store.start() }}>{text.begin}</button>
+      {state.message && <FocusedNotice message={state.message} />}
+      <Button onClick={() => { void store.start() }}>{text.begin}</Button>
     </>}
-    {state.kind === 'creating' && <><p role="status">{text.beginning}</p><button disabled>{text.beginning}</button></>}
-    {state.kind === 'error' && <><Notice message={state.message} /><button onClick={() => { void store.load(location.language) }}>{text.retryLoad}</button></>}
-    {state.kind === 'uncertain' && <><Notice message={state.message} /><button onClick={() => { void store.start(true) }}>{text.newAttempt}</button></>}
+    {state.kind === 'creating' && <><LoadingState message={text.beginning} /><Button busy>{text.beginning}</Button></>}
+    {state.kind === 'error' && <><FocusedNotice message={state.message} /><Button variant="secondary" onClick={() => { void store.load(location.language) }}>{text.retryLoad}</Button></>}
+    {state.kind === 'uncertain' && <><FocusedNotice message={state.message} /><Button onClick={() => { void store.start(true) }}>{text.newAttempt}</Button></>}
   </>
 }
 
@@ -83,23 +86,23 @@ function AttemptScreen({ location, navigate, articleLink, expired }: Props & { e
         choose={language => navigate(assessmentDestination({ ...location, language }))} />
       <p className="help-text">{text.languageHelp}</p>
     </>}
-    {(state.kind === 'loading' || state.kind === 'authentication') && <p role="status">{text.loading}</p>}
-    {state.kind === 'error' && <><Notice message={state.message} /><button onClick={() => { void store.load(location.language) }}>{text.retryLoad}</button></>}
-    {state.kind === 'not_found' && <p role="alert">{text.notFoundHelp}</p>}
-    {state.kind === 'sending' && <><p role="status">{text.sending}</p><button disabled>{text.sending}</button></>}
-    {state.kind === 'checking' && <><p role="status">{text.checking}</p><button disabled>{text.checkResult}</button></>}
+    {(state.kind === 'loading' || state.kind === 'authentication') && <LoadingState message={text.loading} />}
+    {state.kind === 'error' && <><FocusedNotice message={state.message} /><Button variant="secondary" onClick={() => { void store.load(location.language) }}>{text.retryLoad}</Button></>}
+    {state.kind === 'not_found' && <Notice>{text.notFoundHelp}</Notice>}
+    {state.kind === 'sending' && <><LoadingState message={text.sending} /><Button busy>{text.sending}</Button></>}
+    {state.kind === 'checking' && <><LoadingState message={text.checking} /><Button variant="secondary" busy>{text.checkResult}</Button></>}
     {state.kind === 'uncertain' && <>
-      <Notice message={state.message} />
+      <FocusedNotice message={state.message} />
       {state.canRetry && <p>{text.retryHelp}</p>}
       <div className="assessment-actions">
-        <button onClick={() => { void store.checkResult() }}>{text.checkResult}</button>
-        {state.canRetry && <button onClick={() => { void store.retrySame() }}>{text.retrySame}</button>}
+        <Button variant="secondary" onClick={() => { void store.checkResult() }}>{text.checkResult}</Button>
+        {state.canRetry && <Button variant="secondary" onClick={() => { void store.retrySame() }}>{text.retrySame}</Button>}
       </div>
     </>}
     {pending && question && <>
       <p><NavigationLink to={articleLink(pending.attempt.topic_id)} navigate={navigate}>{text.back}</NavigationLink></p>
       <p className="help-text">{text.restored}</p>
-      {pending.message && <Notice message={pending.message} />}
+      {pending.message && <FocusedNotice message={pending.message} />}
       <fieldset className="question-card" aria-labelledby="question-text">
         <legend>{text.question} {pending.index + 1} {text.of} {pending.attempt.questions.length}</legend>
         <h2 id="question-text" lang={pending.attempt.language} tabIndex={-1} ref={questionHeading}>{question.text}</h2>
@@ -114,24 +117,24 @@ function AttemptScreen({ location, navigate, articleLink, expired }: Props & { e
         </div>
       </fieldset>
       <div className="assessment-actions question-navigation">
-        <button disabled={pending.index === 0} onClick={() => { movedQuestion.current = true; store.move(pending.index - 1) }}>{text.previous}</button>
-        <button disabled={pending.index === pending.attempt.questions.length - 1} onClick={() => { movedQuestion.current = true; store.move(pending.index + 1) }}>{text.next}</button>
-        <button disabled={!pending.selected.get(question.question_id)?.length} onClick={() => store.clear()}>{text.clear}</button>
+        <Button variant="secondary" disabled={pending.index === 0} onClick={() => { movedQuestion.current = true; store.move(pending.index - 1) }}>{text.previous}</Button>
+        <Button variant="secondary" disabled={pending.index === pending.attempt.questions.length - 1} onClick={() => { movedQuestion.current = true; store.move(pending.index + 1) }}>{text.next}</Button>
+        <Button variant="secondary" disabled={!pending.selected.get(question.question_id)?.length} onClick={() => store.clear()}>{text.clear}</Button>
       </div>
       <p className="help-text assessment-submit-help">{text.submitHelp}</p>
-      <button onClick={() => { void store.submit() }}>{text.submit}</button>
+      <Button onClick={() => { void store.submit() }}>{text.submit}</Button>
     </>}
     {state.kind === 'result' && <section aria-label={text.result}>
       <h2 className="result-topic" lang={state.topic.language}>{state.topic.title}</h2>
-      {state.notice && <p role="status">{state.notice}</p>}
+      {state.notice && <Notice tone="info">{state.notice}</Notice>}
       <dl className="result-summary">
         <div><dt>{text.correctCount}</dt><dd>{state.result.correct_count}</dd></div>
         <div><dt>{text.totalCount}</dt><dd>{state.result.total_count}</dd></div>
         <div><dt>{text.percentage}</dt><dd>{formatPercentage(state.result.percentage)}</dd></div>
       </dl>
       <div className="assessment-actions">
-        <NavigationLink to={articleLink(state.topic.id)} navigate={navigate}>{text.back}</NavigationLink>
-        <NavigationLink to="/progress" navigate={navigate}>{text.openProgress}</NavigationLink>
+        <NavigationLink to={articleLink(state.topic.id)} navigate={navigate} className="ui-button ui-button--secondary">{text.back}</NavigationLink>
+        <NavigationLink to="/progress" navigate={navigate} className="ui-button ui-button--primary">{text.openProgress}</NavigationLink>
       </div>
     </section>}
   </>
@@ -145,9 +148,9 @@ export default function AssessmentApplication(props: Props) {
   useEffect(() => { void session.restore(); return () => session.invalidate() }, [session])
   useEffect(() => { if (state.kind === 'anonymous') expired() }, [state.kind, expired])
   return <AppShell className="assessment-shell" navigate={props.navigate} canLogout={state.kind === 'authenticated'}>
-    {(state.kind === 'checking' || state.kind === 'anonymous') && <p role="status">{ru.checking}</p>}
-    {state.kind === 'error' && <><h1>{text.title}</h1><Notice message={ru.sessionError} />
-      <button onClick={() => { void session.restore() }}>{ru.retry}</button></>}
+    {(state.kind === 'checking' || state.kind === 'anonymous') && <LoadingState message={ru.checking} />}
+    {state.kind === 'error' && <><h1>{text.title}</h1><FocusedNotice message={ru.sessionError} />
+      <Button variant="secondary" onClick={() => { void session.restore() }}>{ru.retry}</Button></>}
     {state.kind === 'authenticated' && (props.location.kind === 'start' ? <StartScreen {...props} expired={expired} /> : <AttemptScreen {...props} expired={expired} />)}
   </AppShell>
 }

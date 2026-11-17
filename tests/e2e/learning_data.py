@@ -11,7 +11,7 @@ def main():
     database, action, *ids = sys.argv[1:]
     if not re.fullmatch(r"test_qil006_[0-9a-f]{32}", database) or os.environ.get("POSTGRES_DB") != database:
         raise RuntimeError("Expected the owning disposable database")
-    if action not in {"create", "cleanup", "draft", "revise_draft", "info"} or any(not value.isascii() or not value.isdigit() for value in ids):
+    if action not in {"create", "cleanup", "draft", "revise_draft", "long_article", "info"} or any(not value.isascii() or not value.isdigit() for value in ids):
         raise RuntimeError("Invalid fixture action")
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
     import django
@@ -64,6 +64,22 @@ def main():
                 topic.status = TopicStatus.DRAFT
                 topic.save(update_fields=("status",))
             result = {"draft": "PASS"}
+        elif action == "long_article":
+            topics = list(Topic.objects.filter(pk__in=ids))
+            if not ids or len(topics) != len(set(ids)):
+                raise RuntimeError("Long article requires owned topics")
+            with edit_topics({topic.pk: topic.revision for topic in topics}, using="default") as locked:
+                for topic in locked.values():
+                    for language in Language.values:
+                        paragraph = ("Исследуйте требования и риски. Класс эквивалентности помогает выбрать примеры, "
+                                     "а граничное значение — проверить переход между допустимыми и недопустимыми данными. "
+                                     "Фиксируйте наблюдения и сравнивайте фактический результат с ожидаемым.") if language == "ru" else (
+                                     "Explore requirements and risks. An equivalence class helps select examples, "
+                                     "while a boundary value tests the transition between valid and invalid data. "
+                                     "Record observations and compare actual behavior with the expected result.")
+                        body = "\n\n".join([paragraph] * 12) + "\n\nhttps://example.invalid/" + "long-example-" * 24
+                        TopicTranslation.objects.filter(topic=topic, language=language).update(article_body=body)
+            result = {"long_article": "PASS"}
         elif action == "revise_draft":
             topics = list(Topic.objects.filter(pk__in=ids))
             if len(topics) != len(set(ids)) or any(topic.status != TopicStatus.DRAFT for topic in topics):

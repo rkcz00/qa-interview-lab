@@ -11,6 +11,8 @@ import { assessmentRu } from './assessment/texts.ts'
 import { progressRu } from './progress/texts.ts'
 import { AppShell } from './ui/AppShell.tsx'
 import { usePageHeadingFocus } from './ui/usePageHeadingFocus.ts'
+import { LoadingState } from './ui/LoadingState.tsx'
+import { Notice } from './ui/Notice.tsx'
 
 const AuthApplication = lazy(() => import('./auth/AuthApplication.tsx'))
 const LearningApplication = lazy(() => import('./learning/LearningApplication.tsx'))
@@ -71,17 +73,17 @@ export default function App() {
     document.title = route === '/' ? ru.brand : `${route === '/register' ? ru.register : route === '/login' ? ru.login : route === '/session' ? ru.session : route === '/progress' ? progressRu.title : isAssessmentRoute(route) ? assessmentRu.title : isLearningRoute(route) ? learningRu.catalog : ru.notFound} — ${ru.brand}`
   }, [route])
 
-  const learnerFallback = <AppShell navigate={navigate} canLogout={false}><p role="status">{ru.checking}</p></AppShell>
+  const learnerFallback = <AppShell navigate={navigate} canLogout={false}><LoadingState message={ru.checking} /></AppShell>
   if (route === '/progress') return <Suspense fallback={learnerFallback}>
     <ProgressApplication navigate={navigate} requireLogin={requireLogin} />
   </Suspense>
   if (isAssessmentRoute(route)) return assessment ? <Suspense fallback={learnerFallback}>
     <AssessmentApplication key={pathname} location={assessment} navigate={navigate} requireLogin={requireLogin} articleLink={articleLink} />
-  </Suspense> : <AppShell navigate={navigate} canLogout={false}><h1 ref={staticHeading} tabIndex={-1}>{assessmentRu.title}</h1><p role="alert">{assessmentRu.invalidRoute}</p></AppShell>
+  </Suspense> : <AppShell navigate={navigate} canLogout={false}><h1 ref={staticHeading} tabIndex={-1}>{assessmentRu.title}</h1><Notice>{assessmentRu.invalidRoute}</Notice></AppShell>
   if (isLearningRoute(route)) return learning ? <Suspense fallback={learnerFallback}>
     <LearningApplication key={pathname} location={learning} navigate={navigate} requireLogin={requireLogin} />
-  </Suspense> : <AppShell navigate={navigate} canLogout={false}><h1 ref={staticHeading} tabIndex={-1}>{learningRu.topic}</h1><p role="alert">{learningRu.invalidLanguage}</p></AppShell>
-  if (route && route !== '/') return <Suspense fallback={route === '/session' ? learnerFallback : <main><p role="status">{ru.checking}</p></main>}>
+  </Suspense> : <AppShell navigate={navigate} canLogout={false}><h1 ref={staticHeading} tabIndex={-1}>{learningRu.topic}</h1><Notice>{learningRu.invalidLanguage}</Notice></AppShell>
+  if (route && route !== '/') return <Suspense fallback={route === '/session' ? learnerFallback : <main><LoadingState message={ru.checking} /></main>}>
     <AuthApplication key={route} route={route as AuthRoute} navigate={navigate} registeredEmail={registeredEmail} onRegistered={onRegistered} onAuthenticated={onAuthenticated} />
   </Suspense>
   if (!route) return <main><h1 ref={staticHeading} tabIndex={-1}>{ru.notFound}</h1><NavigationLink to="/" navigate={navigate}>{ru.home}</NavigationLink></main>
@@ -90,8 +92,8 @@ export default function App() {
       <p className="eyebrow">{ru.audience}</p>
       <h1 ref={staticHeading} tabIndex={-1}>{ru.brand}</h1>
       <p>{ru.intro}</p>
-      <nav className="home-actions" aria-label="Вход и регистрация">
-        <NavigationLink to="/topics" navigate={navigate}>{ru.topics}</NavigationLink>
+      <nav className="home-actions" aria-label="Навигация приложения">
+        <NavigationLink to="/topics" navigate={navigate} className="ui-button ui-button--primary">{ru.topics}</NavigationLink>
         <NavigationLink to="/progress" navigate={navigate}>{ru.progress}</NavigationLink>
         <NavigationLink to="/login" navigate={navigate}>{ru.loginAction}</NavigationLink>
         <NavigationLink to="/register" navigate={navigate}>{ru.register}</NavigationLink>

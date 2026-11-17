@@ -10,6 +10,9 @@ import { trimEmail, validateForm } from './validation.ts'
 import type { FormErrors } from './validation.ts'
 import { AppShell } from '../ui/AppShell.tsx'
 import { usePageHeadingFocus } from '../ui/usePageHeadingFocus.ts'
+import { Button } from '../ui/Button.tsx'
+import { Notice } from '../ui/Notice.tsx'
+import { LoadingState } from '../ui/LoadingState.tsx'
 
 interface Props {
   route: AuthRoute
@@ -92,13 +95,13 @@ export default function AuthApplication({ route, navigate, registeredEmail, onRe
     }
   }
 
-  const notice = message ? <div id="auth-message" className="form-alert" role="alert" tabIndex={-1} ref={errorBox}>{message}</div> : null
+  const notice = message ? <Notice id="auth-message" tabIndex={-1} ref={errorBox}>{message}</Notice> : null
   const card = <section className="auth-card" aria-labelledby="auth-title">
-        {state.kind === 'checking' && <p role="status">{ru.checking}</p>}
+        {state.kind === 'checking' && <LoadingState message={ru.checking} />}
         {state.kind === 'error' && <>
           <h1 id="auth-title" tabIndex={-1} ref={title}>{ru.session}</h1>
-          <p role="alert">{ru.sessionError}</p>
-          <button onClick={() => { void session.restore() }}>{ru.retry}</button>
+          <Notice>{ru.sessionError}</Notice>
+          <Button variant="secondary" onClick={() => { void session.restore() }}>{ru.retry}</Button>
         </>}
         {state.kind === 'authenticated' && route === '/session' && <>
           <h1 id="auth-title" tabIndex={-1} ref={title}>{ru.session}</h1>
@@ -109,7 +112,7 @@ export default function AuthApplication({ route, navigate, registeredEmail, onRe
         {state.kind === 'anonymous' && route !== '/session' && <>
           <h1 id="auth-title" tabIndex={-1} ref={title}>{mode === 'register' ? ru.register : ru.login}</h1>
           <p>{mode === 'register' ? ru.registerIntro : ru.loginIntro}</p>
-          {registeredEmail && mode === 'login' && <p className="success-notice" role="status">{ru.registered}</p>}
+          {registeredEmail && mode === 'login' && <Notice tone="success">{ru.registered}</Notice>}
           <p className="help-text">{ru.requiredNote}</p>
           {notice}
           <form noValidate aria-labelledby="auth-title" aria-busy={pending} onSubmit={event => { void submit(event) }}>
@@ -130,8 +133,8 @@ export default function AuthApplication({ route, navigate, registeredEmail, onRe
               {mode === 'register' && <p className="help-text" id="password-hint">{ru.passwordHint}</p>}
               {errors.password && <ul className="field-error" id="password-errors">{errors.password.map(error => <li key={error}>{error}</li>)}</ul>}
             </div>
-            <button type="submit" disabled={pending}>{pending ? (mode === 'register' ? ru.creating : ru.signingIn) : (mode === 'register' ? ru.registerAction : ru.loginAction)}</button>
-            {pending && <p role="status">{mode === 'register' ? ru.creating : ru.signingIn}</p>}
+            <Button type="submit" busy={pending}>{pending ? (mode === 'register' ? ru.creating : ru.signingIn) : (mode === 'register' ? ru.registerAction : ru.loginAction)}</Button>
+            {pending && <LoadingState message={mode === 'register' ? ru.creating : ru.signingIn} />}
           </form>
           <p className="auth-switch">{mode === 'register' ? ru.haveAccount : ru.noAccount}{' '}
             <NavigationLink to={mode === 'register' ? '/login' : '/register'} navigate={navigate}>

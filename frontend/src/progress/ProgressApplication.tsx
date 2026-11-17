@@ -12,6 +12,10 @@ import { attemptDate, ProgressStore } from './model.ts'
 import { progressRu as text } from './texts.ts'
 import { AppShell } from '../ui/AppShell.tsx'
 import { usePageHeadingFocus } from '../ui/usePageHeadingFocus.ts'
+import { Button } from '../ui/Button.tsx'
+import { Notice } from '../ui/Notice.tsx'
+import { LoadingState } from '../ui/LoadingState.tsx'
+import { EmptyState } from '../ui/EmptyState.tsx'
 
 export default function ProgressApplication({ navigate, requireLogin }: { navigate: Navigate; requireLogin: (destination: Destination) => void }) {
   const [session] = useState(() => new SessionStore(api.auth))
@@ -31,20 +35,20 @@ export default function ProgressApplication({ navigate, requireLogin }: { naviga
   return <AppShell className="progress-shell" navigate={navigate} canLogout={authentication.kind === 'authenticated'}>
     <h1 tabIndex={-1} ref={heading}>{text.title}</h1>
     <p>{text.intro}</p>
-    {authentication.kind === 'error' && <><p role="alert">{ru.sessionError}</p>
-      <button onClick={() => { void session.restore() }}>{ru.retry}</button></>}
+    {authentication.kind === 'error' && <><Notice>{ru.sessionError}</Notice>
+      <Button variant="secondary" onClick={() => { void session.restore() }}>{ru.retry}</Button></>}
     {(authentication.kind === 'checking' || authentication.kind === 'anonymous' ||
-      (authentication.kind === 'authenticated' && (state.kind === 'loading' || state.kind === 'authentication'))) && <p role="status">{text.loading}</p>}
+      (authentication.kind === 'authenticated' && (state.kind === 'loading' || state.kind === 'authentication'))) && <LoadingState message={text.loading} />}
     {authentication.kind === 'authenticated' && state.kind === 'error' && <>
-      <div className="form-alert" role="alert" tabIndex={-1} ref={errorBox}>{state.message}</div>
-      <button onClick={() => { void store.load() }}>{text.retry}</button>
+      <Notice tabIndex={-1} ref={errorBox}>{state.message}</Notice>
+      <Button variant="secondary" onClick={() => { void store.load() }}>{text.retry}</Button>
     </>}
     {ready && <>
-      <button className="progress-refresh" onClick={() => { void store.load() }}>{text.refresh}</button>
+      <Button variant="secondary" className="progress-refresh" onClick={() => { void store.load() }}>{text.refresh}</Button>
       {!ready.hasSavedProgress && <p className="help-text">{text.noProgress}</p>}
       <section aria-labelledby="progress-topics-heading">
         <h2 id="progress-topics-heading">{text.topics}</h2>
-        {ready.topics.length === 0 ? <p>{text.noTopics}</p> : <ul className="topic-progress-list">
+        {ready.topics.length === 0 ? <EmptyState title={text.noTopics} /> : <ul className="topic-progress-list">
           {ready.topics.map(topic => <li className="progress-card" key={topic.topicId} data-topic-id={topic.topicId}>
             <h3 lang={topic.titleLanguage}>{topic.available ?
               <NavigationLink to={learningDestination({ topicId: topic.topicId, language: 'ru' })} navigate={navigate}>{topic.title}</NavigationLink> : topic.title}</h3>
@@ -64,7 +68,7 @@ export default function ProgressApplication({ navigate, requireLogin }: { naviga
       <section aria-labelledby="progress-history-heading" className="progress-history">
         <h2 id="progress-history-heading">{text.history}</h2>
         <p className="help-text">{text.timezone}</p>
-        {ready.history.length === 0 ? <p>{text.noHistory}</p> : <ol className="attempt-history-list">
+        {ready.history.length === 0 ? <EmptyState title={text.noHistory} /> : <ol className="attempt-history-list">
           {ready.history.map(attempt => {
             const date = attemptDate(attempt.submittedAt)
             return <li className="progress-card" key={attempt.attemptId} data-attempt-id={attempt.attemptId}>
