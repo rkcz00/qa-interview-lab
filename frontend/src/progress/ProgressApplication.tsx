@@ -10,13 +10,15 @@ import { formatPercentage } from '../assessment/answers.ts'
 import { learningDestination } from '../learning/routing.ts'
 import { attemptDate, ProgressStore } from './model.ts'
 import { progressRu as text } from './texts.ts'
+import { AppShell } from '../ui/AppShell.tsx'
+import { usePageHeadingFocus } from '../ui/usePageHeadingFocus.ts'
 
 export default function ProgressApplication({ navigate, requireLogin }: { navigate: Navigate; requireLogin: (destination: Destination) => void }) {
   const [session] = useState(() => new SessionStore(api.auth))
   const authentication = useSyncExternalStore(session.subscribe, session.getSnapshot)
   const [store] = useState(() => new ProgressStore(api))
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
-  const heading = useRef<HTMLHeadingElement>(null)
+  const heading = usePageHeadingFocus(state.kind === 'ready')
   const errorBox = useRef<HTMLDivElement>(null)
   useEffect(() => { void session.restore(); return () => { session.invalidate(); store.invalidate() } }, [session, store])
   useEffect(() => {
@@ -24,14 +26,9 @@ export default function ProgressApplication({ navigate, requireLogin }: { naviga
     if (authentication.kind === 'authenticated') void store.load()
   }, [authentication.kind, requireLogin, store])
   useEffect(() => { if (state.kind === 'authentication') requireLogin('/progress') }, [state.kind, requireLogin])
-  useEffect(() => { if (state.kind === 'ready') heading.current?.focus(); if (state.kind === 'error') errorBox.current?.focus() }, [state.kind])
+  useEffect(() => { if (state.kind === 'error') errorBox.current?.focus() }, [state.kind])
   const ready = authentication.kind === 'authenticated' && state.kind === 'ready' ? state.view : null
-  return <main className="learning-shell progress-shell">
-    <nav className="learning-nav" aria-label="Навигация прогресса">
-      <NavigationLink to="/" navigate={navigate}>{ru.home}</NavigationLink>
-      <NavigationLink to="/topics" navigate={navigate}>{ru.topics}</NavigationLink>
-      <NavigationLink to="/session" navigate={navigate}>Мой аккаунт</NavigationLink>
-    </nav>
+  return <AppShell className="progress-shell" navigate={navigate} canLogout={authentication.kind === 'authenticated'}>
     <h1 tabIndex={-1} ref={heading}>{text.title}</h1>
     <p>{text.intro}</p>
     {authentication.kind === 'error' && <><p role="alert">{ru.sessionError}</p>
@@ -85,5 +82,5 @@ export default function ProgressApplication({ navigate, requireLogin }: { naviga
         </ol>}
       </section>
     </>}
-  </main>
+  </AppShell>
 }

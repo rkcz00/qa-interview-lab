@@ -9,6 +9,8 @@ import { learningRu } from './learning/texts.ts'
 import { assessmentLocation, isAssessmentRoute } from './assessment/routing.ts'
 import { assessmentRu } from './assessment/texts.ts'
 import { progressRu } from './progress/texts.ts'
+import { AppShell } from './ui/AppShell.tsx'
+import { usePageHeadingFocus } from './ui/usePageHeadingFocus.ts'
 
 const AuthApplication = lazy(() => import('./auth/AuthApplication.tsx'))
 const LearningApplication = lazy(() => import('./learning/LearningApplication.tsx'))
@@ -24,6 +26,8 @@ export default function App() {
   const route = resolveRoute(pathname)
   const learning = isLearningRoute(route) ? learningLocation(route, search) : null
   const assessment = route && isAssessmentRoute(route) ? assessmentLocation(route, search) : null
+  const staticHeading = usePageHeadingFocus(!route || route === '/' ||
+    (isLearningRoute(route) && !learning) || (isAssessmentRoute(route) && !assessment), pathname)
   const articleLink = useCallback((topicId: string) => learningDestination({ topicId, language: articleLanguages.current.get(topicId) ?? 'ru' }), [])
   useEffect(() => {
     if (learning?.topicId) articleLanguages.current.set(learning.topicId, learning.language)
@@ -67,23 +71,24 @@ export default function App() {
     document.title = route === '/' ? ru.brand : `${route === '/register' ? ru.register : route === '/login' ? ru.login : route === '/session' ? ru.session : route === '/progress' ? progressRu.title : isAssessmentRoute(route) ? assessmentRu.title : isLearningRoute(route) ? learningRu.catalog : ru.notFound} — ${ru.brand}`
   }, [route])
 
-  if (route === '/progress') return <Suspense fallback={<main><p role="status">{ru.checking}</p></main>}>
+  const learnerFallback = <AppShell navigate={navigate} canLogout={false}><p role="status">{ru.checking}</p></AppShell>
+  if (route === '/progress') return <Suspense fallback={learnerFallback}>
     <ProgressApplication navigate={navigate} requireLogin={requireLogin} />
   </Suspense>
-  if (isAssessmentRoute(route)) return assessment ? <Suspense fallback={<main><p role="status">{ru.checking}</p></main>}>
+  if (isAssessmentRoute(route)) return assessment ? <Suspense fallback={learnerFallback}>
     <AssessmentApplication key={pathname} location={assessment} navigate={navigate} requireLogin={requireLogin} articleLink={articleLink} />
-  </Suspense> : <main><h1>{assessmentRu.title}</h1><p role="alert">{assessmentRu.invalidRoute}</p><NavigationLink to="/topics" navigate={navigate}>{ru.topics}</NavigationLink></main>
-  if (isLearningRoute(route)) return learning ? <Suspense fallback={<main><p role="status">{ru.checking}</p></main>}>
-    <LearningApplication key={address} location={learning} navigate={navigate} requireLogin={requireLogin} />
-  </Suspense> : <main><h1>{learningRu.topic}</h1><p role="alert">{learningRu.invalidLanguage}</p><NavigationLink to="/topics" navigate={navigate}>{ru.topics}</NavigationLink></main>
-  if (route && route !== '/') return <Suspense fallback={<main><p role="status">{ru.checking}</p></main>}>
+  </Suspense> : <AppShell navigate={navigate} canLogout={false}><h1 ref={staticHeading} tabIndex={-1}>{assessmentRu.title}</h1><p role="alert">{assessmentRu.invalidRoute}</p></AppShell>
+  if (isLearningRoute(route)) return learning ? <Suspense fallback={learnerFallback}>
+    <LearningApplication key={pathname} location={learning} navigate={navigate} requireLogin={requireLogin} />
+  </Suspense> : <AppShell navigate={navigate} canLogout={false}><h1 ref={staticHeading} tabIndex={-1}>{learningRu.topic}</h1><p role="alert">{learningRu.invalidLanguage}</p></AppShell>
+  if (route && route !== '/') return <Suspense fallback={route === '/session' ? learnerFallback : <main><p role="status">{ru.checking}</p></main>}>
     <AuthApplication key={route} route={route as AuthRoute} navigate={navigate} registeredEmail={registeredEmail} onRegistered={onRegistered} onAuthenticated={onAuthenticated} />
   </Suspense>
-  if (!route) return <main><h1>{ru.notFound}</h1><NavigationLink to="/" navigate={navigate}>{ru.home}</NavigationLink></main>
+  if (!route) return <main><h1 ref={staticHeading} tabIndex={-1}>{ru.notFound}</h1><NavigationLink to="/" navigate={navigate}>{ru.home}</NavigationLink></main>
   return (
     <main>
       <p className="eyebrow">{ru.audience}</p>
-      <h1>{ru.brand}</h1>
+      <h1 ref={staticHeading} tabIndex={-1}>{ru.brand}</h1>
       <p>{ru.intro}</p>
       <nav className="home-actions" aria-label="Вход и регистрация">
         <NavigationLink to="/topics" navigate={navigate}>{ru.topics}</NavigationLink>

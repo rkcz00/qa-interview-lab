@@ -149,7 +149,7 @@ def test_client_validation_and_login_does_not_apply_registration_policy(auth_pag
         page.get_by_role("button", name="Войти", exact=True).click()
     check(result.value.status == 400, "Short login password must reach the server")
     expect(page.get_by_role("alert")).to_have_text("Неверный email или пароль.")
-    expect(page.get_by_role("alert")).to_be_focused()
+    expect(page.get_by_label("Email", exact=True)).to_be_focused()
     check(page.get_by_label("Пароль", exact=True).input_value() == "", "Failed login must clear password")
 
 
@@ -162,6 +162,7 @@ def test_duplicate_email_uses_generic_validation_message(auth_page):
         page.get_by_role("button", name="Зарегистрироваться", exact=True).click()
     check(result.value.status == 400, "Duplicate normalized email must fail validation")
     expect(page.get_by_role("alert")).to_have_text("Проверьте email и требования к паролю. Если аккаунт уже существует, войдите.")
+    expect(page.get_by_label("Email", exact=True)).to_be_focused()
     check(page.context.request.get(ME).status == 403, "Duplicate email must not log in")
 
 

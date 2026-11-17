@@ -48,7 +48,8 @@ export class LearningStore {
     this.#publish({ content, read: { kind: 'loading' } })
   }
 
-  async load() {
+  async load(location: LearningLocation = this.#location) {
+    this.#location = location
     const generation = ++this.#generation
     this.#readGeneration++
     this.#publish({ content: { kind: 'loading' }, read: { kind: 'loading' } })

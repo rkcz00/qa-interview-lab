@@ -11,6 +11,9 @@ import type { LearningLocation } from './routing.ts'
 import { learningRu as text } from './texts.ts'
 import { assessmentDestination } from '../assessment/routing.ts'
 import { assessmentRu } from '../assessment/texts.ts'
+import { AppShell } from '../ui/AppShell.tsx'
+import { LanguageSelector } from '../ui/LanguageSelector.tsx'
+import { usePageHeadingFocus } from '../ui/usePageHeadingFocus.ts'
 
 interface Props {
   location: LearningLocation
@@ -23,9 +26,9 @@ export default function LearningApplication({ location, navigate, requireLogin }
   const authentication = useSyncExternalStore(session.subscribe, session.getSnapshot)
   const [store] = useState(() => new LearningStore(api, location))
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
-  const heading = useRef<HTMLHeadingElement>(null)
   const errorBox = useRef<HTMLDivElement>(null)
   const { content, read } = state
+  const heading = usePageHeadingFocus(authentication.kind === 'authenticated' && !['loading', 'authentication'].includes(content.kind))
   const destination = learningDestination(location)
 
   useEffect(() => {
@@ -34,27 +37,21 @@ export default function LearningApplication({ location, navigate, requireLogin }
   }, [session, store])
   useEffect(() => {
     if (authentication.kind === 'anonymous') requireLogin(destination)
-    if (authentication.kind === 'authenticated') void store.load()
+    if (authentication.kind === 'authenticated') void store.load(location)
   }, [authentication.kind, destination, requireLogin, store])
   useEffect(() => {
     if (content.kind === 'authentication') requireLogin(destination)
   }, [content.kind, destination, requireLogin])
   useEffect(() => {
     if (authentication.kind === 'authenticated' && content.kind !== 'loading') {
-      heading.current?.focus()
       document.title = `${content.kind === 'topic' ? content.article.title : location.topicId === null ? text.catalog : text.topic} — ${ru.brand}`
     }
   }, [authentication.kind, content, location.topicId])
   useEffect(() => { if (read.kind === 'error') errorBox.current?.focus() }, [read])
 
   const authorized = authentication.kind === 'authenticated' && content.kind !== 'authentication'
-  return <main className="learning-shell">
-    <nav className="learning-nav" aria-label="Навигация обучения">
-      <NavigationLink to="/" navigate={navigate}>{ru.home}</NavigationLink>
-      {location.topicId !== null && <NavigationLink to={learningDestination({ topicId: null, language: location.language })} navigate={navigate}>{text.back}</NavigationLink>}
-      <NavigationLink to="/progress" navigate={navigate}>{ru.progress}</NavigationLink>
-      <NavigationLink to="/session" navigate={navigate}>{text.session}</NavigationLink>
-    </nav>
+  return <AppShell navigate={navigate} canLogout={authentication.kind === 'authenticated'}>
+    {location.topicId !== null && <p><NavigationLink to={learningDestination({ topicId: null, language: location.language })} navigate={navigate}>{text.back}</NavigationLink></p>}
     {!authorized && authentication.kind !== 'error' && <p role="status">{ru.checking}</p>}
     {authentication.kind === 'error' && <section className="learning-card">
       <h1>{text.catalog}</h1><p role="alert">{ru.sessionError}</p>
@@ -65,14 +62,8 @@ export default function LearningApplication({ location, navigate, requireLogin }
         <p className="eyebrow">QA Interview Lab · {content.kind === 'topic' ? text.article : text.catalog}</p>
         <h1 ref={heading} tabIndex={-1} lang={content.kind === 'topic' ? location.language : undefined}>{content.kind === 'topic' ? content.article.title : content.kind === 'not_found' ? text.notFound : location.topicId === null ? text.catalog : text.topic}</h1>
         {content.kind === 'catalog' && <p>{text.intro}</p>}
-        {content.kind !== 'not_found' && <fieldset className="material-language">
-          <legend>{text.language}</legend>
-          {(['ru', 'en'] as const).map(language => <label key={language}>
-            <input type="radio" name="material-language" value={language} checked={location.language === language}
-              onChange={() => navigate(learningDestination({ ...location, language }))} />
-            <span lang={language}>{language === 'ru' ? 'Русский' : 'English'}</span>
-          </label>)}
-        </fieldset>}
+        {content.kind !== 'not_found' && <LanguageSelector name="material-language" legend={text.language} language={location.language}
+          choose={language => navigate(learningDestination({ ...location, language }))} />}
         {content.kind === 'topic' && <p className="help-text">{text.languageHelp}</p>}
       </header>
       {content.kind === 'loading' && <p role="status">{text.loading}</p>}
@@ -113,5 +104,5 @@ export default function LearningApplication({ location, navigate, requireLogin }
         </section>
       </>}
     </>}
-  </main>
+  </AppShell>
 }

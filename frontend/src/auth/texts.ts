@@ -8,6 +8,7 @@ export const ru = {
   login: 'Вход',
   register: 'Регистрация',
   session: 'Текущая сессия',
+  account: 'Мой аккаунт',
   loginAction: 'Войти',
   registerAction: 'Зарегистрироваться',
   logout: 'Выйти',

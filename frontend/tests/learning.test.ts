@@ -79,6 +79,30 @@ test('empty catalog is a successful state', async () => {
   assert.deepEqual(store.getSnapshot().content, { kind: 'catalog', topics: [] })
 })
 
+test('one Learning store switches translations, ignores old responses and preserves the shared read mark', async () => {
+  const { api, calls } = mockApi()
+  let finishOld!: (value: typeof article) => void
+  api.learning.article = async (_id, language) => language === 'ru'
+    ? new Promise(resolve => { finishOld = resolve }) : { ...article, language: 'en' }
+  api.learning.terms = async (_id, language = 'ru') => terms.map(term => ({ ...term, language }))
+  api.progress.current = async () => [progress]
+  const store = new LearningStore(api, { topicId: '12', language: 'ru' })
+  const old = store.load()
+  await store.load({ topicId: '12', language: 'en' })
+  finishOld(article)
+  await old
+  await tick()
+  const state = store.getSnapshot()
+  assert.equal(state.content.kind, 'topic')
+  if (state.content.kind === 'topic') {
+    assert.equal(state.content.article.language, 'en')
+    assert.equal(state.content.terms[0].language, 'en')
+  }
+  assert.deepEqual(state.read, { kind: 'ready', at: progress.article_read_at, pending: false })
+  await store.markRead()
+  assert.equal(calls.some(call => call.startsWith('read:')), false)
+})
+
 for (const [status, code, kind] of [[404, 'not_found', 'not_found'], [403, 'authentication_required', 'authentication'], [0, 'network_error', 'error'], [500, 'internal_error', 'error']] as const) {
   test(`content error ${code} clears public data and uses a safe state`, async () => {
     const { api } = mockApi()

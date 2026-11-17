@@ -4,10 +4,12 @@ import { api, ApiError } from '../api/index.ts'
 import { NavigationLink } from './NavigationLink.tsx'
 import type { Navigate } from './NavigationLink.tsx'
 import type { AuthRoute } from './routing.ts'
-import { authError, SessionStore } from './session.ts'
+import { authError, firstAuthErrorField, SessionStore } from './session.ts'
 import { ru } from './texts.ts'
 import { trimEmail, validateForm } from './validation.ts'
 import type { FormErrors } from './validation.ts'
+import { AppShell } from '../ui/AppShell.tsx'
+import { usePageHeadingFocus } from '../ui/usePageHeadingFocus.ts'
 
 interface Props {
   route: AuthRoute
@@ -23,13 +25,14 @@ export default function AuthApplication({ route, navigate, registeredEmail, onRe
   const [email, setEmail] = useState(registeredEmail ?? '')
   const [errors, setErrors] = useState<FormErrors>({})
   const [message, setMessage] = useState('')
+  const [errorField, setErrorField] = useState<'email' | 'password'>()
   const [pending, setPending] = useState(false)
   const busy = useRef(false)
   const active = useRef(false)
   const emailInput = useRef<HTMLInputElement>(null)
   const passwordInput = useRef<HTMLInputElement>(null)
   const errorBox = useRef<HTMLDivElement>(null)
-  const title = useRef<HTMLHeadingElement>(null)
+  const title = usePageHeadingFocus(state.kind !== 'checking', route)
   const mode = route === '/register' ? 'register' : 'login'
 
   useEffect(() => {
@@ -43,8 +46,11 @@ export default function AuthApplication({ route, navigate, registeredEmail, onRe
     if (state.kind === 'anonymous' && route === '/session') navigate('/login', true)
   }, [state.kind, route, navigate, onAuthenticated])
 
-  useEffect(() => { if (state.kind !== 'checking') title.current?.focus() }, [state.kind])
-  useEffect(() => { if (message) errorBox.current?.focus() }, [message, state.kind])
+  useEffect(() => {
+    if (!message || pending) return
+    const target = errorField === 'email' ? emailInput.current : errorField === 'password' ? passwordInput.current : errorBox.current
+    target?.focus()
+  }, [message, errorField, pending, state.kind])
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -53,6 +59,7 @@ export default function AuthApplication({ route, navigate, registeredEmail, onRe
     const validation = validateForm(mode, email, password)
     setErrors(validation)
     setMessage('')
+    setErrorField(undefined)
     if (validation.email || validation.password) {
       if (validation.email) emailInput.current?.focus()
       else passwordInput.current?.focus()
@@ -74,6 +81,7 @@ export default function AuthApplication({ route, navigate, registeredEmail, onRe
         await session.restore()
       } else {
         setMessage(authError(error, mode))
+        setErrorField(firstAuthErrorField(error))
         // An interrupted login may already have created a session. Verify using GET.
         if (mode === 'login' && error instanceof ApiError && error.code === 'network_error') await session.restore()
       }
@@ -84,35 +92,8 @@ export default function AuthApplication({ route, navigate, registeredEmail, onRe
     }
   }
 
-  async function logout() {
-    if (busy.current) return
-    busy.current = true
-    setPending(true)
-    setMessage('')
-    try {
-      await api.auth.logout()
-      if (active.current) session.signedOut()
-    } catch (error) {
-      if (!active.current) return
-      if (error instanceof ApiError && error.code === 'authentication_required') session.signedOut()
-      else {
-        setMessage(authError(error, 'logout'))
-        if (error instanceof ApiError && error.code === 'network_error') await session.restore()
-      }
-    } finally {
-      busy.current = false
-      if (active.current) setPending(false)
-    }
-  }
-
-  const notice = message ? <div className="form-alert" role="alert" tabIndex={-1} ref={errorBox}>{message}</div> : null
-  return (
-    <main className="auth-shell">
-      <nav className="auth-nav" aria-label="Навигация аккаунта">
-        <NavigationLink to="/" navigate={navigate}>{ru.home}</NavigationLink>
-        <span>{ru.brand}</span>
-      </nav>
-      <section className="auth-card" aria-labelledby="auth-title">
+  const notice = message ? <div id="auth-message" className="form-alert" role="alert" tabIndex={-1} ref={errorBox}>{message}</div> : null
+  const card = <section className="auth-card" aria-labelledby="auth-title">
         {state.kind === 'checking' && <p role="status">{ru.checking}</p>}
         {state.kind === 'error' && <>
           <h1 id="auth-title" tabIndex={-1} ref={title}>{ru.session}</h1>
@@ -124,11 +105,6 @@ export default function AuthApplication({ route, navigate, registeredEmail, onRe
           <p>{ru.signedIn}</p>
           <dl><dt>{ru.sessionEmail}</dt><dd className="session-email">{state.user.email}</dd></dl>
           <p className="help-text">{ru.sessionHelp}</p>
-          <p><NavigationLink to="/topics" navigate={navigate}>{ru.topics}</NavigationLink></p>
-          <p><NavigationLink to="/progress" navigate={navigate}>{ru.progress}</NavigationLink></p>
-          {notice}
-          <button disabled={pending} onClick={() => { void logout() }}>{pending ? ru.signingOut : ru.logout}</button>
-          {pending && <p role="status">{ru.signingOut}</p>}
         </>}
         {state.kind === 'anonymous' && route !== '/session' && <>
           <h1 id="auth-title" tabIndex={-1} ref={title}>{mode === 'register' ? ru.register : ru.login}</h1>
@@ -141,15 +117,16 @@ export default function AuthApplication({ route, navigate, registeredEmail, onRe
               <label htmlFor="auth-email">{ru.email}</label>
               <input id="auth-email" name="email" type="email" autoComplete="username" inputMode="email"
                 required value={email} onChange={event => setEmail(event.target.value)} ref={emailInput}
-                disabled={pending} aria-invalid={Boolean(errors.email)} aria-describedby={errors.email ? 'email-error' : undefined} />
+                disabled={pending} aria-invalid={Boolean(errors.email) || errorField === 'email'}
+                aria-describedby={[errors.email ? 'email-error' : '', errorField === 'email' ? 'auth-message' : ''].filter(Boolean).join(' ') || undefined} />
               {errors.email && <p className="field-error" id="email-error">{errors.email}</p>}
             </div>
             <div className="form-field">
               <label htmlFor="auth-password">{ru.password}</label>
               <input id="auth-password" name="password" type="password" required ref={passwordInput}
                 autoComplete={mode === 'register' ? 'new-password' : 'current-password'} disabled={pending}
-                aria-invalid={Boolean(errors.password)}
-                aria-describedby={[mode === 'register' ? 'password-hint' : '', errors.password ? 'password-errors' : ''].filter(Boolean).join(' ') || undefined} />
+                aria-invalid={Boolean(errors.password) || errorField === 'password'}
+                aria-describedby={[mode === 'register' ? 'password-hint' : '', errors.password ? 'password-errors' : '', errorField === 'password' ? 'auth-message' : ''].filter(Boolean).join(' ') || undefined} />
               {mode === 'register' && <p className="help-text" id="password-hint">{ru.passwordHint}</p>}
               {errors.password && <ul className="field-error" id="password-errors">{errors.password.map(error => <li key={error}>{error}</li>)}</ul>}
             </div>
@@ -163,6 +140,12 @@ export default function AuthApplication({ route, navigate, registeredEmail, onRe
           </p>
         </>}
       </section>
-    </main>
-  )
+  if (route === '/session') return <AppShell navigate={navigate} canLogout={state.kind === 'authenticated'}>{card}</AppShell>
+  return <main className="auth-shell">
+    <nav className="auth-nav" aria-label="Навигация аккаунта">
+      <NavigationLink to="/" navigate={navigate}>{ru.home}</NavigationLink>
+      <span>{ru.brand}</span>
+    </nav>
+    {card}
+  </main>
 }

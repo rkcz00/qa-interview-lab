@@ -24,6 +24,7 @@ export const assessmentRu = {
   topics: 'К темам подготовки',
   account: 'Мой аккаунт',
   result: 'Результат теста',
+  openProgress: 'Посмотреть прогресс',
   correctCount: 'Верных ответов',
   totalCount: 'Всего вопросов',
   percentage: 'Процент',

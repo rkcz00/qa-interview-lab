@@ -65,6 +65,10 @@ ul.field-error { padding-left: 20px; }
 .learning-shell { max-width: 880px; margin: 4vh auto; padding: 24px; }
 .learning-nav { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-bottom: 28px; }
 .learning-nav a:last-child { margin-left: auto; }
+.app-nav a:last-child { margin-left: 0; }
+.app-nav a[aria-current] { font-weight: 700; text-decoration-thickness: 2px; }
+.app-nav button { margin-left: auto; }
+.result-topic { overflow-wrap: anywhere; }
 .learning-header { margin-bottom: 28px; }
 .learning-header h1 { font-size: clamp(1.8rem, 5vw, 2.7rem); overflow-wrap: anywhere; }
 .learning-header h1:focus { outline: none; }
@@ -119,6 +123,7 @@ ul.field-error { padding-left: 20px; }
   .learning-shell { padding: 16px; margin: 0 auto; }
   .learning-card { padding: 24px 20px; }
   .learning-nav a:last-child { margin-left: 0; }
+  .app-nav button { margin-left: 0; }
   .question-card { padding: 20px 16px; }
   .result-summary { grid-template-columns: 1fr; }
 }

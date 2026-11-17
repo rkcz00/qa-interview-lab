@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { ApiError } from '../src/api/client.ts'
-import { authError, SessionStore } from '../src/auth/session.ts'
+import { authError, firstAuthErrorField, SessionStore } from '../src/auth/session.ts'
 import { resolveRoute } from '../src/auth/routing.ts'
 import { ru } from '../src/auth/texts.ts'
 import { passwordIssues, trimEmail, validateForm } from '../src/auth/validation.ts'
@@ -101,4 +101,15 @@ test('error texts are centralized and never display untrusted server details', (
   assert.equal(authError(failure('csrf_failed'), 'login'), ru.csrfError)
   assert.equal(authError(failure('network_error'), 'logout'), ru.networkError)
   assert.equal(authError(new Error('Untrusted detail'), 'login'), ru.serverError)
+})
+
+test('form errors choose the first editable field while transport and CSRF errors keep an alert', () => {
+  const invalid = (fields?: Record<string, string[]>) => new ApiError({ status: 400, code: 'validation_error',
+    kind: 'http', message: 'Untrusted detail', fields })
+  assert.equal(firstAuthErrorField(invalid({ email: ['invalid'], password: ['invalid'] })), 'email')
+  assert.equal(firstAuthErrorField(invalid({ password: ['invalid'] })), 'password')
+  assert.equal(firstAuthErrorField(invalid()), 'email')
+  assert.equal(firstAuthErrorField(new ApiError({ status: 400, code: 'invalid_credentials', kind: 'http', message: 'Invalid' })), 'email')
+  assert.equal(firstAuthErrorField(failure('csrf_failed')), undefined)
+  assert.equal(firstAuthErrorField(failure('network_error')), undefined)
 })

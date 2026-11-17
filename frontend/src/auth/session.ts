@@ -43,3 +43,11 @@ export function authError(error: unknown, mode: 'login' | 'register' | 'logout')
   if (error.code === 'network_error') return ru.networkError
   return ru.serverError
 }
+
+export function firstAuthErrorField(error: unknown): 'email' | 'password' | undefined {
+  if (!(error instanceof ApiError) || error.status !== 400) return undefined
+  if (error.code === 'invalid_credentials') return 'email'
+  if (error.code !== 'validation_error') return undefined
+  if (error.fields?.email) return 'email'
+  return error.fields?.password ? 'password' : 'email'
+}

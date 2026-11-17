@@ -83,7 +83,7 @@ export class StartStore extends Observable<StartState> {
 
 export type AttemptState = { kind: 'loading' | 'sending' | 'checking' | 'authentication' | 'not_found' } |
   { kind: 'pending'; attempt: PendingAttempt; selected: Selection; index: number; message?: string } |
-  { kind: 'result'; result: Result; notice?: string } |
+  { kind: 'result'; result: Result; topic: { id: string; title: string; language: Language }; notice?: string } |
   { kind: 'error'; message: string } |
   { kind: 'uncertain'; message: string; canRetry: boolean }
 
@@ -116,7 +116,8 @@ export class AttemptStore extends Observable<AttemptState> {
     const result = publicResult(attempt.result)
     const notice = this.#conflict ? text.conflict : undefined
     this.invalidate(); this.#clearDraft(); this.#frozen = null; this.#writing = false
-    this.publish({ kind: 'result', result, notice })
+    this.publish({ kind: 'result', result,
+      topic: { id: attempt.topic_id, title: attempt.topic_title, language: attempt.submitted_language }, notice })
   }
   #pending(message?: string) {
     if (this.#draft) this.publish({ kind: 'pending', attempt: this.#draft, selected: this.#selected, index: this.#index, message })

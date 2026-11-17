@@ -155,7 +155,8 @@ test('a successful submit sends agreed answers and removes questions and selecti
   store.choose('2', '22', true)
   await store.submit()
   assert.deepEqual(calls.at(-1), { method: 'submit', language: 'en', body: '[{"question_id":"2","choice_ids":["22"]},{"question_id":"1","choice_ids":[]}]' })
-  assert.deepEqual(store.getSnapshot(), { kind: 'result', result: submitted().result, notice: undefined })
+  assert.deepEqual(store.getSnapshot(), { kind: 'result', result: submitted().result,
+    topic: { id: '12', title: 'Saved title', language: 'ru' }, notice: undefined })
   await store.submit()
   assert.equal(calls.filter(call => call.method === 'submit').length, 1)
 })
@@ -281,7 +282,8 @@ test('a completed attempt is restored as only the saved aggregate result', async
   api.get = async () => submitted()
   const store = new AttemptStore(api, '51')
   await store.load('en')
-  assert.deepEqual(store.getSnapshot(), { kind: 'result', result: submitted().result, notice: undefined })
+  assert.deepEqual(store.getSnapshot(), { kind: 'result', result: submitted().result,
+    topic: { id: '12', title: 'Saved title', language: 'ru' }, notice: undefined })
 })
 
 test('changed snapshot identity or question order cannot silently rebind the selected IDs', async () => {
