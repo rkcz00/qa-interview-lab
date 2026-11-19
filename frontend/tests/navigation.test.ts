@@ -28,15 +28,15 @@ test('a page heading is focused once after readiness, not after translation or r
 
 test('learner routes have one active section and stable safe navigation targets', () => {
   for (const [route, active, current] of [
-    ['/topics', '/topics', 'page'], ['/topics/12', '/topics', 'location'],
-    ['/topics/12/test', '/topics', 'location'], ['/attempts/51', '/topics', 'location'],
+    ['/', '/', 'page'], ['/topics', '/', 'location'], ['/topics/12', '/', 'location'],
+    ['/topics/12/test', '/', 'location'], ['/attempts/51', '/', 'location'],
     ['/progress', '/progress', 'page'], ['/session', '/session', 'page'],
   ]) {
     const nav = learnerNavigation(route)
-    assert.deepEqual(nav.map(item => item.to), ['/topics', '/progress', '/session'])
+    assert.deepEqual(nav.map(item => item.to), ['/', '/progress', '/session'])
     assert.deepEqual(nav.filter(item => item.current).map(item => [item.to, item.current]), [[active, current]])
   }
-  for (const route of ['/', '/login', '/register', '/topics-extra', 'https://outside.invalid/topics']) {
+  for (const route of ['/login', '/register', '/topics-extra', 'https://outside.invalid/topics']) {
     assert.equal(learnerNavigation(route).some(item => item.current), false)
   }
 })

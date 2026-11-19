@@ -10,9 +10,9 @@ from playwright.sync_api import expect
 import pytest
 
 from tests.e2e.test_auth_ui import check, fill, form, identity, post, LOGIN, ME, REGISTER
-from tests.e2e.test_learning_ui import signed_in
+from tests.e2e.test_learning_ui import signed_in, read_article
 from tests.e2e.test_assessment_ui import begin, choose_correct, request_post, result
-from tests.e2e.test_progress_ui import card, complete, open_progress
+from tests.e2e.test_progress_ui import overall, complete, open_progress
 
 
 SUBMITTED_FIELDS = {"attempt_id", "topic_id", "topic_title", "status", "submitted_language", "submitted_at", "result"}
@@ -39,7 +39,7 @@ def fit(page):
 def login_ui(page, email, password):
     fill(page, email, password)
     page.get_by_label("Пароль", exact=True).press("Enter")
-    expect(page).to_have_url(re.compile(r"/session$"))
+    expect(page).to_have_url(re.compile(r"/$"))
     expect(page.get_by_role("button", name="Выйти", exact=True)).to_be_visible()
 
 
@@ -65,26 +65,25 @@ def test_mvp_learner_journey(auth_page, auth_app, learning_topics, article_langu
     check(page.context.request.get(ME).status == 403, "Registration must not automatically authenticate")
     login_ui(page, email, password)
     page.reload()
-    expect(page.locator(".session-email")).to_have_text(email)
+    check(page.context.request.get(ME).json()["data"]["email"] == email, "Reload must preserve the session")
 
     page.get_by_role("link", name="Темы подготовки", exact=True).click()
     expect(page.locator(".topic-list").get_by_role("link")).to_have_text(["Основы тестирования", "Автоматизация"])
-    page.get_by_role("link", name="Основы тестирования", exact=True).click()
+    page.locator(".topic-list").get_by_role("link", name="Основы тестирования", exact=True).click()
     expect(page.locator(".glossary dt")).to_have_text(["Риск", "Оракул", "Качество"])
     page.get_by_role("radio", name="English", exact=True).check()
     expect(page.locator(".article-body")).to_have_attribute("lang", "en")
     expect(page.locator(".glossary dt")).to_have_text(["Risk", "Oracle", "Quality"])
-    check(page.context.request.get("/api/v1/progress/").json() == {"data": []}, "Reading or glossary must not mark the article")
+    # Reading is recorded automatically once the article end is visible.
     if article_language == "ru":
         page.get_by_role("radio", name="Русский", exact=True).check()
-    page.get_by_role("button", name="Отметить «Прочитано»", exact=True).click()
-    expect(page.get_by_role("button", name="Прочитано", exact=True)).to_be_disabled()
+    read_article(page)
     before = page.context.request.get("/api/v1/progress/").json()["data"]
-    check(len(before) == 1 and before[0]["article_read_at"] is not None, "One explicit read mark is required")
+    check(len(before) == 1 and before[0]["article_read_at"] is not None, "One automatic read mark is required")
     other = "English" if article_language == "ru" else "Русский"
     original = "Русский" if article_language == "ru" else "English"
     page.get_by_role("radio", name=other, exact=True).check()
-    expect(page.get_by_role("button", name="Прочитано", exact=True)).to_be_disabled()
+    expect(page.locator(".reading-card .ui-notice--success")).to_be_attached()
     page.get_by_role("radio", name=original, exact=True).check()
     expect(page.locator(".article-body")).to_have_attribute("lang", article_language)
     check(page.context.request.get("/api/v1/progress/").json()["data"] == before, "RU/EN must share the first read mark")
@@ -144,16 +143,16 @@ def test_mvp_learner_journey(auth_page, auth_app, learning_topics, article_langu
     history = page.context.request.get("/api/v1/attempts/").json()["data"]
     check(len(history) == 1 and history[0] == saved["data"], "Repeat or conflict must not change or duplicate history")
 
+    saved_result_url = page.url
     page.get_by_role("link", name="Мой прогресс", exact=True).click()
-    expect(card(page, topic_id).locator("dd")).to_have_text(["Прочитано", "Освоена", "2 из 2 (100%)"])
-    expect(page.locator(".attempt-history-list > li")).to_have_count(1)
-    expect(page.locator(".attempt-history-list dd").nth(1)).to_have_text("Русский" if test_language == "ru" else "English")
-    page.get_by_role("link", name="Открыть сохранённый результат", exact=True).click()
+    overall(page, '50%', 'Освоено 1 из 2 тем')
+    expect(page.locator(".attempt-history-list")).to_have_count(0)
+    page.goto(saved_result_url)
     result(page)
     page.go_back()
-    expect(card(page, topic_id)).to_be_visible()
+    expect(page.locator("main .overall-progress")).to_be_visible()
     page.reload()
-    expect(card(page, topic_id).locator("dd")).to_have_text(["Прочитано", "Освоена", "2 из 2 (100%)"])
+    overall(page, '50%', 'Освоено 1 из 2 тем')
 
     page.get_by_role("link", name="Мой аккаунт", exact=True).click()
     page.get_by_role("button", name="Выйти", exact=True).click()
@@ -161,7 +160,7 @@ def test_mvp_learner_journey(auth_page, auth_app, learning_topics, article_langu
     check(page.context.request.get(ME).status == 403, "Logout must invalidate the learner session")
     login_ui(page, email, password)
     page.get_by_role("link", name="Мой прогресс", exact=True).click()
-    expect(card(page, topic_id).locator("dd")).to_have_text(["Прочитано", "Освоена", "2 из 2 (100%)"])
+    overall(page, '50%', 'Освоено 1 из 2 тем')
     check(page.context.request.get("/api/v1/attempts/").json()["data"] == history, "History must survive a new session")
     check(auth_app.learning_data("info", [topic_id]) == {"read_count": 1, "attempt_count": 1, "submitted_count": 1}, "Journey must not create duplicate data")
     fit(page)
@@ -215,7 +214,7 @@ def test_mvp_unpublish_edit_snapshot_and_second_user_isolation(auth_page, auth_a
         check(other_context.request.get("/api/v1/attempts/" + pending_id + "/").status == 404, "Second user must not retrieve the pending attempt")
         check(request_post(other_context, "/api/v1/attempts/" + pending_id + "/submit/", {"language": "ru", "answers": []}).status == 404, "Second user must not submit another attempt")
         open_progress(other)
-        expect(card(other, topic_id)).to_have_count(0)
+        overall(other, '0%', 'Освоено 0 из 1 тем')
         expect(other.locator(".attempt-history-list")).to_have_count(0)
     finally:
         other_context.close()
@@ -226,14 +225,16 @@ def test_mvp_unpublish_edit_snapshot_and_second_user_isolation(auth_page, auth_a
     page.get_by_role("button", name="Отправить тест", exact=True).click()
     result(page)
     page.get_by_role("link", name="Мой прогресс", exact=True).click()
-    expect(card(page, topic_id).locator("dd")).to_have_text(["Прочитано", "Освоена", "2 из 2 (100%)"])
-    expect(card(page, topic_id).get_by_role("link")).to_have_count(0)
-    expect(page.locator(".attempt-history-list > li")).to_have_count(2)
+    overall(page, '0%', 'Освоено 0 из 1 тем')
+    expect(page.locator('.topic-menu a[href="/topics/' + topic_id + '"]')).to_have_count(0)
+    check(len(page.context.request.get("/api/v1/attempts/").json()["data"]) == 2, "Completed history must remain stored")
+    expect(page.locator(".attempt-history-list")).to_have_count(0)
     check(page.context.request.get("/api/v1/progress/").json() == saved_progress, "Completing the old attempt must preserve the same read mark and mastery")
     page.get_by_role("link", name="Мой аккаунт", exact=True).click()
     page.get_by_role("button", name="Выйти", exact=True).click()
     expect(page).to_have_url(re.compile(r"/login$"))
     login_ui(page, email, password)
     page.get_by_role("link", name="Мой прогресс", exact=True).click()
-    expect(card(page, topic_id).locator("dd")).to_have_text(["Прочитано", "Освоена", "2 из 2 (100%)"])
-    expect(page.locator(".attempt-history-list > li")).to_have_count(2)
+    overall(page, '0%', 'Освоено 0 из 1 тем')
+    check(len(page.context.request.get("/api/v1/attempts/").json()["data"]) == 2, "Completed history must remain stored")
+    expect(page.locator(".attempt-history-list")).to_have_count(0)

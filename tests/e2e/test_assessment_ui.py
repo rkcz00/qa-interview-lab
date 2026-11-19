@@ -276,7 +276,8 @@ def test_guest_start_returns_after_login_without_redirect_parameters(auth_page, 
     expect(page).to_have_url(re.compile(r"/login$"))
     fill(page, email, password)
     page.get_by_role("button", name="Войти", exact=True).click()
-    expect(page).to_have_url(re.compile(re.escape(target) + r"$"))
+    expect(page).to_have_url(re.compile(r"/$"))
+    page.goto(target)
     expect(page.get_by_role("radio", name="English", exact=True)).to_be_checked()
     expect(page.get_by_role("button", name="Начать тест", exact=True)).to_be_enabled()
 

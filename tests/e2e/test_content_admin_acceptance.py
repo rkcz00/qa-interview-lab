@@ -13,7 +13,7 @@ from tests.e2e.test_auth_ui import check
 from tests.e2e.test_learning_ui import signed_in
 from tests.e2e.test_assessment_ui import begin, request_post, result
 from tests.e2e.test_mvp_acceptance import public_attempt
-from tests.e2e.test_progress_ui import card
+from tests.e2e.test_progress_ui import overall
 
 
 CONTENT = {"topic": "learning", "topictranslation": "learning", "term": "learning", "termtranslation": "learning",
@@ -169,7 +169,7 @@ def test_content_admin_demo_publication_and_learner_snapshot(auth_app, auth_brow
         learner = auth_page
         signed_in(learner)
         learner.goto("/topics")
-        learner.get_by_role("link", name=data["translations"]["ru"]["title"], exact=True).click()
+        learner.locator(".topic-list").get_by_role("link", name=data["translations"]["ru"]["title"], exact=True).click()
         expect(learner.locator(".article-body")).to_have_text(data["translations"]["ru"]["article_body"])
         expect(learner.locator(".glossary dt")).to_have_text([term["translations"]["ru"]["name"] for term in data["terms"]])
         learner.get_by_role("radio", name="English", exact=True).check()
@@ -180,8 +180,8 @@ def test_content_admin_demo_publication_and_learner_snapshot(auth_app, auth_brow
             check(set(article) == {"topic_id", "title", "language", "article_body"}, "Article must contain only public fields")
             terms = learner.context.request.get("/api/v1/topics/" + topic_id + "/terms/?language=" + language).json()["data"]
             check(all(set(term) == {"term_id", "position", "language", "name", "definition"} for term in terms), "Glossary must contain only public fields")
-        learner.get_by_role("button", name="Отметить «Прочитано»", exact=True).click()
-        expect(learner.get_by_role("button", name="Прочитано", exact=True)).to_be_disabled()
+        learner.locator(".article-end").scroll_into_view_if_needed()
+        expect(learner.locator(".reading-card .ui-notice--success")).to_be_visible()
         begin(learner, topic_id, "en")
         answer_demo(learner)
         pending = begin(learner, topic_id, "ru")
@@ -243,8 +243,8 @@ def test_content_admin_demo_publication_and_learner_snapshot(auth_app, auth_brow
         expect(learner.locator(".question-card")).to_be_visible()
         answer_demo(learner)
         learner.goto("/progress")
-        expect(card(learner, topic_id).locator("dd")).to_have_text(["Прочитано", "Освоена", "2 из 2 (100%)"])
-        expect(card(learner, topic_id).get_by_role("link")).to_have_count(0)
+        overall(learner, '0%', 'Освоено 0 из 0 тем')
+        expect(learner.locator('.topic-menu a[href="/topics/' + topic_id + '"]')).to_have_count(0)
 
         # Staff status grants no learner ownership bypass.
         check(admin.context.request.get("/api/v1/progress/").json() == {"data": []}, "Content Admin must not see learner progress")

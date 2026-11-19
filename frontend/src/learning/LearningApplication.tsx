@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { api } from '../api/index.ts'
 import { NavigationLink } from '../auth/NavigationLink.tsx'
 import type { Navigate } from '../auth/NavigationLink.tsx'
@@ -18,6 +18,8 @@ import { Button } from '../ui/Button.tsx'
 import { Notice } from '../ui/Notice.tsx'
 import { LoadingState } from '../ui/LoadingState.tsx'
 import { EmptyState } from '../ui/EmptyState.tsx'
+import { useAutomaticRead } from './useAutomaticRead.ts'
+import { notifyProgressChanged } from '../ui/OverviewContext.tsx'
 
 interface Props {
   location: LearningLocation
@@ -34,6 +36,8 @@ export default function LearningApplication({ location, navigate, requireLogin }
   const { content, read } = state
   const heading = usePageHeadingFocus(authentication.kind === 'authenticated' && !['loading', 'authentication'].includes(content.kind))
   const destination = learningDestination(location)
+  const saveRead = useCallback(() => { void store.markRead() }, [store])
+  const articleEnd = useAutomaticRead(content.kind === 'topic' && read.kind === 'ready' && !read.pending && read.at === null, saveRead)
 
   useEffect(() => {
     void session.restore()
@@ -51,10 +55,10 @@ export default function LearningApplication({ location, navigate, requireLogin }
       document.title = `${content.kind === 'topic' ? content.article.title : location.topicId === null ? text.catalog : text.topic} — ${ru.brand}`
     }
   }, [authentication.kind, content, location.topicId])
-  useEffect(() => { if (read.kind === 'error') errorBox.current?.focus() }, [read])
+  useEffect(() => { if (read.kind === 'ready' && read.at !== null) notifyProgressChanged() }, [read])
 
   const authorized = authentication.kind === 'authenticated' && content.kind !== 'authentication'
-  return <AppShell navigate={navigate} canLogout={authentication.kind === 'authenticated'}>
+  return <AppShell navigate={navigate} canLogout={authentication.kind === 'authenticated'} topicId={location.topicId}>
     {location.topicId !== null && <p><NavigationLink to={learningDestination({ topicId: null, language: location.language })} navigate={navigate}>{text.back}</NavigationLink></p>}
     {!authorized && authentication.kind !== 'error' && <LoadingState message={ru.checking} />}
     {authentication.kind === 'error' && <section className="learning-card">
@@ -81,6 +85,7 @@ export default function LearningApplication({ location, navigate, requireLogin }
         <article className="learning-card" aria-labelledby="article-heading">
           <h2 id="article-heading">{text.article}</h2>
           <div className="article-body" lang={location.language}>{content.article.article_body}</div>
+          <span ref={articleEnd} className="article-end" aria-hidden="true" />
         </article>
         <p className="assessment-entry"><NavigationLink to={assessmentDestination({ kind: 'start', id: content.article.topic_id, language: 'ru' })} navigate={navigate} className="ui-button ui-button--primary">{assessmentRu.entry}</NavigationLink></p>
         <section className="reading-card" aria-labelledby="reading-heading">
@@ -93,9 +98,6 @@ export default function LearningApplication({ location, navigate, requireLogin }
           </>}
           {read.kind === 'ready' && <>
             {read.pending ? <LoadingState message={text.marking} /> : <Notice tone={read.at ? 'success' : 'info'}>{read.at ? text.read : text.unread}</Notice>}
-            <Button busy={read.pending} disabled={read.at !== null} onClick={() => { void store.markRead() }}>
-              {read.pending ? text.marking : read.at ? text.marked : text.markRead}
-            </Button>
           </>}
         </section>
         <section className="learning-card glossary" aria-labelledby="terms-heading">

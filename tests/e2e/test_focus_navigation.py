@@ -28,10 +28,11 @@ def visual(page, name, size):
 
 
 def active_section(page, target):
+    target = "/" if target == "/topics" else target
     nav = page.get_by_role("navigation", name="Основная навигация", exact=True)
     expect(nav.locator("a[aria-current]")).to_have_count(1)
     expect(nav.locator("a[aria-current]")).to_have_attribute("href", target)
-    expect(nav.get_by_role("link", name="Темы подготовки", exact=True)).to_have_attribute("href", "/topics")
+    expect(nav.get_by_role("link", name="Темы подготовки", exact=True)).to_have_attribute("href", "/")
     expect(nav.get_by_role("link", name="Мой прогресс", exact=True)).to_have_attribute("href", "/progress")
     expect(nav.get_by_role("link", name="Мой аккаунт", exact=True)).to_have_attribute("href", "/session")
     check(page.evaluate("document.documentElement.scrollWidth <= innerWidth"), "Learner shell must fit the viewport")
@@ -53,6 +54,7 @@ def test_material_and_start_selector_keep_focus_in_both_directions(auth_page, au
     signed_in(page)
     heading_counter(page)
     topic_id = learning_topics["first"]
+    auth_app.learning_data("long_article", [topic_id])
     topic_page(page, topic_id)
     expect(page.get_by_role("heading", name="Основы тестирования", exact=True)).to_be_focused()
     active_section(page, "/topics")
@@ -149,11 +151,13 @@ def test_attempt_keyboard_answers_result_context_navigation_and_logout(auth_page
     page.reload()
     result(page)
     expect(page.locator(".result-topic")).to_have_text("Основы тестирования")
+    saved_result_url = page.url
     page.get_by_role("link", name="Посмотреть прогресс", exact=True).click()
     expect(page.get_by_role("heading", name="Мой прогресс", exact=True)).to_be_focused()
     active_section(page, "/progress")
-    expect(page.get_by_role("link", name="Открыть сохранённый результат", exact=True)).to_have_count(1)
-    page.get_by_role("link", name="Открыть сохранённый результат", exact=True).click()
+    expect(page.locator("main .overall-progress")).to_be_visible()
+    expect(page.locator(".attempt-history-list")).to_have_count(0)
+    page.goto(saved_result_url)
     result(page)
     active_section(page, "/topics")
     page.get_by_role("link", name="К статье", exact=True).click()

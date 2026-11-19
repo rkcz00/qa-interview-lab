@@ -16,12 +16,14 @@ import { usePageHeadingFocus } from '../ui/usePageHeadingFocus.ts'
 import { Button } from '../ui/Button.tsx'
 import { Notice } from '../ui/Notice.tsx'
 import { LoadingState } from '../ui/LoadingState.tsx'
+import { notifyProgressChanged } from '../ui/OverviewContext.tsx'
 
 interface Props {
   location: AssessmentLocation
   navigate: Navigate
   requireLogin: (destination: Destination) => void
   articleLink: (topicId: string) => Destination
+  onTopic?: (topicId: string) => void
 }
 
 function FocusedNotice({ message }: { message: string }) {
@@ -63,7 +65,7 @@ function StartScreen({ location, navigate, articleLink, expired }: Props & { exp
   </>
 }
 
-function AttemptScreen({ location, navigate, articleLink, expired }: Props & { expired: () => void }) {
+function AttemptScreen({ location, navigate, articleLink, expired, onTopic }: Props & { expired: () => void }) {
   const [store] = useState(() => new AttemptStore(api.assessment, location.id))
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
   const questionHeading = useRef<HTMLHeadingElement>(null)
@@ -75,6 +77,9 @@ function AttemptScreen({ location, navigate, articleLink, expired }: Props & { e
   useEffect(() => { if (state.kind === 'authentication') expired() }, [state.kind, expired])
   const pending = state.kind === 'pending' ? state : null
   const question = pending?.attempt.questions[pending.index]
+  const currentTopic = pending?.attempt.topic_id ?? (state.kind === 'result' ? state.topic.id : null)
+  useEffect(() => { if (currentTopic) onTopic?.(currentTopic) }, [currentTopic, onTopic])
+  useEffect(() => { if (state.kind === 'result') notifyProgressChanged() }, [state.kind])
   useEffect(() => {
     if (question && movedQuestion.current) { movedQuestion.current = false; questionHeading.current?.focus() }
   }, [question?.question_id])
@@ -141,16 +146,17 @@ function AttemptScreen({ location, navigate, articleLink, expired }: Props & { e
 }
 
 export default function AssessmentApplication(props: Props) {
+  const [topicId, setTopicId] = useState<string | null>(props.location.kind === 'start' ? props.location.id : null)
   const [session] = useState(() => new SessionStore(api.auth))
   const state = useSyncExternalStore(session.subscribe, session.getSnapshot)
   const destination = assessmentDestination(props.location)
   const expired = useCallback(() => props.requireLogin(destination), [props.requireLogin, destination])
   useEffect(() => { void session.restore(); return () => session.invalidate() }, [session])
   useEffect(() => { if (state.kind === 'anonymous') expired() }, [state.kind, expired])
-  return <AppShell className="assessment-shell" navigate={props.navigate} canLogout={state.kind === 'authenticated'}>
+  return <AppShell className="assessment-shell" navigate={props.navigate} canLogout={state.kind === 'authenticated'} topicId={topicId}>
     {(state.kind === 'checking' || state.kind === 'anonymous') && <LoadingState message={ru.checking} />}
     {state.kind === 'error' && <><h1>{text.title}</h1><FocusedNotice message={ru.sessionError} />
       <Button variant="secondary" onClick={() => { void session.restore() }}>{ru.retry}</Button></>}
-    {state.kind === 'authenticated' && (props.location.kind === 'start' ? <StartScreen {...props} expired={expired} /> : <AttemptScreen {...props} expired={expired} />)}
+    {state.kind === 'authenticated' && (props.location.kind === 'start' ? <StartScreen {...props} expired={expired} /> : <AttemptScreen {...props} expired={expired} onTopic={setTopicId} />)}
   </AppShell>
 }

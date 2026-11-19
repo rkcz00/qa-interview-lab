@@ -40,26 +40,34 @@ export class LearningStore {
     for (const listener of this.#listeners) listener()
   }
   invalidate = () => { this.#generation++; this.#readGeneration++ }
-  #fail(failure: Failure) {
-    this.invalidate()
+  #fail(failure: Failure, clearRead = false) {
+    this.#generation++
     const content: Content = failure === 'authentication' ? { kind: 'authentication' } :
       failure === 'not_found' ? { kind: 'not_found' } :
       { kind: 'error', message: failure === 'network' ? text.networkError : text.serverError }
-    this.#publish({ content, read: { kind: 'loading' } })
+    if (clearRead || failure === 'authentication') {
+      this.#readGeneration++
+      this.#publish({ content, read: { kind: 'loading' } })
+    } else {
+      // A failed translation does not cancel or reset the independent read request.
+      this.#publish({ content })
+    }
   }
 
   async load(location: LearningLocation = this.#location) {
+    const sameTopic = location.topicId !== null && location.topicId === this.#location.topicId
+    const keepRead = sameTopic && this.#state.read.kind !== 'loading'
+    if (!sameTopic) this.#readGeneration++
     this.#location = location
     const generation = ++this.#generation
-    this.#readGeneration++
-    this.#publish({ content: { kind: 'loading' }, read: { kind: 'loading' } })
+    this.#publish({ content: { kind: 'loading' }, read: keepRead ? this.#state.read : { kind: 'loading' } })
     const { topicId, language } = this.#location
     try {
       if (topicId === null) {
         const topics = await this.#api.learning.catalog(language)
         if (generation === this.#generation) this.#publish({ content: { kind: 'catalog', topics } })
       } else {
-        void this.#loadRead(generation)
+        if (!keepRead) void this.#loadRead()
         const [article, terms] = await Promise.all([
           this.#api.learning.article(topicId, language), this.#api.learning.terms(topicId, language),
         ])
@@ -73,41 +81,43 @@ export class LearningStore {
     } catch (error) { if (generation === this.#generation) this.#fail(learningFailure(error)) }
   }
 
-  async #loadRead(generation: number) {
+  async #loadRead() {
+    const topicId = this.#location.topicId
+    if (topicId === null || (this.#state.read.kind === 'ready' && this.#state.read.pending)) return
     const readGeneration = ++this.#readGeneration
     this.#publish({ read: { kind: 'loading' } })
     try {
       const progress = await this.#api.progress.current()
-      if (generation !== this.#generation || readGeneration !== this.#readGeneration) return
-      const at = progress.find(item => item.topic_id === this.#location.topicId)?.article_read_at ?? null
+      if (topicId !== this.#location.topicId || readGeneration !== this.#readGeneration) return
+      const at = progress.find(item => item.topic_id === topicId)?.article_read_at ?? null
       this.#publish({ read: { kind: 'ready', at, pending: false } })
     } catch (error) {
-      if (generation !== this.#generation || readGeneration !== this.#readGeneration) return
+      if (topicId !== this.#location.topicId || readGeneration !== this.#readGeneration) return
       const failure = learningFailure(error)
       if (failure === 'authentication') this.#fail(failure)
       else this.#publish({ read: { kind: 'error', message: text.readError } })
     }
   }
-  refreshRead() { return this.#loadRead(this.#generation) }
+  refreshRead() { return this.#loadRead() }
 
   async markRead() {
     const { content, read } = this.#state
     if (content.kind !== 'topic' || read.kind !== 'ready' || read.at !== null || read.pending || this.#location.topicId === null) return
-    const generation = this.#generation
+    const topicId = this.#location.topicId
     const readGeneration = ++this.#readGeneration
     this.#publish({ read: { ...read, pending: true } })
     try {
-      const progress = await this.#api.progress.markRead(this.#location.topicId)
-      if (generation !== this.#generation || readGeneration !== this.#readGeneration) return
-      if (progress.topic_id !== this.#location.topicId || !progress.article_read_at) {
+      const progress = await this.#api.progress.markRead(topicId)
+      if (topicId !== this.#location.topicId || readGeneration !== this.#readGeneration) return
+      if (progress.topic_id !== topicId || !progress.article_read_at) {
         this.#publish({ read: { kind: 'error', message: text.readError } })
         return
       }
       this.#publish({ read: { kind: 'ready', at: progress.article_read_at, pending: false } })
     } catch (error) {
-      if (generation !== this.#generation || readGeneration !== this.#readGeneration) return
+      if (topicId !== this.#location.topicId || readGeneration !== this.#readGeneration) return
       const failure = learningFailure(error)
-      if (failure === 'authentication' || failure === 'not_found') this.#fail(failure)
+      if (failure === 'authentication' || failure === 'not_found') this.#fail(failure, true)
       else this.#publish({ read: { kind: 'error', message: failure === 'csrf' ? text.csrfError : text.readError } })
     }
   }

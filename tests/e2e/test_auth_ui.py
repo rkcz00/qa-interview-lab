@@ -61,15 +61,14 @@ def test_direct_routes_guest_restore_and_home(auth_page):
     for route in ("/register", "/login"):
         form(page, route)
         check(page.locator("html").get_attribute("lang") == "ru", "Document language must be Russian")
-    page.goto("/session")
-    expect(page).to_have_url(re.compile(r"/login$"))
-    expect(page.get_by_role("button", name="Войти", exact=True)).to_be_visible()
-    page.goto("/")
-    expect(page.get_by_role("heading", name="QA Interview Lab", exact=True)).to_be_visible()
+    for route in ("/session", "/"):
+        page.goto(route)
+        expect(page).to_have_url(re.compile(r"/login$"))
+        expect(page.get_by_role("button", name="Войти", exact=True)).to_be_visible()
     page.get_by_role("link", name="Регистрация", exact=True).click()
     expect(page).to_have_url(re.compile(r"/register$"))
     page.go_back()
-    expect(page.get_by_role("heading", name="QA Interview Lab", exact=True)).to_be_visible()
+    expect(page.get_by_role("heading", name="Вход", exact=True)).to_be_visible()
 
 
 def test_real_registration_login_reload_and_logout(auth_page):
@@ -89,7 +88,8 @@ def test_real_registration_login_reload_and_logout(auth_page):
     check(page.get_by_label("Пароль", exact=True).input_value() == "", "Registration password must be cleared")
     fill(page, email, password)
     page.get_by_role("button", name="Войти", exact=True).click()
-    expect(page).to_have_url(re.compile(r"/session$"))
+    expect(page).to_have_url(re.compile(r"/$"))
+    page.goto("/session")
     expect(page.locator(".session-email")).to_have_text(email)
     page.reload()
     expect(page.locator(".session-email")).to_have_text(email)
@@ -181,7 +181,8 @@ def test_pending_and_double_submit_only_send_one_login(auth_page):
     page.wait_for_timeout(150)
     check(len(held) == 1, "Double submit must not send a second POST")
     held[0].continue_()
-    expect(page).to_have_url(re.compile(r"/session$"))
+    expect(page).to_have_url(re.compile(r"/$"))
+    page.goto("/session")
     expect(page.locator(".session-email")).to_have_text(email)
 
 
@@ -198,10 +199,11 @@ def test_already_authenticated_race_restores_existing_session(auth_page, route):
         page.get_by_role("button", name="Войти" if route == "/login" else "Зарегистрироваться", exact=True).click()
     check(result.value.status == 403 and result.value.json()["error"]["code"] == "already_authenticated",
         "Stale anonymous form must preserve the existing authenticated session")
-    expect(page).to_have_url(re.compile(r"/session$"))
+    expect(page).to_have_url(re.compile(r"/$"))
+    page.goto("/session")
     expect(page.locator(".session-email")).to_have_text(email)
     page.goto("/register")
-    expect(page).to_have_url(re.compile(r"/session$"))
+    expect(page).to_have_url(re.compile(r"/$"))
 
 
 def test_real_csrf_refusal_is_safe_and_has_no_automatic_retry(auth_page):

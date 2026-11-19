@@ -1,6 +1,5 @@
 import type { Language } from '../api/types.ts'
 import type { Destination, LearningRoute, Route } from '../auth/routing.ts'
-import { assessmentDestination, assessmentLocation, isAssessmentRoute } from '../assessment/routing.ts'
 
 export interface LearningLocation {
   topicId: string | null
@@ -28,19 +27,5 @@ export function learningDestination(location: LearningLocation): Destination {
   return location.language === 'ru' ? path : `${path}?language=en`
 }
 
-// Only known internal Learning/Assessment/Progress destinations, never redirect query parameters.
-export function authDestination(pending: Destination | undefined): Destination {
-  if (pending === '/progress') return '/progress'
-  if (pending) {
-    const [path, search = ''] = pending.split('?')
-    if (isAssessmentRoute(path as Route)) {
-      const location = assessmentLocation(path as Route, search)
-      if (location) return assessmentDestination(location)
-    }
-    if (isLearningRoute(path as Route)) {
-      const location = learningLocation(path as LearningRoute, search)
-      if (location) return learningDestination(location)
-    }
-  }
-  return '/session'
-}
+// Login always opens the home catalog; arbitrary return targets are never accepted.
+export function authDestination(_pending?: Destination): Destination { return '/' }

@@ -1,8 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import type { Language } from './api/types.ts'
 import { NavigationLink } from './auth/NavigationLink.tsx'
+import { ProtectedGate } from './auth/ProtectedGate.tsx'
 import { resolveRoute } from './auth/routing.ts'
-import type { AuthRoute, Destination } from './auth/routing.ts'
+import type { Destination } from './auth/routing.ts'
 import { ru } from './auth/texts.ts'
 import { authDestination, isLearningRoute, learningDestination, learningLocation } from './learning/routing.ts'
 import { learningRu } from './learning/texts.ts'
@@ -22,82 +23,45 @@ const ProgressApplication = lazy(() => import('./progress/ProgressApplication.ts
 export default function App() {
   const [address, setAddress] = useState(window.location.pathname + window.location.search)
   const [registeredEmail, setRegisteredEmail] = useState<string>()
-  const [pendingLearning, setPendingLearning] = useState<Destination>()
   const articleLanguages = useRef(new Map<string, Language>())
   const [pathname, search = ''] = address.split('?')
   const route = resolveRoute(pathname)
-  const learning = isLearningRoute(route) ? learningLocation(route, search) : null
+  const learning = route === '/' ? learningLocation('/topics', search) : isLearningRoute(route) ? learningLocation(route, search) : null
   const assessment = route && isAssessmentRoute(route) ? assessmentLocation(route, search) : null
-  const staticHeading = usePageHeadingFocus(!route || route === '/' ||
-    (isLearningRoute(route) && !learning) || (isAssessmentRoute(route) && !assessment), pathname)
+  const staticHeading = usePageHeadingFocus(!route || ((route === '/' || isLearningRoute(route)) && !learning) || (isAssessmentRoute(route) && !assessment), pathname)
   const articleLink = useCallback((topicId: string) => learningDestination({ topicId, language: articleLanguages.current.get(topicId) ?? 'ru' }), [])
-  useEffect(() => {
-    if (learning?.topicId) articleLanguages.current.set(learning.topicId, learning.language)
-  }, [learning?.topicId, learning?.language])
+  useEffect(() => { if (learning?.topicId) articleLanguages.current.set(learning.topicId, learning.language) }, [learning?.topicId, learning?.language])
   const move = useCallback((target: Destination, replace = false) => {
     if (replace) window.history.replaceState(null, '', target)
     else window.history.pushState(null, '', target)
     setAddress(target)
   }, [])
-  const navigate = useCallback((target: Destination, replace = false) => {
-    setRegisteredEmail(undefined)
-    if (target !== '/login' && target !== '/register') setPendingLearning(undefined)
-    move(target, replace)
-  }, [move])
-  const requireLogin = useCallback((target: Destination) => {
-    setPendingLearning(target)
-    setRegisteredEmail(undefined)
-    move('/login', true)
-  }, [move])
-  const onAuthenticated = useCallback(() => {
-    const target = authDestination(pendingLearning)
-    setPendingLearning(undefined)
-    setRegisteredEmail(undefined)
-    move(target, true)
-  }, [pendingLearning, move])
-  const onRegistered = useCallback((email: string) => {
-    setRegisteredEmail(email)
-    move('/login', true)
-  }, [move])
-
+  const navigate = useCallback((target: Destination, replace = false) => { setRegisteredEmail(undefined); move(target, replace) }, [move])
+  const requireLogin = useCallback((_target?: Destination) => { setRegisteredEmail(undefined); move('/login', true) }, [move])
+  const onAuthenticated = useCallback(() => { setRegisteredEmail(undefined); move(authDestination(), true) }, [move])
+  const onRegistered = useCallback((email: string) => { setRegisteredEmail(email); move('/login', true) }, [move])
   useEffect(() => {
-    const changed = () => {
-      setAddress(window.location.pathname + window.location.search)
-      setRegisteredEmail(undefined)
-      if (!['/login', '/register'].includes(window.location.pathname)) setPendingLearning(undefined)
-    }
+    const changed = () => { setAddress(window.location.pathname + window.location.search); setRegisteredEmail(undefined) }
     window.addEventListener('popstate', changed)
     return () => window.removeEventListener('popstate', changed)
   }, [])
   useEffect(() => {
-    document.title = route === '/' ? ru.brand : `${route === '/register' ? ru.register : route === '/login' ? ru.login : route === '/session' ? ru.session : route === '/progress' ? progressRu.title : isAssessmentRoute(route) ? assessmentRu.title : isLearningRoute(route) ? learningRu.catalog : ru.notFound} — ${ru.brand}`
+    document.title = `${route === '/register' ? ru.register : route === '/login' ? ru.login : route === '/session' ? ru.session : route === '/progress' ? progressRu.title : isAssessmentRoute(route) ? assessmentRu.title : route === '/' || isLearningRoute(route) ? learningRu.catalog : ru.notFound} — ${ru.brand}`
   }, [route])
 
-  const learnerFallback = <AppShell navigate={navigate} canLogout={false}><LoadingState message={ru.checking} /></AppShell>
-  if (route === '/progress') return <Suspense fallback={learnerFallback}>
-    <ProgressApplication navigate={navigate} requireLogin={requireLogin} />
+  const fallback = <main className="auth-shell"><LoadingState message={ru.checking} /></main>
+  if (route === '/login' || route === '/register') return <Suspense fallback={fallback}>
+    <AuthApplication key={route} route={route} navigate={navigate} registeredEmail={registeredEmail} onRegistered={onRegistered} onAuthenticated={onAuthenticated} />
   </Suspense>
-  if (isAssessmentRoute(route)) return assessment ? <Suspense fallback={learnerFallback}>
-    <AssessmentApplication key={pathname} location={assessment} navigate={navigate} requireLogin={requireLogin} articleLink={articleLink} />
-  </Suspense> : <AppShell navigate={navigate} canLogout={false}><h1 ref={staticHeading} tabIndex={-1}>{assessmentRu.title}</h1><Notice>{assessmentRu.invalidRoute}</Notice></AppShell>
-  if (isLearningRoute(route)) return learning ? <Suspense fallback={learnerFallback}>
-    <LearningApplication key={pathname} location={learning} navigate={navigate} requireLogin={requireLogin} />
-  </Suspense> : <AppShell navigate={navigate} canLogout={false}><h1 ref={staticHeading} tabIndex={-1}>{learningRu.topic}</h1><Notice>{learningRu.invalidLanguage}</Notice></AppShell>
-  if (route && route !== '/') return <Suspense fallback={route === '/session' ? learnerFallback : <main><LoadingState message={ru.checking} /></main>}>
-    <AuthApplication key={route} route={route as AuthRoute} navigate={navigate} registeredEmail={registeredEmail} onRegistered={onRegistered} onAuthenticated={onAuthenticated} />
-  </Suspense>
-  if (!route) return <main><h1 ref={staticHeading} tabIndex={-1}>{ru.notFound}</h1><NavigationLink to="/" navigate={navigate}>{ru.home}</NavigationLink></main>
-  return (
-    <main>
-      <p className="eyebrow">{ru.audience}</p>
-      <h1 ref={staticHeading} tabIndex={-1}>{ru.brand}</h1>
-      <p>{ru.intro}</p>
-      <nav className="home-actions" aria-label="Навигация приложения">
-        <NavigationLink to="/topics" navigate={navigate} className="ui-button ui-button--primary">{ru.topics}</NavigationLink>
-        <NavigationLink to="/progress" navigate={navigate}>{ru.progress}</NavigationLink>
-        <NavigationLink to="/login" navigate={navigate}>{ru.loginAction}</NavigationLink>
-        <NavigationLink to="/register" navigate={navigate}>{ru.register}</NavigationLink>
-      </nav>
-    </main>
-  )
+
+  const page = route === '/session' ? <AuthApplication key={route} route={route} navigate={navigate} onRegistered={onRegistered} onAuthenticated={onAuthenticated} /> :
+    route === '/progress' ? <ProgressApplication navigate={navigate} requireLogin={requireLogin} /> :
+    isAssessmentRoute(route) ? assessment ?
+      <AssessmentApplication key={pathname} location={assessment} navigate={navigate} requireLogin={requireLogin} articleLink={articleLink} /> :
+      <AppShell navigate={navigate} canLogout><h1 ref={staticHeading} tabIndex={-1}>{assessmentRu.title}</h1><Notice>{assessmentRu.invalidRoute}</Notice></AppShell> :
+    route === '/' || isLearningRoute(route) ? learning ?
+      <LearningApplication key={pathname} location={learning} navigate={navigate} requireLogin={requireLogin} /> :
+      <AppShell navigate={navigate} canLogout><h1 ref={staticHeading} tabIndex={-1}>{learningRu.topic}</h1><Notice>{learningRu.invalidLanguage}</Notice></AppShell> :
+      <AppShell navigate={navigate} canLogout><h1 ref={staticHeading} tabIndex={-1}>{ru.notFound}</h1><NavigationLink to="/" navigate={navigate}>{ru.home}</NavigationLink></AppShell>
+  return <ProtectedGate requireLogin={requireLogin}><Suspense fallback={fallback}>{page}</Suspense></ProtectedGate>
 }

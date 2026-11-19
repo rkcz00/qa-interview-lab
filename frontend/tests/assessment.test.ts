@@ -72,11 +72,11 @@ test('test routes use their own language and only safe internal return targets',
   assert.deepEqual(assessmentLocation('/topics/12/test', ''), { kind: 'start', id: '12', language: 'ru' })
   assert.deepEqual(assessmentLocation('/attempts/51', '?language=en'), { kind: 'attempt', id: '51', language: 'en' })
   assert.equal(assessmentDestination({ kind: 'start', id: '12', language: 'ru' }), '/topics/12/test')
-  assert.equal(authDestination('/attempts/51?language=en'), '/attempts/51?language=en')
-  assert.equal(authDestination('/topics/12/test?language=en'), '/topics/12/test?language=en')
+  assert.equal(authDestination('/attempts/51?language=en'), '/')
+  assert.equal(authDestination('/topics/12/test?language=en'), '/')
   for (const search of ['?language=de', '?language=ru&language=en']) assert.equal(assessmentLocation('/attempts/51', search), null)
   for (const path of ['/attempts/%2Fbad', '/attempts/%2e%2e', '/topics/%ZZ/test']) assert.equal(assessmentLocation(path as Route, ''), null)
-  assert.equal(authDestination('/attempts/51/submit' as Destination), '/session')
+  assert.equal(authDestination('/attempts/51/submit' as Destination), '/')
 })
 
 test('result projection contains only server aggregates and formats without calculating a grade', () => {
