@@ -1,8 +1,8 @@
 # Архитектура QA Interview Lab
 
-Статус: архитектура MVP; пользовательский сценарий уточнён по решениям ручной приёмки QIL-027 от 18 ноября 2026 года.
+Статус: архитектура MVP; пользовательский сценарий уточнён по решениям ручной приёмки QIL-027 от 18 ноября 2026 года. Последующий инкремент объективной Practice согласован в QIL-028 (19 ноября 2026 года) и ещё не реализован.
 
-Связанные документы: [PRD](PRD.md), [QA-стратегия](QA_STRATEGY.md), [backlog](BACKLOG.md), [правила Codex](../AGENTS.md).
+Связанные документы: [PRD](PRD.md), [QA-стратегия](QA_STRATEGY.md), [backlog](BACKLOG.md), [правила Codex](../AGENTS.md), [точный контракт Practice](PRACTICE_SPEC.md).
 
 ## 1. Архитектурные границы
 
@@ -146,6 +146,8 @@ Content Admin — отдельная Django-группа. У обычной уч
 
 Доступ к интерфейсу Admin по `is_staff` сам по себе не даёт модельных permissions. Запреты проверяются и при прямом URL. Публикация требует `change` для Topic и общей проверки полноты; `delete` не обходит защиту темы с историей. Статья входит в TopicTranslation. Под словом Progress в описании роли понимается существующая модель `TopicProgress`, отдельная модель не добавляется.
 
+QIL-028 согласует добавление TopicPractice, PracticeTask и PracticeTaskTranslation: после реализации allowlist содержит 11 контентных моделей. На PracticeSubmission прав нет, она не регистрируется в Admin первого релиза. Текущий код до QIL-029 сохраняет восемь моделей. Полный перечень и ограничения удаления — в [Practice](PRACTICE_SPEC.md#9-content-admin).
+
 ## 7. Языки и публикация
 
 Логические Topic, Question и Choice существуют независимо от перевода. `language` хранится только в таблицах переводов и языке отправки Attempt. У TopicProgress языкового поля нет.
@@ -222,7 +224,9 @@ TopicProgress хранит только отметку чтения. Лучши�
 
 Result содержит только три агрегата. Метаданные SubmittedAttempt сохраняют прежние требования к истории; `topic_title` берётся из сохранённого текста темы, без текущей Draft-статьи или словаря. Лучший результат выбирается по точному отношению верных/всех вопросов отдельной попытки. Если завершённых попыток нет, `best_result=null` и `mastered=false`.
 
-Правильные ответы, `is_correct`, внутренний snapshot, `content_snapshot`, `submitted_answers` и по-вопросные оценки запрещены во всех learner responses, включая ошибки, историю и ответы после submit. После submit не возвращаются также PublicQuestion, варианты и выбранные ответы. Serializers имеют явный разрешённый список полей и не выдают внутренний JSON целиком.
+Правильные ответы тестов и Practice, ключ Choice.is_correct, внутренний snapshot, content_snapshot, task_snapshot, submitted_answers/submitted_answer и по-вопросные тестовые оценки запрещены во всех learner responses, включая ошибки, историю и ответы после submit. После submit теста не возвращаются также PublicQuestion, варианты и выбранные ответы. Serializers имеют явный разрешённый список полей и не выдают внутренний JSON целиком.
+
+Отдельный новый PracticeResult содержит только verdict=correct|incorrect по [PRACTICE_SPEC.md](PRACTICE_SPEC.md). Он не расширяет тестовый Result и не разрешает выдачу expected_answer либо собственного сохранённого ответа. Preview/start/submit/delete практики определены отдельно; существующие endpoints и DTO этого раздела остаются прежними.
 
 ### 9.3. Endpoints и request/response
 
@@ -290,7 +294,17 @@ Jobs сохраняют JUnit-отчёты, а E2E при сбоях — очи�
 
 Настройки времени жизни sessions, версии и точные DB-типы будут выбраны в соответствующих задачах. Архитектура не утверждает их проверенную совместимость на текущем компьютере.
 
-## 12. Первичные источники
+## 12. Объективная практика после MVP — QIL-028
+
+[PRACTICE_SPEC.md](PRACTICE_SPEC.md) определяет четыре новые модели внутри того же Django/PostgreSQL-монолита, ограничения FK/UNIQUE/CHECK, нормализацию, immutable snapshot, пять GET/POST-операций, ownership и удаление. Новый сервис, исполнитель кода, sandbox, внешняя проверка и зависимости не требуются. Модели/URL/клиент пока не реализованы; следующий milestone — QIL-029.
+
+TopicPractice имеет OneToOne-связь с Topic и единственный kind=single_correct_answer. PracticeTask имеет OneToOne-связь с TopicPractice, поэтому задача без включения и вторая задача на тему исключены связями БД. Перевод title/prompt отделён от общего технического контекста и канонического expected_answer. PracticeSubmission имеет собственный жизненный цикл и не использует тестовую Attempt с её счётчиками.
+
+Изменения контентных сущностей используют существующий Topic.revision/expected_revision и блокировку Topic. Start согласован с этой же блокировкой и фиксирует версию нормализации/эталон/RU/EN. Submit/delete блокируют строку собственной PracticeSubmission. Проверка ответа выполняет только явные строковые преобразования и сравнение, не вызывает eval/exec/SQL-исполнение/сеть. Исторический verdict не пересчитывается при edit/unpublish.
+
+Практика не участвует в summarize_progress/is_mastered; существующие Article, Attempt, Result, Progress и правило 80% сохраняются. Account deletion остаётся отдельной возможностью; FK User CASCADE определяет судьбу практических работ при её согласованном выполнении. Автоматического retention нет.
+
+## 13. Первичные источники
 
 - [Django: custom User до первых миграций](https://docs.djangoproject.com/en/5.2/topics/auth/customizing/#using-a-custom-user-model-when-starting-a-project).
 - [Django: хранение и проверка паролей](https://docs.djangoproject.com/en/5.2/topics/auth/passwords/).
