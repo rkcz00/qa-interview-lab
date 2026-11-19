@@ -6,6 +6,7 @@ from django.views.decorators.http import require_safe
 from apps.accounts import views as accounts_views
 from apps.assessments import views as assessments_views
 from apps.learning import views as learning_views
+from apps.practice import views as practice_views
 
 
 @require_safe
@@ -31,4 +32,9 @@ urlpatterns = [
     path("api/v1/attempts/<str:attempt_id>/", assessments_views.attempt_detail, name="attempt-detail"),
     path("api/v1/attempts/<str:attempt_id>/submit/", assessments_views.submit_attempt, name="attempt-submit"),
     path("api/v1/progress/", assessments_views.progress_list, name="progress-list"),
+    path("api/v1/topics/<str:topic_id>/practice/", practice_views.preview, name="practice-preview"),
+    path("api/v1/topics/<str:topic_id>/practice/submissions/", practice_views.start, name="practice-start"),
+    path("api/v1/practice-submissions/<str:submission_id>/", practice_views.detail, name="practice-detail"),
+    path("api/v1/practice-submissions/<str:submission_id>/submit/", practice_views.submit, name="practice-submit"),
+    path("api/v1/practice-submissions/<str:submission_id>/delete/", practice_views.delete, name="practice-delete"),
 ]

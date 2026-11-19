@@ -8,6 +8,7 @@ CONTENT_ADMIN_GROUP = "Content Admin"
 CONTENT_MODELS = {
     "learning": ("topic", "topictranslation", "term", "termtranslation"),
     "assessments": ("question", "questiontranslation", "choice", "choicetranslation"),
+    "practice": ("topicpractice", "practicetask", "practicetasktranslation"),
 }
 
 

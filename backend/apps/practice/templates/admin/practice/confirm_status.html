@@ -1,0 +1,25 @@
+{% extends "admin/base_site.html" %}
+{% load l10n %}
+{% block content %}
+<form method="post">
+  {% csrf_token %}
+  <ul>
+  {% for task in tasks %}
+    <li>{{ task }}
+      <input type="hidden" name="{{ checkbox_name }}" value="{{ task.pk|unlocalize }}">
+      <input type="hidden" name="expected_revision" value="{{ task.topic_practice.topic_id|unlocalize }}:{{ task.topic_practice.topic.revision|unlocalize }}">
+    </li>
+  {% endfor %}
+  </ul>
+  {% if publish %}
+    <p>Проверьте оба перевода, технические данные, канонический эталон и режим нормализации.</p>
+    <label><input type="checkbox" name="confirm_expected" value="yes" required>
+      Эталон проверен (пустота намеренна); SQL, если есть, детерминирован и возвращает одну строку и один столбец.
+    </label>
+  {% endif %}
+  <input type="hidden" name="action" value="{{ action }}">
+  <input type="hidden" name="confirm" value="yes">
+  <button type="submit">Подтвердить</button>
+  <a href="{{ request.path }}">Отмена</a>
+</form>
+{% endblock %}

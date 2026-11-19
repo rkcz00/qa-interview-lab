@@ -13,6 +13,7 @@ from apps.accounts.models import User
 from apps.assessments.models import Choice, ChoiceTranslation, Question, QuestionTranslation
 from apps.learning.models import Language, Term, TermTranslation, Topic, TopicStatus, TopicTranslation
 from apps.learning.tests.test_content import bilingual_topic
+from apps.practice.models import PracticeTask, PracticeTaskTranslation, TopicPractice
 
 from .pg_locks import wait_for_lock_waiters
 
@@ -108,7 +109,8 @@ def test_content_admin_has_only_content_permissions_and_admin_access(editor, bil
     group = Group.objects.get(name="Content Admin")
     expected = {
         (model._meta.app_label, model._meta.model_name, f"{action}_{model._meta.model_name}")
-        for model in CONTENT_MODELS for action in ("add", "change", "delete", "view")
+        for model in (*CONTENT_MODELS, TopicPractice, PracticeTask, PracticeTaskTranslation)
+        for action in ("add", "change", "delete", "view")
     }
     assert set(group.permissions.values_list("content_type__app_label", "content_type__model", "codename")) == expected
 

@@ -227,11 +227,17 @@
 
 ### QIL-029 — Реализация объективной практики single_correct_answer
 
-- Статус: TODO. Зависимости: согласованная QIL-028 и существующие Content Admin/Attempt/Progress/API-клиент/UI QIL-011, QIL-014–QIL-016, QIL-027. Перед началом сверить фактический код и актуальные инструкции; исторический статус в backlog не заменяет доказательство реализации.
+- Статус: backend реализован, локальная приёмка PASS по полному ручному прогону пользователя: 332 backend/HTTPX-теста и 22 подтеста, 171 frontend unit, type-check/build, 87 Playwright, Django/миграции/pip check, cleanup и сохранность файлов. Доступ Codex к Docker/PostgreSQL API по-прежнему BLOCKED. CI точного SHA проверяется после согласованной публикации и фиксируется в итоговом отчёте. Прогон — [PRACTICE_BACKEND](PRACTICE_BACKEND.md). Зависимости: согласованная QIL-028 и существующие Content Admin/Attempt/Progress/API-клиент/UI QIL-011, QIL-014–QIL-016, QIL-027. Исторический статус не заменяет доказательство реализации.
 - Цель: реализовать целиком первый инкремент по [PRACTICE_SPEC.md](PRACTICE_SPEC.md), не переходя к нему автоматически из документационной задачи.
-- Объём: четыре модели и безопасные миграции; ограничения PostgreSQL; публикация/ревизии; snapshot и строковый checker; preview/start/GET/submit/delete; Content Admin ровно 11 контентных моделей без PracticeSubmission; отдельные typed DTO/decoders и минимальные UI-маршруты. Пустой ввод допускается до серверной проверки; лимит — 5000 Unicode scalar values.
-- Приёмка: все PRA-01–PRA-12 и PQA-01–PQA-24, включая пустой эталон, независимые языки, конкурентность, unpublish/edit, удаление владельцем, отсутствие эталона во всех публичных данных и полную неизменность mastery/общего процента. Изменение существующих тестовых DTO, исполнение кода, несколько эталонов и автоматический retention не входят в объём.
+- Объём backend: четыре модели и безопасная миграция; ограничения PostgreSQL; публикация/ревизии; snapshot и строковый checker; preview/start/GET/submit/delete; Content Admin ровно 11 контентных моделей без PracticeSubmission. Лимит — 5000 Unicode scalar values. Typed DTO/decoders и UI вынесены в следующий этап; контракт Practice не меняется.
+- Приёмка backend: Unit/PostgreSQL/HTTPX/Admin части PRA-01–PRA-12 и PQA-01–PQA-24, включая пустой эталон, независимые языки, конкурентность, unpublish/edit, удаление владельцем, отсутствие эталона во всех публичных данных и полную неизменность mastery/общего процента. UI-части матрицы остаются QIL-030. Изменение существующих тестовых DTO, исполнение кода, несколько эталонов и автоматический retention не входят в объём.
 - Проверки: Django checks, makemigrations/migrate --check, pip check, полный pytest с отдельной PostgreSQL и HTTPX/TCP, frontend unit/type-check/build, полный Playwright и фактические результаты всех четырёх CI jobs для SHA при разрешённой публикации. Реальные пользовательские данные/volumes не очищать; секреты не выводить; старые untracked check-*.py не добавлять и не удалять.
+
+### QIL-030 — Practice UI
+
+- Статус: TODO; не запускать до подтверждённой приёмки backend QIL-029 и нового указания пользователя.
+- Объём: отдельные typed DTO/decoders и методы существующего API wrapper, preview/start/GET/submit/delete и минимальный UI строго по [PRACTICE_SPEC](PRACTICE_SPEC.md#8-ui-и-безопасные-сетевые-сценарии). Русский UI, независимые RU/EN, пустая отправка, сохранение ввода в памяти, безопасный timeout/409, подтверждение удаления; без влияния на mastery.
+- Приёмка: frontend unit, runtime decoders, реальные Playwright-сценарии PQA-16/PQA-21–PQA-24 и регрессия. Не менять backend/API, политику нормализации и правило общего прогресса ради UI.
 
 ## 6. За пределами текущего backlog
 

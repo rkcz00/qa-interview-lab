@@ -1,6 +1,6 @@
 # Архитектура QA Interview Lab
 
-Статус: архитектура MVP; пользовательский сценарий уточнён по решениям ручной приёмки QIL-027 от 18 ноября 2026 года. Последующий инкремент объективной Practice согласован в QIL-028 (19 ноября 2026 года) и ещё не реализован.
+Статус: архитектура MVP; пользовательский сценарий уточнён по решениям ручной приёмки QIL-027 от 18 ноября 2026 года. Контракт объективной Practice согласован в QIL-028; backend QIL-029 реализован и принят полным ручным PostgreSQL/HTTPX-прогоном, Practice UI остаётся будущей задачей. [Проверки и runner](PRACTICE_BACKEND.md).
 
 Связанные документы: [PRD](PRD.md), [QA-стратегия](QA_STRATEGY.md), [backlog](BACKLOG.md), [правила Codex](../AGENTS.md), [точный контракт Practice](PRACTICE_SPEC.md).
 
@@ -296,7 +296,7 @@ Jobs сохраняют JUnit-отчёты, а E2E при сбоях — очи�
 
 ## 12. Объективная практика после MVP — QIL-028
 
-[PRACTICE_SPEC.md](PRACTICE_SPEC.md) определяет четыре новые модели внутри того же Django/PostgreSQL-монолита, ограничения FK/UNIQUE/CHECK, нормализацию, immutable snapshot, пять GET/POST-операций, ownership и удаление. Новый сервис, исполнитель кода, sandbox, внешняя проверка и зависимости не требуются. Модели/URL/клиент пока не реализованы; следующий milestone — QIL-029.
+[PRACTICE_SPEC.md](PRACTICE_SPEC.md) определяет четыре новые модели внутри того же Django/PostgreSQL-монолита, ограничения FK/UNIQUE/CHECK, нормализацию, immutable snapshot, пять GET/POST-операций, ownership и удаление. Новый сервис, исполнитель кода, sandbox, внешняя проверка и зависимости не требуются. Backend реализован в apps.practice в QIL-029; PostgreSQL/HTTPX и существующая Playwright-регрессия подтверждены ручным прогоном по [PRACTICE_BACKEND](PRACTICE_BACKEND.md). Typed клиент и UI входят в QIL-030, а не в серверный этап.
 
 TopicPractice имеет OneToOne-связь с Topic и единственный kind=single_correct_answer. PracticeTask имеет OneToOne-связь с TopicPractice, поэтому задача без включения и вторая задача на тему исключены связями БД. Перевод title/prompt отделён от общего технического контекста и канонического expected_answer. PracticeSubmission имеет собственный жизненный цикл и не использует тестовую Attempt с её счётчиками.
 

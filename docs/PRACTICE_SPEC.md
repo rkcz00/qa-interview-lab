@@ -1,6 +1,6 @@
 # Объективная практика — QIL-028
 
-Статус: требования и API согласованы пользователем 19 ноября 2026 года; документ зафиксирован без реализации. Реализация — QIL-029 (TODO). На исходном commit `60a01aa` моделей и endpoints Practice нет. Успешный CI документации не является приёмкой будущей функциональности.
+Статус: требования и API согласованы пользователем 19 ноября 2026 года в QIL-028. Backend реализован в QIL-029 и подтверждён полным ручным PostgreSQL/HTTPX-прогоном и существующей Playwright-регрессией; Practice UI остаётся QIL-030 (TODO). [Фактический статус и runner](PRACTICE_BACKEND.md). На исходном commit `60a01aa` моделей и endpoints Practice нет. Успешный CI документации не является приёмкой функциональности.
 
 Источники: [PRD](PRD.md), [архитектура](ARCHITECTURE.md), [QA-стратегия](QA_STRATEGY.md), [backlog](BACKLOG.md), [правила Codex](../AGENTS.md). Этот документ — точная спецификация отдельного инкремента после базового MVP; FR-01–FR-13 и NFR-01–NFR-03 сохраняются.
 
@@ -351,10 +351,10 @@ FK PROTECT не даёт удалить TopicPractice с задачей или P
 | PQA-23 | PRA-07, PRA-12 | Потерянный start без автоповтора, submit timeout + GET + frozen repeat, 409 + GET, delete timeout + 404; нет дублей от UI | Unit, Playwright |
 | PQA-24 | PRA-08, PRA-11 | Только синтетические ответы; нет request body/keys/cookies в logs/JUnit/media; очистка временной БД и собственных процессов | API/E2E, CI |
 
-Приёмка QIL-029 требует всех PRA-01–PRA-12 и соответствующих PQA-01–PQA-24, Django checks, makemigrations --check, migrate --check, pip check, полного pytest, frontend unit/type-check/build и полного Playwright. Существующие Auth/Learning/Assessment/Progress тесты сохраняются. Все четыре GitHub Actions jobs остаются обязательными; реальный run проверяется для точного SHA. Падение/NOT_RUN/BLOCKED не называется PASS.
+Полная приёмка Practice требует всех PRA-01–PRA-12 и соответствующих PQA-01–PQA-24. По указанию пользователя QIL-029 ограничен backend: применяются Unit/PostgreSQL/HTTPX/Admin части матрицы, Django checks, makemigrations --check, migrate --check, pip check, полный backend pytest и существующие frontend unit/type-check/build/Playwright regression. Practice UI и его E2E-части матрицы входят в QIL-030 и до реализации остаются NOT_RUN. Существующие Auth/Learning/Assessment/Progress тесты сохраняются. Все четыре GitHub Actions jobs остаются обязательными; реальный run проверяется для точного SHA. Падение/NOT_RUN/BLOCKED не называется PASS.
 
 ## 11. Следующий шаг и исключения
 
-Следующая задача — QIL-029 по [backlog](BACKLOG.md): реализовать этот контракт отдельным согласованным milestone. QIL-028 создаёт только документацию. Команды миграций, seed, создание ролей/данных и новые endpoints здесь не запускаются.
+QIL-028 зафиксировала документацию, QIL-029 готовит backend с отдельной приёмкой по [PRACTICE_BACKEND](PRACTICE_BACKEND.md). Следующая задача после подтверждённого PASS backend — QIL-030 Practice UI по [backlog](BACKLOG.md). Контракт этого документа не меняется из-за разделения этапов; новая задача не запускается автоматически.
 
 На будущее остаются rubric/self-check, Reviewer, исполнение кода, внешние проверки/ИИ, несколько допустимых эталонов, SQL-таблицы, несколько задач на тему, autosave, история решений в UI и автоматический retention. Новый account-delete UI также не добавляется.

@@ -23,13 +23,15 @@ def main():
     from apps.accounts.models import User
     from apps.assessments.models import Attempt, Choice, ChoiceTranslation, Question, QuestionTranslation, TopicProgress
     from apps.learning.models import Term, TermTranslation, Topic, TopicTranslation
+    from apps.practice.models import TopicPractice, PracticeTask, PracticeTaskTranslation
 
     payload = json.load(sys.stdin)
     with connection.cursor() as cursor:
         cursor.execute("SELECT current_database()")
         if cursor.fetchone()[0] != database:
             raise RuntimeError("Wrong fixture database")
-    content = (Topic, TopicTranslation, Term, TermTranslation, Question, QuestionTranslation, Choice, ChoiceTranslation)
+    content = (Topic, TopicTranslation, Term, TermTranslation, Question, QuestionTranslation, Choice, ChoiceTranslation,
+        TopicPractice, PracticeTask, PracticeTaskTranslation)
     if action == "editor":
         if set(payload) != {"password"} or not isinstance(payload["password"], str) or not payload["password"]:
             raise RuntimeError("Invalid private setup")

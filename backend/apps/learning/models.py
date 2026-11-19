@@ -1,4 +1,4 @@
-from django.core.exceptions import ValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import models, router
 
 
@@ -113,6 +113,14 @@ class Topic(models.Model):
     def _save_content_revision(self, using):
         if self.status == TopicStatus.PUBLISHED:
             self.validate_for_publication()
+        # Practice may remain Draft independently. Published practice must stay complete
+        # even while its parent Topic is Draft; all writers hold this Topic's lock.
+        try:
+            task = self.practice.task
+        except ObjectDoesNotExist:
+            task = None
+        if task is not None and task.status == TopicStatus.PUBLISHED:
+            task.validate_for_publication()
         self.revision += 1
         super().save(using=using, update_fields=("status", "revision", "updated_at"))
 

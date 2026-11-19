@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "apps.accounts.apps.AccountsConfig",
     "apps.learning.apps.LearningConfig",
     "apps.assessments.apps.AssessmentsConfig",
+    "apps.practice.apps.PracticeConfig",
 ]
 
 MIDDLEWARE = [
