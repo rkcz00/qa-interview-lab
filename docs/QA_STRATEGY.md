@@ -1,6 +1,6 @@
 # QA-стратегия QA Interview Lab
 
-Статус: QA-стратегия MVP с уточнениями ручной приёмки QIL-027 от 18 ноября 2026 года и согласованной Practice QIL-028. Backend QIL-029 реализован; полный ручной прогон пользователя подтвердил 332 backend/HTTPX-теста и 22 подтеста, 171 frontend unit, type-check/build, 87 Playwright, Django/миграции/pip check и cleanup. Доступ к Docker/PostgreSQL API из Codex остаётся BLOCKED и не называется успешным. Practice UI и его проверки — будущая QIL-030. [Фактический статус и runner](PRACTICE_BACKEND.md).
+Статус: QA-стратегия MVP и согласованной Practice. QIL-030: полный ручной прогон с временной PostgreSQL — PASS: npm ci, 332 backend/HTTPX-теста и 22 подтеста, 198 frontend unit, 96 Playwright, Django/миграции/pip, type-check/build и cleanup. Совпадение проверенных файлов подтверждено; CI проверяется отдельно для точного SHA. Ограничения Codex не выдаются за PASS. [Backend](PRACTICE_BACKEND.md), [UI и runner](PRACTICE_UI.md).
 
 Основание: [PRD](PRD.md), [архитектура](ARCHITECTURE.md), [backlog](BACKLOG.md), [Practice: требования и QA-план](PRACTICE_SPEC.md).
 

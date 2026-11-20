@@ -147,6 +147,13 @@ export function createApiClient(options: ApiClientOptions) {
       markRead: (topicId: string) => post(`topics/${pathId(topicId)}/read/`, {}, 200, decode.progress),
       current: () => request('progress/', 200, decode.arrayOf(decode.progress)),
     },
+    practice: {
+      preview: (topicId: string, language?: Language) => request(localized(`topics/${pathId(topicId)}/practice/`, language), 200, decode.practicePreview),
+      start: (topicId: string, language: Language) => post(`topics/${pathId(topicId)}/practice/submissions/`, { language }, 201, decode.pendingPractice),
+      get: (submissionId: string, language?: Language) => request(localized(`practice-submissions/${pathId(submissionId)}/`, language), 200, decode.practiceSubmission),
+      submit: (submissionId: string, language: Language, answerText: string) => post(`practice-submissions/${pathId(submissionId)}/submit/`, { language, answer_text: answerText }, 200, decode.submittedPractice),
+      delete: (submissionId: string): Promise<void> => post(`practice-submissions/${pathId(submissionId)}/delete/`, {}, 204, () => undefined),
+    },
   }
 }
 

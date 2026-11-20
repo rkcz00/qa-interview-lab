@@ -1,6 +1,7 @@
 import type {
   Account, Article, Attempt, ErrorEnvelope, ErrorFields, Language, PendingAttempt,
   Progress, PublicChoice, PublicQuestion, Result, SubmittedAttempt, Term, TopicSummary,
+  PracticePreview, PendingPractice, SubmittedPractice, PracticeSubmission, PublicPracticeTask, PracticeNormalization, PracticeBlock,
 } from './types.ts'
 
 export type Decoder<T> = (value: unknown) => T
@@ -144,11 +145,60 @@ export function progress(value: unknown): Progress {
   }
 }
 
+function practiceMode(value: unknown): PracticeNormalization {
+  if (value !== 'lf_trim_outer_v1' && value !== 'lf_exact_v1') throw new ContractError()
+  return value
+}
+function practiceKind(value: unknown): 'single_correct_answer' {
+  if (value !== 'single_correct_answer') throw new ContractError()
+  return value
+}
+function practiceLimit(value: unknown): 5000 {
+  if (value !== 5000) throw new ContractError()
+  return value
+}
+export function practicePreview(value: unknown): PracticePreview {
+  const item = object(value, ['topic_id', 'task_id', 'practice_kind', 'language', 'title', 'can_start', 'blocked_by', 'normalization_mode', 'answer_max_length'])
+  const blocked_by = arrayOf<PracticeBlock>(value => {
+    if (value !== 'article_not_read' && value !== 'test_not_submitted') throw new ContractError()
+    return value
+  })(item.blocked_by)
+  const ordered = ['article_not_read', 'test_not_submitted'].filter(code => blocked_by.includes(code as PracticeBlock))
+  if (typeof item.can_start !== 'boolean' || item.can_start !== (blocked_by.length === 0) || ordered.join() !== blocked_by.join()) throw new ContractError()
+  return { topic_id: id(item.topic_id), task_id: id(item.task_id), practice_kind: practiceKind(item.practice_kind),
+    language: language(item.language), title: text(item.title), can_start: item.can_start, blocked_by,
+    normalization_mode: practiceMode(item.normalization_mode), answer_max_length: practiceLimit(item.answer_max_length) }
+}
+function publicPracticeTask(value: unknown): PublicPracticeTask {
+  const item = object(value, ['practice_kind', 'source_type', 'title', 'prompt', 'source_text', 'input_data', 'environment', 'output_spec', 'normalization_mode', 'answer_max_length'])
+  if (item.source_type !== 'python' && item.source_type !== 'sql' && item.source_type !== 'other') throw new ContractError()
+  return { practice_kind: practiceKind(item.practice_kind), source_type: item.source_type,
+    title: text(item.title), prompt: text(item.prompt), source_text: text(item.source_text), input_data: text(item.input_data),
+    environment: text(item.environment), output_spec: text(item.output_spec), normalization_mode: practiceMode(item.normalization_mode), answer_max_length: practiceLimit(item.answer_max_length) }
+}
+export function pendingPractice(value: unknown): PendingPractice {
+  const item = object(value, ['submission_id', 'topic_id', 'task_id', 'status', 'language', 'task'])
+  if (item.status !== 'in_progress') throw new ContractError()
+  return { submission_id: id(item.submission_id), topic_id: id(item.topic_id), task_id: id(item.task_id), status: item.status,
+    language: language(item.language), task: publicPracticeTask(item.task) }
+}
+export function submittedPractice(value: unknown): SubmittedPractice {
+  const item = object(value, ['submission_id', 'topic_id', 'task_id', 'task_title', 'status', 'submitted_language', 'submitted_at', 'result'])
+  if (item.status !== 'submitted') throw new ContractError()
+  const result = object(item.result, ['verdict'])
+  if (result.verdict !== 'correct' && result.verdict !== 'incorrect') throw new ContractError()
+  return { submission_id: id(item.submission_id), topic_id: id(item.topic_id), task_id: id(item.task_id), task_title: text(item.task_title),
+    status: item.status, submitted_language: language(item.submitted_language), submitted_at: text(item.submitted_at), result: { verdict: result.verdict } }
+}
+export function practiceSubmission(value: unknown): PracticeSubmission {
+  return record(value).status === 'in_progress' ? pendingPractice(value) : submittedPractice(value)
+}
+
 export function errorEnvelope(value: unknown): ErrorEnvelope {
   const item = object(object(value, ['error']).error, ['code', 'message'], ['fields'])
   let fields: ErrorFields | undefined
   if (Object.hasOwn(item, 'fields')) {
-    const inputs = ['email', 'password', 'language', 'answers', 'question_id', 'choice_ids', 'topic_id', 'attempt_id', 'non_field_errors']
+    const inputs = ['email', 'password', 'language', 'answers', 'answer_text', 'question_id', 'choice_ids', 'topic_id', 'attempt_id', 'non_field_errors']
     fields = Object.fromEntries(Object.entries(record(item.fields)).map(([key, messages]) => {
       if (!inputs.includes(key)) throw new ContractError()
       return [key, typeof messages === 'string' ? [messages] : arrayOf(text)(messages)]

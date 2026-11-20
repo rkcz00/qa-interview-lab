@@ -1,7 +1,7 @@
 import type { Language } from '../api/types.ts'
 
 interface Props {
-  name: 'material-language' | 'test-language'
+  name: 'material-language' | 'test-language' | 'practice-language'
   legend: string
   language: Language
   disabled?: boolean

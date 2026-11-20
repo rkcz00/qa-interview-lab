@@ -1,6 +1,6 @@
 # Объективная практика — QIL-028
 
-Статус: требования и API согласованы пользователем 19 ноября 2026 года в QIL-028. Backend реализован в QIL-029 и подтверждён полным ручным PostgreSQL/HTTPX-прогоном и существующей Playwright-регрессией; Practice UI остаётся QIL-030 (TODO). [Фактический статус и runner](PRACTICE_BACKEND.md). На исходном commit `60a01aa` моделей и endpoints Practice нет. Успешный CI документации не является приёмкой функциональности.
+Статус: требования и API согласованы пользователем 19 ноября 2026 года в QIL-028. Backend принят в QIL-029; Practice UI реализован в QIL-030, полный ручной PostgreSQL/Playwright-прогон — PASS. [Backend](PRACTICE_BACKEND.md), [UI и runner](PRACTICE_UI.md). На исходном commit `60a01aa` моделей и endpoints Practice нет. Успешный CI документации не является приёмкой функциональности.
 
 Источники: [PRD](PRD.md), [архитектура](ARCHITECTURE.md), [QA-стратегия](QA_STRATEGY.md), [backlog](BACKLOG.md), [правила Codex](../AGENTS.md). Этот документ — точная спецификация отдельного инкремента после базового MVP; FR-01–FR-13 и NFR-01–NFR-03 сохраняются.
 

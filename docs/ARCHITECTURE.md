@@ -1,6 +1,6 @@
 # Архитектура QA Interview Lab
 
-Статус: архитектура MVP; пользовательский сценарий уточнён по решениям ручной приёмки QIL-027 от 18 ноября 2026 года. Контракт объективной Practice согласован в QIL-028; backend QIL-029 реализован и принят полным ручным PostgreSQL/HTTPX-прогоном, Practice UI остаётся будущей задачей. [Проверки и runner](PRACTICE_BACKEND.md).
+Статус: архитектура MVP; пользовательский сценарий уточнён в QIL-027. Контракт Practice согласован в QIL-028, backend принят в QIL-029; UI реализован в QIL-030, полный ручной PostgreSQL/Playwright-прогон — PASS. Существующие API и архитектурные решения сохранены. [Backend](PRACTICE_BACKEND.md), [UI и runner](PRACTICE_UI.md).
 
 Связанные документы: [PRD](PRD.md), [QA-стратегия](QA_STRATEGY.md), [backlog](BACKLOG.md), [правила Codex](../AGENTS.md), [точный контракт Practice](PRACTICE_SPEC.md).
 

@@ -14,11 +14,15 @@ import { AppShell } from './ui/AppShell.tsx'
 import { usePageHeadingFocus } from './ui/usePageHeadingFocus.ts'
 import { LoadingState } from './ui/LoadingState.tsx'
 import { Notice } from './ui/Notice.tsx'
+import { isPracticeRoute, practiceLocation } from './practice/routing.ts'
+import { practiceRu } from './practice/texts.ts'
+import { allowHistoryNavigation } from './ui/navigation.ts'
 
 const AuthApplication = lazy(() => import('./auth/AuthApplication.tsx'))
 const LearningApplication = lazy(() => import('./learning/LearningApplication.tsx'))
 const AssessmentApplication = lazy(() => import('./assessment/AssessmentApplication.tsx'))
 const ProgressApplication = lazy(() => import('./progress/ProgressApplication.tsx'))
+const PracticeApplication = lazy(() => import('./practice/PracticeApplication.tsx'))
 
 export default function App() {
   const [address, setAddress] = useState(window.location.pathname + window.location.search)
@@ -28,7 +32,9 @@ export default function App() {
   const route = resolveRoute(pathname)
   const learning = route === '/' ? learningLocation('/topics', search) : isLearningRoute(route) ? learningLocation(route, search) : null
   const assessment = route && isAssessmentRoute(route) ? assessmentLocation(route, search) : null
-  const staticHeading = usePageHeadingFocus(!route || ((route === '/' || isLearningRoute(route)) && !learning) || (isAssessmentRoute(route) && !assessment), pathname)
+  const practice = route && isPracticeRoute(route) ? practiceLocation(route, search) : null
+  const staticHeading = usePageHeadingFocus(!route || ((route === '/' || isLearningRoute(route)) && !learning) || (isAssessmentRoute(route) && !assessment) || (isPracticeRoute(route) && !practice), pathname)
+  const articleLanguage = useCallback((topicId: string) => articleLanguages.current.get(topicId) ?? 'ru', [])
   const articleLink = useCallback((topicId: string) => learningDestination({ topicId, language: articleLanguages.current.get(topicId) ?? 'ru' }), [])
   useEffect(() => { if (learning?.topicId) articleLanguages.current.set(learning.topicId, learning.language) }, [learning?.topicId, learning?.language])
   const move = useCallback((target: Destination, replace = false) => {
@@ -41,12 +47,16 @@ export default function App() {
   const onAuthenticated = useCallback(() => { setRegisteredEmail(undefined); move(authDestination(), true) }, [move])
   const onRegistered = useCallback((email: string) => { setRegisteredEmail(email); move('/login', true) }, [move])
   useEffect(() => {
-    const changed = () => { setAddress(window.location.pathname + window.location.search); setRegisteredEmail(undefined) }
+    const changed = () => {
+      if (!allowHistoryNavigation()) return
+      setAddress(window.location.pathname + window.location.search)
+      setRegisteredEmail(undefined)
+    }
     window.addEventListener('popstate', changed)
     return () => window.removeEventListener('popstate', changed)
   }, [])
   useEffect(() => {
-    document.title = `${route === '/register' ? ru.register : route === '/login' ? ru.login : route === '/session' ? ru.session : route === '/progress' ? progressRu.title : isAssessmentRoute(route) ? assessmentRu.title : route === '/' || isLearningRoute(route) ? learningRu.catalog : ru.notFound} — ${ru.brand}`
+    document.title = `${route === '/register' ? ru.register : route === '/login' ? ru.login : route === '/session' ? ru.session : route === '/progress' ? progressRu.title : isPracticeRoute(route) ? practiceRu.title : isAssessmentRoute(route) ? assessmentRu.title : route === '/' || isLearningRoute(route) ? learningRu.catalog : ru.notFound} — ${ru.brand}`
   }, [route])
 
   const fallback = <main className="auth-shell"><LoadingState message={ru.checking} /></main>
@@ -56,8 +66,10 @@ export default function App() {
 
   const page = route === '/session' ? <AuthApplication key={route} route={route} navigate={navigate} onRegistered={onRegistered} onAuthenticated={onAuthenticated} /> :
     route === '/progress' ? <ProgressApplication navigate={navigate} requireLogin={requireLogin} /> :
+    isPracticeRoute(route) ? practice ? <PracticeApplication key={pathname} location={practice} navigate={navigate} requireLogin={requireLogin} /> :
+      <AppShell navigate={navigate} canLogout><h1 ref={staticHeading} tabIndex={-1}>{practiceRu.title}</h1><Notice>{practiceRu.invalidRoute}</Notice></AppShell> :
     isAssessmentRoute(route) ? assessment ?
-      <AssessmentApplication key={pathname} location={assessment} navigate={navigate} requireLogin={requireLogin} articleLink={articleLink} /> :
+      <AssessmentApplication key={pathname} location={assessment} navigate={navigate} requireLogin={requireLogin} articleLink={articleLink} articleLanguage={articleLanguage} /> :
       <AppShell navigate={navigate} canLogout><h1 ref={staticHeading} tabIndex={-1}>{assessmentRu.title}</h1><Notice>{assessmentRu.invalidRoute}</Notice></AppShell> :
     route === '/' || isLearningRoute(route) ? learning ?
       <LearningApplication key={pathname} location={learning} navigate={navigate} requireLogin={requireLogin} /> :

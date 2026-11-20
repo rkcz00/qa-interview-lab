@@ -63,6 +63,51 @@ export interface SubmittedAttempt {
 
 export type Attempt = PendingAttempt | SubmittedAttempt
 
+export type PracticeNormalization = 'lf_trim_outer_v1' | 'lf_exact_v1'
+export type PracticeBlock = 'article_not_read' | 'test_not_submitted'
+export interface PracticePreview {
+  topic_id: string
+  task_id: string
+  practice_kind: 'single_correct_answer'
+  language: Language
+  title: string
+  can_start: boolean
+  blocked_by: PracticeBlock[]
+  normalization_mode: PracticeNormalization
+  answer_max_length: 5000
+}
+export interface PublicPracticeTask {
+  practice_kind: 'single_correct_answer'
+  source_type: 'python' | 'sql' | 'other'
+  title: string
+  prompt: string
+  source_text: string
+  input_data: string
+  environment: string
+  output_spec: string
+  normalization_mode: PracticeNormalization
+  answer_max_length: 5000
+}
+export interface PendingPractice {
+  submission_id: string
+  topic_id: string
+  task_id: string
+  status: 'in_progress'
+  language: Language
+  task: PublicPracticeTask
+}
+export interface SubmittedPractice {
+  submission_id: string
+  topic_id: string
+  task_id: string
+  task_title: string
+  status: 'submitted'
+  submitted_language: Language
+  submitted_at: string
+  result: { verdict: 'correct' | 'incorrect' }
+}
+export type PracticeSubmission = PendingPractice | SubmittedPractice
+
 export interface Answer {
   question_id: string
   choice_ids: readonly string[]

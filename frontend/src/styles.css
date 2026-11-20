@@ -1,5 +1,14 @@
 @import './tokens.css';
 
+.practice-form { display: grid; gap: var(--space-3); margin-top: var(--space-5); }
+.practice-form textarea { box-sizing: border-box; width: 100%; min-height: 10rem; resize: vertical; padding: 12px;
+  color: var(--color-text); background: var(--color-surface); border: var(--border-width) solid var(--color-control-border); border-radius: var(--radius-control); font: inherit; }
+.practice-form textarea:focus-visible { outline: var(--focus-width) solid var(--color-focus); outline-offset: var(--focus-offset); }
+.practice-form textarea[aria-invalid="true"] { border-color: var(--color-error); }
+.practice-form textarea:disabled { background: var(--color-disabled); cursor: wait; }
+.practice-source, .practice-content { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; max-width: 100%; }
+.practice-source { padding: var(--space-3); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-control); }
+
 :root {
   font-family: var(--font-family);
   font-size: var(--font-body);

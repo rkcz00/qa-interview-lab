@@ -19,9 +19,10 @@ interface Props {
   className?: string
   topicId?: string | null
   children: ReactNode
+  beforeLogout?: () => boolean
 }
 
-export function AppShell({ navigate, canLogout, className = '', topicId, children }: Props) {
+export function AppShell({ navigate, canLogout, className = '', topicId, children, beforeLogout }: Props) {
   const [logout] = useState(() => new LogoutStore(api.auth))
   const state = useSyncExternalStore(logout.subscribe, logout.getSnapshot)
   const [overview] = useState(() => new ProgressStore(api))
@@ -46,7 +47,7 @@ export function AppShell({ navigate, canLogout, className = '', topicId, childre
         <nav className="app-nav" aria-label="Основная навигация">
           {learnerNavigation(window.location.pathname).map(item =>
             <NavigationLink key={item.to} to={item.to} navigate={navigate} current={item.current}>{item.label}</NavigationLink>)}
-          {canLogout && <Button variant="secondary" busy={state.kind === 'pending'} onClick={() => { void logout.logout() }}>
+          {canLogout && <Button variant="secondary" busy={state.kind === 'pending'} onClick={() => { if (!beforeLogout || beforeLogout()) void logout.logout() }}>
             {state.kind === 'pending' ? ru.signingOut : ru.logout}
           </Button>}
         </nav>

@@ -73,6 +73,22 @@ def auth_app():
                 owned_topics.difference_update(topic_ids)
             return data
 
+        owned_practice_topics = set()
+
+        def practice_data(action, topic_ids=()):
+            if action != "create" and (not topic_ids or not set(topic_ids).issubset(owned_practice_topics)):
+                pytest.fail("Practice fixture may change only its owned topics", pytrace=False)
+            result = subprocess.run([sys.executable, "-B", str(ROOT / "tests/e2e/practice_data.py"), database, action, *topic_ids],
+                cwd=ROOT, env=backend_env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30)
+            if result.returncode:
+                pytest.fail("Practice fixture failed; private details suppressed", pytrace=False)
+            data = json.loads(result.stdout)
+            if action == "create":
+                owned_practice_topics.update(data["ids"])
+            if action == "cleanup":
+                owned_practice_topics.difference_update(topic_ids)
+            return data
+
         owned_admin_topics = set()
 
         def content_admin_data(action, **payload):
@@ -105,7 +121,7 @@ def auth_app():
                 processes.append(frontend_process)
                 yield SimpleNamespace(url=str(frontend.base_url).rstrip("/"),
                     admin_url=str(backend.base_url).rstrip("/"), learning_data=learning_data,
-                    content_admin_data=content_admin_data)
+                    content_admin_data=content_admin_data, practice_data=practice_data)
     finally:
         try:
             if created:
@@ -151,3 +167,12 @@ def learning_topics(auth_app):
         yield data
     finally:
         auth_app.learning_data("cleanup", data["ids"])
+
+
+@pytest.fixture
+def practice_topics(auth_app):
+    data = auth_app.practice_data("create")
+    try:
+        yield data
+    finally:
+        auth_app.practice_data("cleanup", data["ids"])

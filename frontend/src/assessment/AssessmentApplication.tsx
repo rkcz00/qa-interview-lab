@@ -17,6 +17,8 @@ import { Button } from '../ui/Button.tsx'
 import { Notice } from '../ui/Notice.tsx'
 import { LoadingState } from '../ui/LoadingState.tsx'
 import { notifyProgressChanged } from '../ui/OverviewContext.tsx'
+import { PracticeEntry } from '../practice/PracticeEntry.tsx'
+import type { Language } from '../api/types.ts'
 
 interface Props {
   location: AssessmentLocation
@@ -24,6 +26,7 @@ interface Props {
   requireLogin: (destination: Destination) => void
   articleLink: (topicId: string) => Destination
   onTopic?: (topicId: string) => void
+  articleLanguage: (topicId: string) => Language
 }
 
 function FocusedNotice({ message }: { message: string }) {
@@ -65,7 +68,7 @@ function StartScreen({ location, navigate, articleLink, expired }: Props & { exp
   </>
 }
 
-function AttemptScreen({ location, navigate, articleLink, expired, onTopic }: Props & { expired: () => void }) {
+function AttemptScreen({ location, navigate, articleLink, articleLanguage, expired, onTopic }: Props & { expired: () => void }) {
   const [store] = useState(() => new AttemptStore(api.assessment, location.id))
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
   const questionHeading = useRef<HTMLHeadingElement>(null)
@@ -141,6 +144,7 @@ function AttemptScreen({ location, navigate, articleLink, expired, onTopic }: Pr
         <NavigationLink to={articleLink(state.topic.id)} navigate={navigate} className="ui-button ui-button--secondary">{text.back}</NavigationLink>
         <NavigationLink to="/progress" navigate={navigate} className="ui-button ui-button--primary">{text.openProgress}</NavigationLink>
       </div>
+      <PracticeEntry topicId={state.topic.id} language={articleLanguage(state.topic.id)} navigate={navigate} expired={expired} />
     </section>}
   </>
 }

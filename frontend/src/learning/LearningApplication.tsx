@@ -20,6 +20,7 @@ import { LoadingState } from '../ui/LoadingState.tsx'
 import { EmptyState } from '../ui/EmptyState.tsx'
 import { useAutomaticRead } from './useAutomaticRead.ts'
 import { notifyProgressChanged } from '../ui/OverviewContext.tsx'
+import { PracticeEntry } from '../practice/PracticeEntry.tsx'
 
 interface Props {
   location: LearningLocation
@@ -37,6 +38,7 @@ export default function LearningApplication({ location, navigate, requireLogin }
   const heading = usePageHeadingFocus(authentication.kind === 'authenticated' && !['loading', 'authentication'].includes(content.kind))
   const destination = learningDestination(location)
   const saveRead = useCallback(() => { void store.markRead() }, [store])
+  const expired = useCallback(() => requireLogin(destination), [requireLogin, destination])
   const articleEnd = useAutomaticRead(content.kind === 'topic' && read.kind === 'ready' && !read.pending && read.at === null, saveRead)
 
   useEffect(() => {
@@ -88,6 +90,8 @@ export default function LearningApplication({ location, navigate, requireLogin }
           <span ref={articleEnd} className="article-end" aria-hidden="true" />
         </article>
         <p className="assessment-entry"><NavigationLink to={assessmentDestination({ kind: 'start', id: content.article.topic_id, language: 'ru' })} navigate={navigate} className="ui-button ui-button--primary">{assessmentRu.entry}</NavigationLink></p>
+        <PracticeEntry key={content.article.topic_id} topicId={content.article.topic_id} language={location.language} navigate={navigate} expired={expired}
+          refreshKey={read.kind === 'ready' ? String(read.at) : read.kind} />
         <section className="reading-card" aria-labelledby="reading-heading">
           <h2 id="reading-heading">{text.readHeading}</h2>
           <p className="help-text">{text.readHelp}</p>
