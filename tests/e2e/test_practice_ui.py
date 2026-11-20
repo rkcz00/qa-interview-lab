@@ -34,7 +34,19 @@ def begin(page, topic_id, language="ru"):
 
 def result(page, correct=True):
     expect(page.get_by_role("heading", name="Результат практики", exact=True)).to_be_visible()
-    expect(page.locator(".practice-result .ui-notice")).to_have_text("Верно" if correct else "Неверно")
+    notice = page.locator(".practice-result .ui-notice")
+    expect(notice).to_have_text("Верно" if correct else "Неверно")
+    tone = "success" if correct else "error"
+    expect(notice).to_have_attribute("data-tone", tone)
+    check(notice.evaluate("""(node, tone) => {
+        const probe = document.createElement('span');
+        probe.style.color = 'var(--color-' + tone + ')';
+        probe.style.backgroundColor = 'var(--color-' + tone + '-bg)';
+        document.body.append(probe);
+        const actual = getComputedStyle(node), expected = getComputedStyle(probe);
+        const matches = actual.color === expected.color && actual.backgroundColor === expected.backgroundColor;
+        probe.remove(); return matches;
+    }""", tone), "Verdict must use the existing success/error palette")
     expect(page.locator("textarea")).to_have_count(0)
     expect(page.locator(".practice-task")).to_have_count(0)
     check(not any(key in page.locator("main").inner_text() for key in ("expected_answer", "task_snapshot", "source_revision", "submitted_answer")), "Private fields in UI")
@@ -107,11 +119,11 @@ def test_article_test_practice_language_reload_keyboard_result_delete(auth_page,
     before_progress = page.context.request.get("/api/v1/progress/").json()
     check(not any(row["mastered"] for row in before_progress["data"]), "Practice must not replace an 80-percent test")
     check(page.evaluate("document.documentElement.scrollWidth <= innerWidth"), "Mobile/desktop must not overflow")
-    page.get_by_role("button", name="Удалить работу", exact=True).click()
+    page.get_by_role("button", name="Удалить результат", exact=True).click()
     expect(page.get_by_role("button", name="Подтвердить удаление", exact=True)).to_be_focused()
     page.get_by_role("button", name="Отмена", exact=True).click()
-    expect(page.get_by_role("button", name="Удалить работу", exact=True)).to_be_focused()
-    page.get_by_role("button", name="Удалить работу", exact=True).click()
+    expect(page.get_by_role("button", name="Удалить результат", exact=True)).to_be_focused()
+    page.get_by_role("button", name="Удалить результат", exact=True).click()
     page.get_by_role("button", name="Подтвердить удаление", exact=True).click()
     expect(page).to_have_url(re.compile(r"/topics/" + topic_id + r"/practice(?:\?language=en)?$"))
     check(page.context.request.get(f"/api/v1/practice-submissions/{identifier}/").status == 404, "Deleted submission must disappear")
@@ -207,7 +219,7 @@ def test_lost_submit_and_delete_responses_are_resolved_without_repeating_posts(a
     page.locator("#practice-answer").fill("2")
     page.get_by_role("button", name="Отправить ответ", exact=True).click()
     result(page)
-    page.get_by_role("button", name="Удалить работу", exact=True).click()
+    page.get_by_role("button", name="Удалить результат", exact=True).click()
     page.get_by_role("button", name="Подтвердить удаление", exact=True).click()
     expect(page.get_by_role("button", name="Начать практику", exact=True)).to_be_enabled()
     check(counts == {"submit": 1, "delete": 1}, "Lost response must not cause automatic duplicate writes")
@@ -235,7 +247,7 @@ def test_snapshot_after_unpublish_and_foreign_submission_remain_protected(auth_p
         check(request_post(other_context, f"/api/v1/practice-submissions/{identifier}/delete/", {}).status == 404, "B cannot delete A's work")
     finally:
         other_context.close()
-    page.get_by_role("button", name="Удалить работу", exact=True).click()
+    page.get_by_role("button", name="Удалить результат", exact=True).click()
     page.get_by_role("button", name="Подтвердить удаление", exact=True).click()
     expect(page).to_have_url(re.compile(r"/$"))
 
@@ -270,3 +282,107 @@ def test_unicode_limit_unsaved_leave_and_safe_decoder_errors(auth_page, practice
     page.reload()
     expect(page.get_by_text("Не удалось загрузить практику. Попробуйте ещё раз.", exact=True)).to_be_visible()
     check("PRIVATE_TEST_REFERENCE" not in page.locator("body").inner_text(), "Private fields must fail decoding without rendering")
+
+
+@pytest.mark.parametrize("language,width,height", [("ru", 1280, 900), ("en", 390, 844)])
+@pytest.mark.parametrize("first_answer,first_correct", [("wrong", False), ("2", True)])
+def test_restart_opens_empty_work_preserves_result_language_and_progress(auth_page, auth_app, practice_topics, language, width, height, first_answer, first_correct):
+    page = auth_page
+    page.set_viewport_size({"width": width, "height": height})
+    signed_in(page)
+    topic = practice_topics["enabled"]
+    unlock(page, topic)
+    identifier = begin(page, topic, language)
+    page.locator("#practice-answer").fill(first_answer)
+    page.get_by_role("button", name="Отправить ответ", exact=True).click()
+    result(page, first_correct)
+    saved = page.context.request.get(f"/api/v1/practice-submissions/{identifier}/").json()
+    progress = page.context.request.get("/api/v1/progress/").json()
+    held = []
+    starts = []
+    path = f"/api/v1/topics/{topic}/practice/submissions/"
+    def hold(route):
+        starts.append(route.request)
+        held.append(route)
+    page.route("**" + path, hold)
+    page.get_by_role("button", name="Пройти заново", exact=True).click()
+    expect(page.get_by_role("button", name="Начинаем заново…", exact=True)).to_be_disabled()
+    result(page, first_correct)
+    check(len(held) == 1, "Restart must send only one start request")
+    check(starts[0].post_data_json == {"language": language} and bool(starts[0].headers.get("x-csrftoken")), "Restart needs only language and CSRF")
+    with page.expect_response(lambda response: response.url.endswith(path) and response.request.method == "POST") as restarted:
+        held[0].continue_()
+    check(restarted.value.status == 201, "Restart must create a new work")
+    new_id = restarted.value.json()["data"]["submission_id"]
+    check(new_id != identifier, "Restart must have its own stable ID")
+    expect(page).to_have_url(re.compile(r"/practice-submissions/" + new_id + (r"\?language=en$" if language == "en" else r"$")))
+    expect(page.locator("#practice-answer")).to_be_enabled()
+    expect(page.locator("#practice-answer")).to_have_value("")
+    expect(page.get_by_role("heading", level=1)).to_be_focused()
+    expect(page.locator(".practice-task h2")).to_have_text("Practice: Python output" if language == "en" else "Практика: вывод Python")
+    check(page.context.request.get(f"/api/v1/practice-submissions/{identifier}/").json() == saved, "Old result must remain unchanged")
+    check(auth_app.practice_data("info", [topic])["submission_count"] == 2, "Restart must preserve the previous work")
+    page.locator("#practice-answer").fill("2" if not first_correct else "wrong")
+    page.get_by_role("button", name="Отправить ответ", exact=True).click()
+    result(page, not first_correct)
+    page.go_back()
+    expect(page).to_have_url(re.compile(r"/practice-submissions/" + identifier + (r"\?language=en$" if language == "en" else r"$")))
+    result(page, first_correct)
+    check(page.context.request.get(f"/api/v1/practice-submissions/{identifier}/").json() == saved, "Back must restore the saved old result")
+    check(page.context.request.get("/api/v1/progress/").json() == progress, "Restart must not change progress")
+    check(page.evaluate("document.documentElement.scrollWidth <= innerWidth"), "Restart/result must fit desktop and mobile")
+    check(len(starts) == 1, "No extra restart is allowed from reload or Back")
+
+
+def test_restart_after_unpublish_keeps_result_without_creating_work(auth_page, auth_app, practice_topics):
+    page = auth_page
+    signed_in(page)
+    topic = practice_topics["enabled"]
+    unlock(page, topic)
+    identifier = begin(page, topic)
+    page.locator("#practice-answer").fill("2")
+    page.get_by_role("button", name="Отправить ответ", exact=True).click()
+    result(page)
+    saved = page.context.request.get(f"/api/v1/practice-submissions/{identifier}/").json()
+    auth_app.practice_data("draft", [topic])
+    with page.expect_response(lambda response: response.url.endswith(f"/api/v1/topics/{topic}/practice/submissions/")) as restarted:
+        page.get_by_role("button", name="Пройти заново", exact=True).click()
+    check(restarted.value.status == 404, "Unpublished topic cannot start a new work")
+    expect(page.get_by_text("Новую работу сейчас начать нельзя. Тема или задание недоступны либо не выполнены условия доступа.", exact=True)).to_be_visible()
+    expect(page.get_by_role("button", name="Пройти заново", exact=True)).to_be_disabled()
+    result(page)
+    check(page.context.request.get(f"/api/v1/practice-submissions/{identifier}/").json() == saved, "Unavailable restart must preserve saved result")
+    check(auth_app.practice_data("info", [topic])["submission_count"] == 1, "Failed restart must not create or delete work")
+
+
+def test_lost_restart_response_warns_before_an_explicit_new_start(auth_page, auth_app, practice_topics):
+    page = auth_page
+    signed_in(page)
+    topic = practice_topics["enabled"]
+    unlock(page, topic)
+    identifier = begin(page, topic)
+    page.locator("#practice-answer").fill("wrong")
+    page.get_by_role("button", name="Отправить ответ", exact=True).click()
+    result(page, False)
+    saved = page.context.request.get(f"/api/v1/practice-submissions/{identifier}/").json()
+    starts = []
+    def lost(route):
+        starts.append(route.request)
+        if len(starts) == 1:
+            response = route.fetch()
+            check(response.status == 201, "First restart reaches the real backend")
+            route.abort("failed")
+        else:
+            route.continue_()
+    page.route(f"**/api/v1/topics/{topic}/practice/submissions/", lost)
+    page.get_by_role("button", name="Пройти заново", exact=True).click()
+    expect(page.get_by_text("Ответ о начале не получен. Работа могла быть создана. Новый явный запуск может создать ещё одну работу.", exact=True)).to_be_visible()
+    expect(page.get_by_role("button", name="Начать новую работу", exact=True)).to_be_enabled()
+    result(page, False)
+    check(len(starts) == 1, "Lost restart response must not cause an automatic POST")
+    check(auth_app.practice_data("info", [topic])["submission_count"] == 2, "Unknown created work and the old result are preserved")
+    page.get_by_role("button", name="Начать новую работу", exact=True).click()
+    expect(page.locator("#practice-answer")).to_be_enabled()
+    expect(page.locator("#practice-answer")).to_have_value("")
+    check(len(starts) == 2, "Only the explicit warned action may start another work")
+    check(page.context.request.get(f"/api/v1/practice-submissions/{identifier}/").json() == saved, "Old result is never removed by restart")

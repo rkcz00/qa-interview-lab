@@ -67,9 +67,10 @@ function SubmissionScreen({ location, navigate, requireLogin }: Props) {
   useEffect(() => {
     if (state.kind === 'authentication') requireLogin()
     if (state.kind === 'deleted') navigate(state.deletedTopic ? practiceDestination({ kind: 'preview', id: state.deletedTopic, language: location.language }) : '/', true)
-  }, [state.kind, state.deletedTopic, requireLogin, navigate, location.language])
+    if (state.kind === 'restarted' && state.nextSubmission) navigate(practiceDestination({ kind: 'submission', ...state.nextSubmission }))
+  }, [state.kind, state.deletedTopic, state.nextSubmission, requireLogin, navigate, location.language])
   useEffect(() => {
-    if (state.kind === 'ready' && state.message) {
+    if (['ready', 'result', 'restart_uncertain'].includes(state.kind) && state.message) {
       if (state.fieldError) answer.current?.focus()
       else messageBox.current?.focus()
     }
@@ -115,12 +116,17 @@ function SubmissionScreen({ location, navigate, requireLogin }: Props) {
       <Button variant="secondary" onClick={() => { void (state.kind === 'delete_uncertain' ? store.checkDelete() : store.check()) }}>{text.check}</Button>
       {state.canRetry && <Button onClick={() => { void (state.kind === 'delete_uncertain' ? store.retryDelete() : store.retrySame()) }}>{state.kind === 'delete_uncertain' ? text.retryDelete : text.retrySame}</Button>}
     </div>}
-    {state.kind === 'result' && result && <section className="learning-card practice-result" aria-label={text.result}>
+    {['result', 'restarting', 'restart_uncertain', 'restarted'].includes(state.kind) && result && <section className="learning-card practice-result" aria-label={text.result}>
       <h2 lang={result.submitted_language}>{result.task_title}</h2>
-      <Notice tone={result.result.verdict === 'correct' ? 'success' : 'info'}>{result.result.verdict === 'correct' ? text.correct : text.incorrect}</Notice>
+      <Notice tone={result.result.verdict === 'correct' ? 'success' : 'error'}>{result.result.verdict === 'correct' ? text.correct : text.incorrect}</Notice>
     </section>}
+    {state.kind === 'restarting' && <><LoadingState message={text.restarting} /><Button busy>{text.restarting}</Button></>}
+    {state.kind === 'restart_uncertain' && <Button onClick={() => { void store.restart(true) }}>{text.newStart}</Button>}
     {state.kind === 'deleting' && <LoadingState message={text.removing} />}
-    {['ready', 'result'].includes(state.kind) && !confirming && <p><Button ref={removeButton} variant="secondary" onClick={() => setConfirming(true)}>{text.remove}</Button></p>}
+    {['ready', 'result'].includes(state.kind) && !confirming && <div className="assessment-actions">
+      {result && <Button disabled={state.restartBlocked} onClick={() => { void store.restart() }}>{text.restart}</Button>}
+      <Button ref={removeButton} variant="secondary" onClick={() => setConfirming(true)}>{result ? text.removeResult : text.remove}</Button>
+    </div>}
     {confirming && ['ready', 'result'].includes(state.kind) && <section className="learning-card" aria-label={text.confirmTitle}>
       <h2>{text.confirmTitle}</h2><p>{text.confirmHelp}</p><div className="assessment-actions">
         <Button ref={confirmButton} onClick={() => { setConfirming(false); void store.remove(true) }}>{text.confirmRemove}</Button>

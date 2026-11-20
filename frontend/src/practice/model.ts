@@ -84,13 +84,15 @@ export class PreviewStore extends Observable<PreviewState> {
   }
 }
 export interface SubmissionState {
-  kind: 'loading' | 'ready' | 'sending' | 'checking' | 'uncertain' | 'result' | 'deleting' | 'delete_uncertain' | 'deleted' | 'error' | 'authentication' | 'not_found'
+  kind: 'loading' | 'ready' | 'sending' | 'checking' | 'uncertain' | 'result' | 'restarting' | 'restart_uncertain' | 'restarted' | 'deleting' | 'delete_uncertain' | 'deleted' | 'error' | 'authentication' | 'not_found'
   item: PracticeSubmission | null
   answer: string
   message?: string
   canRetry?: boolean
   deletedTopic?: string | null
   fieldError?: boolean
+  nextSubmission?: { id: string; language: Language }
+  restartBlocked?: boolean
 }
 export class SubmissionStore extends Observable<SubmissionState> {
   #api: Api
@@ -118,7 +120,7 @@ export class SubmissionStore extends Observable<SubmissionState> {
     this.publish({ ...this.getSnapshot(), answer, message: undefined, fieldError: false })
   }
   async load(language: Language) {
-    if (this.#writing) return
+    if (this.#writing || ['restart_uncertain', 'restarted'].includes(this.getSnapshot().kind)) return
     this.#language = language
     if (this.#deletePending) { await this.checkDelete(); return }
     if (this.#frozen || this.#conflict) { await this.check(); return }
@@ -186,6 +188,32 @@ export class SubmissionStore extends Observable<SubmissionState> {
       if (failure === 'authentication' || failure === 'not_found') this.#terminal(failure)
       else this.publish({ ...this.getSnapshot(), kind: 'uncertain', message: text.uncertain, canRetry: false })
     }
+  }
+  async restart(explicitNew = false) {
+    const state = this.getSnapshot()
+    if (this.#writing || state.item?.status !== 'submitted' || state.restartBlocked ||
+        !(state.kind === 'result' || (state.kind === 'restart_uncertain' && explicitNew))) return
+    const language = state.item.submitted_language
+    const generation = ++this.#generation
+    this.#writing = true
+    this.publish({ ...state, kind: 'restarting', message: undefined })
+    try {
+      const pending = await this.#api.start(state.item.topic_id, language)
+      if (generation !== this.#generation) return
+      if (pending.submission_id === this.#id || pending.topic_id !== state.item.topic_id || pending.language !== language) {
+        throw new Error('Unexpected new practice identity')
+      }
+      this.publish({ ...state, kind: 'restarted', message: undefined, nextSubmission: { id: pending.submission_id, language } })
+    } catch (error) {
+      if (generation !== this.#generation) return
+      const failure = practiceFailure(error)
+      if (failure === 'authentication') this.#terminal(failure)
+      else if (['not_found', 'locked', 'forbidden'].includes(failure)) {
+        this.publish({ ...state, kind: 'result', restartBlocked: true, message: text.restartUnavailable })
+      } else if (failure === 'csrf' || failure === 'validation') {
+        this.publish({ ...state, kind: 'result', message: failureText(error) })
+      } else this.publish({ ...state, kind: 'restart_uncertain', message: text.startUncertain })
+    } finally { if (generation === this.#generation) this.#writing = false }
   }
   async remove(confirmed: boolean) {
     if (!confirmed || this.#writing || !['ready', 'result'].includes(this.getSnapshot().kind)) return

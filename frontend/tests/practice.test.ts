@@ -267,3 +267,113 @@ test('invalid length cannot submit, and a late response cannot restore disposed 
   store.setAnswer('typed'); const sending = store.submit(); store.invalidate(); hold.resolve(submitted); await sending
   assert.equal(store.getSnapshot().answer, ''); assert.equal(store.getSnapshot().item, null)
 })
+
+for (const language of ['ru', 'en'] as const) test(`restart creates a new work in saved language and preserves the old result: ${language}`, async () => {
+  const { api, calls } = fixture()
+  const saved = { ...submitted, submitted_language: language }
+  api.get = async () => saved
+  api.start = async (...args) => { calls.push({ method: 'start', args }); return { ...pending, submission_id: '4', language: args[1] } }
+  const store = new SubmissionStore(api, '3'); await store.load(language === 'ru' ? 'en' : 'ru')
+  await store.restart()
+  assert.equal(store.getSnapshot().kind, 'restarted')
+  assert.deepEqual(store.getSnapshot().nextSubmission, { id: '4', language })
+  assert.deepEqual(store.getSnapshot().item, saved)
+  assert.equal(store.getSnapshot().answer, '')
+  assert.deepEqual(calls, [{ method: 'start', args: ['1', language] }])
+})
+
+test('restart is single-flight and cannot be replaced by a translation GET', async () => {
+  const { api } = fixture(); api.get = async () => submitted
+  const hold = deferred<PendingPractice>(); let starts = 0
+  api.start = async () => { starts++; return hold.promise }
+  const store = new SubmissionStore(api, '3'); await store.load('ru')
+  const first = store.restart(); await store.restart(); await store.load('en')
+  assert.equal(starts, 1)
+  assert.equal(store.getSnapshot().kind, 'restarting')
+  assert.deepEqual(store.getSnapshot().item, submitted)
+  hold.resolve({ ...pending, submission_id: '4' }); await first
+  await store.restart()
+  assert.equal(starts, 1)
+  assert.equal(store.getSnapshot().nextSubmission?.id, '4')
+})
+
+test('restart does not discard an unsubmitted draft or start a new work from it', async () => {
+  const { api, calls } = fixture()
+  const store = new SubmissionStore(api, '3'); await store.load('ru'); store.setAnswer('unfinished')
+  await store.restart()
+  assert.equal(store.getSnapshot().kind, 'ready')
+  assert.equal(store.getSnapshot().answer, 'unfinished')
+  assert.equal(calls.some(call => call.method === 'start' || call.method === 'delete'), false)
+})
+
+for (const [status, code] of [[404, 'not_found'], [403, 'practice_locked'], [403, 'forbidden']] as const) {
+  test(`restart refusal ${code} keeps the saved result and blocks further starts until reload`, async () => {
+    const { api } = fixture(); api.get = async () => submitted
+    let starts = 0; api.start = async () => { starts++; throw error(status, code) }
+    const store = new SubmissionStore(api, '3'); await store.load('ru'); await store.restart()
+    assert.equal(store.getSnapshot().kind, 'result')
+    assert.deepEqual(store.getSnapshot().item, submitted)
+    assert.equal(store.getSnapshot().restartBlocked, true)
+    assert.ok(store.getSnapshot().message)
+    await store.restart(); assert.equal(starts, 1)
+    await store.load('ru'); assert.equal(store.getSnapshot().restartBlocked, undefined)
+    api.start = async () => ({ ...pending, submission_id: '4' })
+    await store.restart(); assert.equal(store.getSnapshot().kind, 'restarted')
+  })
+}
+
+for (const code of ['csrf_failed', 'validation_error']) test(`restart ${code} permits an explicit retry without removing the result`, async () => {
+  const { api } = fixture(); api.get = async () => submitted
+  let starts = 0; api.start = async () => { starts++; if (starts === 1) throw error(code === 'csrf_failed' ? 403 : 400, code); return { ...pending, submission_id: '4' } }
+  const store = new SubmissionStore(api, '3'); await store.load('ru'); await store.restart()
+  assert.equal(store.getSnapshot().kind, 'result')
+  assert.deepEqual(store.getSnapshot().item, submitted)
+  assert.equal(starts, 1)
+  await store.restart(); assert.equal(starts, 2)
+  assert.equal(store.getSnapshot().kind, 'restarted')
+})
+
+test('lost restart response is never retried automatically; only a warned explicit new start is allowed', async () => {
+  const { api } = fixture(); api.get = async () => submitted
+  let starts = 0; api.start = async () => { starts++; if (starts === 1) throw error(0, 'network_error'); return { ...pending, submission_id: '4' } }
+  const store = new SubmissionStore(api, '3'); await store.load('ru'); await store.restart()
+  assert.equal(store.getSnapshot().kind, 'restart_uncertain')
+  assert.deepEqual(store.getSnapshot().item, submitted)
+  assert.ok(store.getSnapshot().message)
+  await store.restart(); await store.load('en')
+  assert.equal(starts, 1)
+  assert.equal(store.getSnapshot().kind, 'restart_uncertain')
+  await store.restart(true)
+  assert.equal(starts, 2)
+  assert.equal(store.getSnapshot().kind, 'restarted')
+})
+
+test('restart clears local user state after session loss', async () => {
+  const { api } = fixture(); api.get = async () => submitted
+  api.start = async () => { throw error(403, 'authentication_required') }
+  const store = new SubmissionStore(api, '3'); await store.load('ru'); await store.restart()
+  assert.equal(store.getSnapshot().kind, 'authentication')
+  assert.equal(store.getSnapshot().item, null)
+  assert.equal(store.getSnapshot().nextSubmission, undefined)
+})
+
+test('restart rejects an old or unrelated new identity without losing the saved result', async () => {
+  for (const value of [pending, { ...pending, submission_id: '4', topic_id: '99' }, { ...pending, submission_id: '4', language: 'en' as const }]) {
+    const { api } = fixture(); api.get = async () => submitted; api.start = async () => value
+    const store = new SubmissionStore(api, '3'); await store.load('ru'); await store.restart()
+    assert.equal(store.getSnapshot().kind, 'restart_uncertain')
+    assert.equal(store.getSnapshot().nextSubmission, undefined)
+    assert.deepEqual(store.getSnapshot().item, submitted)
+  }
+})
+
+test('a late restart response cannot restore a disposed work or navigate to a new one', async () => {
+  const { api } = fixture(); api.get = async () => submitted
+  const hold = deferred<PendingPractice>(); api.start = async () => hold.promise
+  const store = new SubmissionStore(api, '3'); await store.load('ru')
+  const first = store.restart(); store.invalidate()
+  hold.resolve({ ...pending, submission_id: '4' }); await first
+  assert.equal(store.getSnapshot().kind, 'loading')
+  assert.equal(store.getSnapshot().item, null)
+  assert.equal(store.getSnapshot().nextSubmission, undefined)
+})
