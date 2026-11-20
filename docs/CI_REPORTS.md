@@ -8,13 +8,13 @@
 
 ## Что публикуется
 
-Четыре обязательных jobs и минимальные `permissions: contents: read` сохраняются. Приложение, API, тесты, зависимости и browser setup не меняются.
+Четыре обязательных job ID и минимальные `permissions: contents: read` сохраняются. QIL-031 добавляет browser matrix внутри `playwright_e2e`: шесть executions, включая Chromium full и Firefox/WebKit critical. Приложение/API, миграции и зависимости не меняются; browser fixtures и выбор тестов описаны в [CROSS_BROWSER_ACCEPTANCE](CROSS_BROWSER_ACCEPTANCE.md).
 
 | Job | Источник | Artifact |
 | --- | --- | --- |
 | `backend_api` | Все backend/API-тесты Pytest, реальная PostgreSQL и HTTPX/TCP | `backend_api-junit`, только `junit.xml` |
 | `frontend_unit` | Тот же Node `--test` и glob, что в `npm test`, со встроенным JUnit reporter | `frontend_unit-junit`, только `junit.xml` |
-| `playwright_e2e` | Вся папка E2E, реальная SPA/Django/PostgreSQL | `playwright_e2e-junit`, только `junit.xml` |
+| `playwright_e2e` | Chromium: вся папка E2E; Firefox/WebKit: marker `cross_browser`; реальная SPA/Django/PostgreSQL на каждом runner | `playwright_e2e-chromium-junit`, `playwright_e2e-firefox-junit`, `playwright_e2e-webkit-junit`; каждый только `junit.xml` |
 | `frontend_check_build` | Type-check и production build | Artifact не создаётся: тестового JUnit у build нет |
 
 В frontend reporter-флаги стоят перед glob тестовых файлов: передача их через `npm test -- ...` после текущего glob локально не создавала XML. Состав запускаемых тестов сохранён, новый reporter не требует npm-зависимостей.
@@ -30,7 +30,7 @@ Raw XML и stdout/stderr тестов находятся только в `RUNNER
 
 Upload имеет один точный путь `runner.temp/qil-safe-report/junit.xml`, без glob и папок проекта; `include-hidden-files: false`, `if-no-files-found: error`, `retention-days: 7`. `.env`, конфигурация окружения, cookies/CSRF/пароли, raw logs, `.git`, `node_modules`, volumes и DB dumps в этот путь не включаются. Из произвольного входного XML не переносятся текстовые значения.
 
-На успешном run ожидаются ровно три необходимых компактных JUnit artifacts. На ошибке теста они также доступны: formatter запускается с `always() && !cancelled()`, upload — дополнительно только при `steps.report.outputs.ready == 'true'`. Ненулевой exit code исходных тестов сохраняет failure job; `continue-on-error` не используется. При отменённом job formatter/upload пропускаются, отмена не считается PASS.
+На успешном run ожидаются ровно пять необходимых компактных JUnit artifacts: backend, frontend unit и три движка. Имя browser artifact включает allowlisted matrix.browser, чтобы независимые uploads не сталкивались. XML formatter по-прежнему принимает только три тестовых job ID; GITHUB_JOB для browser matrix остаётся `playwright_e2e`. На ошибке теста отчёты также доступны: formatter запускается с `always() && !cancelled()`, upload — дополнительно только при `steps.report.outputs.ready == 'true'`. Ненулевой exit code исходных тестов сохраняет failure job; `continue-on-error` не используется. `fail-fast: false` позволяет собрать результаты остальных движков. При отменённом job formatter/upload пропускаются, отмена не считается PASS.
 
 ## Screenshot, trace, video и HTML
 

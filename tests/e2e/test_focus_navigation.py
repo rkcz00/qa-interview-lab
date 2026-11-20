@@ -48,6 +48,7 @@ def heading_counter(page):
 
 
 @pytest.mark.parametrize("size", SIZES, ids=["desktop", "mobile"])
+@pytest.mark.cross_browser
 def test_material_and_start_selector_keep_focus_in_both_directions(auth_page, auth_app, learning_topics, size):
     page = auth_page
     page.set_viewport_size(size)
@@ -92,6 +93,7 @@ def test_material_and_start_selector_keep_focus_in_both_directions(auth_page, au
 
 
 @pytest.mark.parametrize("size", SIZES, ids=["desktop", "mobile"])
+@pytest.mark.cross_browser
 def test_attempt_keyboard_answers_result_context_navigation_and_logout(auth_page, learning_topics, size):
     page = auth_page
     page.set_viewport_size(size)

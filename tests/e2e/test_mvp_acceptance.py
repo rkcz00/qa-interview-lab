@@ -46,6 +46,7 @@ def login_ui(page, email, password):
 @pytest.mark.parametrize("article_language,test_language,width", [
     ("ru", "ru", 1280), ("ru", "en", 390), ("en", "ru", 390), ("en", "en", 1280),
 ], ids=["ru-ru-desktop", "ru-en-mobile", "en-ru-mobile", "en-en-desktop"])
+@pytest.mark.cross_browser
 def test_mvp_learner_journey(auth_page, auth_app, learning_topics, article_language, test_language, width):
     page = auth_page
     page.set_viewport_size({"width": width, "height": 900 if width > 600 else 844})

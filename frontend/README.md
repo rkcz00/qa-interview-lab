@@ -143,6 +143,8 @@ Unit-проверки дополнены правилами focus/navigation/log
 
 ## Проверки
 
+QIL-031 сохраняет frontend dependencies и package-lock. Реальный браузерный suite выбирает Chromium/Firefox/WebKit через Python Pytest option `--qil-browser`; дополнительных JS-инструментов и pytest-playwright нет. Chromium выполняет полный набор; Firefox/WebKit — 18 существующих критических сценариев с marker `cross_browser`, включая два размера экрана, RU/EN, focus/history, автопрочтение и Practice. [Команды и критерии](../docs/CROSS_BROWSER_ACCEPTANCE.md). В CI `playwright_e2e` имеет три обязательных matrix executions и JUnit artifact с именем движка; backend, frontend unit и build сохраняют прежние job ID.
+
 Из папки `frontend`, в Windows используйте `npm.cmd`:
 
 ```powershell

@@ -21,6 +21,25 @@ sys.path.insert(0, str(ROOT))
 from tests.api.harness import backend_http
 
 
+def pytest_addoption(parser):
+    parser.addoption("--qil-browser", choices=("chromium", "firefox", "webkit"), default="chromium",
+                     help="Browser engine for the existing real HTTP/PostgreSQL E2E fixtures")
+
+
+@pytest.fixture
+def qil_browser(request):
+    engine = request.config.getoption("--qil-browser")
+    with sync_playwright() as playwright:
+        browser = getattr(playwright, engine).launch(timeout=20_000)
+        try:
+            yield browser
+        finally:
+            browser.close()
+            if browser.is_connected():
+                pytest.fail("E2E browser cleanup failed", pytrace=False)
+    print("BROWSER_CLEANUP=PASS engine=" + engine)
+
+
 @pytest.fixture(scope="session")
 def auth_app():
     if not (ROOT / "frontend/dist/index.html").is_file():
@@ -139,13 +158,8 @@ def auth_app():
 
 
 @pytest.fixture
-def auth_browser(auth_app):
-    with sync_playwright() as playwright:
-        browser = playwright.chromium.launch()
-        try:
-            yield browser
-        finally:
-            browser.close()
+def auth_browser(auth_app, qil_browser):
+    return qil_browser
 
 
 @pytest.fixture

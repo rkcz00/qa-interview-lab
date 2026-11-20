@@ -155,6 +155,14 @@ Frontend unit проверяют различие busy и обычного disab
 
 Frontend/Playwright проверят пустую отправку без HTML required, code-point лимит, независимость языка, отсутствие эталона/подсказок, сохранность ввода при RU/EN, загрузку по ID и сетевую неопределённость без автоповтора в QIL-030; эти Practice UI-проверки пока NOT_RUN. Границы mastery, Read и общий процент должны быть неизменны при любых результатах практики и её удалении. Существующие четыре CI jobs и политика безопасных артефактов сохраняются. Статус серверных проверок QIL-029 приведён в PRACTICE_BACKEND; документационный CI не доказывает реализацию Practice.
 
+### 4.13. Кроссбраузерная приёмка — QIL-031
+
+Минимальный scope утверждён пользователем: полный Chromium suite сохраняется; Firefox/WebKit выполняют существующие сценарии с marker `cross_browser`. Сборка содержит 18 critical cases: четыре RU/EN MVP journey, четыре focus/navigation, два автоматического Read и восемь Practice start/submit/delete, frozen retry и restart. Каждая группа имеет desktop 1280×900 и mobile viewport 390×844. [Матрица и команды](CROSS_BROWSER_ACCEPTANCE.md).
+
+Browser выбирается собственным Pytest option `--qil-browser` с allowlist и Chromium по умолчанию, без нового плагина или dependencies. Одинаковые fixtures запускают реальный frontend/backend и случайную PostgreSQL, закрывают contexts/browser/driver и собственные серверы/БД. Успешные API-ответы не подменяются. Только negative retry управляемо прерывает запрос; повтор идёт в настоящий backend с прежним payload. Процент/mastery и контракт Practice не меняются.
+
+Локально проверяются Windows и три установленных движка Playwright 1.65.0; CI выполняет browser matrix на Ubuntu. Все три executions обязательны с `fail-fast: false`, без подавления ошибок. Результаты фиксируются по движку и SHA после реального запуска. WebKit не является приёмкой Safari, а viewport не подтверждает физический телефон; полный WCAG-аудит и pixel-perfect сравнение не заявляются.
+
 ## 5. Тестовые данные и изоляция
 
 - Пользователи A и B, отдельный Content Admin в одноимённой Django-группе без superuser и отдельный технический superuser; только синтетические email/пароли. Последний не используется вместо Content Admin в проверках permissions.
@@ -184,7 +192,7 @@ HTTPX работает с реально поднятым Django по HTTP. Пр
 
 Четыре комбинации языков проверяются параметризованно; смена языка внутри попытки проверяется отдельно. Дополнительные обязательные сценарии: неуспешный тест, успешная повторная попытка, просмотр словаря без изменения прогресса и отсутствие доступа B к данным A. Для снятой с публикации темы проверяются запрет чтения/новых попыток, сохранение истории/освоения и завершение ранее начатой попытки по snapshot.
 
-Первый обязательный браузер — Chromium. Проверки Firefox/WebKit не считаются выполненными без запуска; расширение матрицы обсуждается по найденным рискам. Проверить основной интерфейс на desktop и узком viewport, клавиатурную навигацию, подписи полей, состояния загрузки и ошибки.
+Chromium остаётся полным обязательным baseline. QIL-031 согласует дополнительно Firefox/WebKit для критического набора по разделу 4.13; они не считаются PASS без фактического запуска. Проверить основной интерфейс на desktop и узком viewport, клавиатурную навигацию, подписи полей, состояния загрузки и ошибки.
 
 В критических E2E не подменять ответы backend заготовками. Для узкого сценария сетевого сбоя допустимо управляемое прерывание запроса, но оно не заменяет тесты реальной серверной идемпотентности.
 
@@ -199,13 +207,13 @@ Content Admin без superuser вручную оценивает смысл и �
 | `backend_api` | Django checks и согласованность миграций; unit/integration и Pytest + HTTPX API на отдельной PostgreSQL с реальным backend. Покрываются ownership, разрешённые схемы до/после submit, 409/idempotency, Draft и Content Admin | Все проверки выполнены и успешны; API и DB-поведение не подменены mocks/SQLite |
 | `frontend_unit` | Node.js согласованной версии, `npm ci` и `npm test` из `frontend`; unit-тесты API-клиента, Auth-валидации, маршрутов и состояния сессии | Все unit-тесты успешны; ненулевой exit code делает job и workflow неуспешными |
 | `frontend_check_build` | TypeScript type-check и production build Vite | И проверка типов, и сборка успешны; один build без проверки типов недостаточен |
-| `playwright_e2e` | Playwright + Python + Pytest, Chromium, реальный frontend/backend/PostgreSQL; основной путь, четыре пары языков, сохранённый прогресс и изоляция пользователей | Обязательные E2E выполнены и успешны; критический путь не использует mock API |
+| `playwright_e2e` | Browser matrix: Chromium full, Firefox/WebKit critical; Playwright + Python + Pytest, реальный frontend/backend/PostgreSQL; оба viewport по матрице QIL-031 | Все три executions completed/success; критический путь не использует mock API |
 
 QIL-009 подготовил три исходных job, QIL-017 добавил `frontend_unit`, QIL-018 — Auth E2E с PostgreSQL 17.11. QIL-019–QIL-022 добавили Learning/Assessment/Progress и сквозную приёмку в общий сбор `tests/e2e`. QIL-022 подтверждён [run #43428542799](https://github.com/rkcz00/qa-interview-lab/actions/runs/43428542799) для SHA `19bb5eea74ac6870f5a3f32811cdd24280f8de05`. QIL-023 добавляет безопасные JUnit для трёх тестовых jobs без изменения их состава. Все четыре job обязательны на push и pull request в `main`; отсутствующий, skipped, BLOCKED или NOT_RUN job не считается PASS. `continue-on-error` нет; локальный PASS не заменяет CI.
 
 Workflow также поддерживает ручной запуск. Jobs выполняются на GitHub-hosted Ubuntu с правом `contents: read`. Backend и Auth E2E используют раздельные PostgreSQL service containers с временными настройками. Успешный локальный прогон подтверждает проверки в локальной среде. Результат GitHub Actions подтверждается фактическим запуском на GitHub.
 
-GitHub Actions хранит три компактных JUnit artifacts семь дней: backend, frontend unit и Playwright. После реальных тестов общий formatter строит XML только из фиксированного job ID, порядковых case IDs, counts, длительности и статусов. Имена/параметры тестов, exception/SQL/assertion diff, properties и stdout/stderr не переносятся. Raw XML/logs остаются только в `RUNNER_TEMP`; upload ограничен одним новым разрешённым XML-файлом с ready-gate, `include-hidden-files: false` и `if-no-files-found: error`. Missing/invalid report не маскируется под PASS.
+GitHub Actions хранит пять компактных JUnit artifacts семь дней: backend, frontend unit и по одному на browser matrix execution Playwright. Четыре job ID дают шесть executions. После реальных тестов общий formatter строит XML только из фиксированного job ID, порядковых case IDs, counts, длительности и статусов. Движок указан в уникальном имени artifact по allowlist matrix. Имена/параметры тестов, exception/SQL/assertion diff, properties и stdout/stderr не переносятся. Raw XML/logs остаются только в `RUNNER_TEMP`; upload ограничен одним новым разрешённым XML-файлом каждого runner с ready-gate, `include-hidden-files: false` и `if-no-files-found: error`. Missing/invalid report не маскируется под PASS.
 
 Formatter/upload выполняются после успеха или ошибки тестов, кроме cancelled; исходный ненулевой exit code сохраняет failure job. Успешный run создаёт только три необходимых XML; build не создаёт artifact. Screenshot/trace/HAR/video/HTML и auth state сейчас не публикуются: безопасная универсальная очистка не реализована. Допустимый fallback на сбое — обезличенный JUnit. Будущий media-upload допускается только после отдельной проверки очистки и с `if: failure()`; сырой trace с session/CSRF запрещён. Подробная политика, результаты аудита и ограничения — в [CI_REPORTS.md](CI_REPORTS.md).
 
@@ -226,7 +234,7 @@ Formatter/upload выполняются после успеха или ошиб�
 
 Пройдены обязательные jobs GitHub Actions, выполнена ручная проверка учебного контента и Admin. Неразрешённые дефекты и ограничения перечислены в отчёте. Публичное размещение требует отдельной задачи и проверки настроек публичного окружения.
 
-Нагрузочные SLO, дополнительная браузерная матрица и автоматический deploy не объявляются критериями, пока они не согласованы. Это не препятствует выполнению описанных функциональных и security-проверок.
+Нагрузочные SLO и автоматический deploy не объявляются критериями, пока они не согласованы. Согласованная дополнительная браузерная матрица QIL-031 описана в разделе 4.13; более широкая OS/device-матрица отдельно не утверждена. Это не препятствует выполнению описанных функциональных и security-проверок.
 
 ## 11. Проверка документации QIL-001
 

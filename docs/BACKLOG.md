@@ -240,6 +240,14 @@
 - Объём: отдельные typed DTO/decoders и методы существующего API wrapper, preview/start/GET/submit/delete и минимальный UI строго по [PRACTICE_SPEC](PRACTICE_SPEC.md#8-ui-и-безопасные-сетевые-сценарии). Русский UI, независимые RU/EN, пустая отправка, сохранение ввода в памяти, безопасный timeout/409, подтверждение удаления; без влияния на mastery.
 - Приёмка: frontend unit, runtime decoders, реальные Playwright-сценарии PQA-16/PQA-21–PQA-24 и регрессия. Не менять backend/API, политику нормализации и правило общего прогресса ради UI.
 
+### QIL-031 — Кроссбраузерная Playwright-приёмка
+
+- Статус: реализация и локальная приёмка завершены — PASS: окончательная версия Chromium full 103, Firefox/WebKit critical по 18; backend 332 и 22 подтеста, frontend unit 211, type-check/build, Django/миграции/pip и cleanup. Первый WebKit-прогон обнаружил непереносимые mouse-focus предположения двух тестов; они заменены клавиатурным взаимодействием с сохранением всех assertions, после чего три движка перепроверены. CI точного SHA фиксируется в итоговом отчёте публикации. Зависимости: принятые QIL-022, QIL-027 и QIL-030. Требования: NFR-02, NFR-03 и сохранение FR-01–FR-13/PRA-01–PRA-12.
+- Результат: общий browser fixture и параметр `--qil-browser=chromium|firefox|webkit`; полный Chromium suite; 18 отмеченных критических сценариев Firefox/WebKit на 1280×900 и 390×844. Исходные Chromium assertions сохранены, Practice network retry дополнен mobile-параметром. [Матрица и команды](CROSS_BROWSER_ACCEPTANCE.md).
+- Приёмка: реальная SPA/Django/временная PostgreSQL без mock успешных ответов; Auth/session/logout, каталог/статья RU/EN, автоматическое чтение, focus/keyboard/Back/Forward, test/result, Practice start/submit/retry/restart/delete и Progress. Проверяются cleanup, неизменность приложения/зависимостей/секретов и прежних пользовательских helpers.
+- CI: четыре job ID сохранены; `playwright_e2e` имеет browser matrix с `fail-fast: false`. Chromium full и Firefox/WebKit critical обязательны. Успешны должны быть все шесть executions; JUnit разделён по движкам и обезличен по CI_REPORTS. Deployment, production hardening, EN UI, реальные мобильные устройства и новые Practice-функции не входят в scope.
+- Проверки: три локальных browser-прогона; frontend unit/type-check/build; backend regression/HTTPX, Django checks, миграции временной БД и pip check; YAML/Markdown/ссылки/diff/secret scan; после разрешённого commit/push — фактический CI для точного SHA.
+
 ## 6. За пределами текущего backlog
 
 Подтверждение email, восстановление пароля, открытые вопросы и повторение сложных тем остаются будущими возможностями без задач реализации MVP. Объективная практика вынесена в отдельный последующий инкремент QIL-028/QIL-029; rubric, исполнение кода, несколько эталонов, SQL-таблицы и автоматический retention остаются за его пределами. Отдельно будет решаться OQ-05 о публичном размещении. Эти направления не запускаются автоматически.

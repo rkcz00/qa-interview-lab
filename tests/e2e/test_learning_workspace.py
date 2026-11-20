@@ -52,6 +52,7 @@ def test_login_first_home_catalog_sidebar_and_selected_topic(auth_page, learning
 
 
 @pytest.mark.parametrize('size', SIZES, ids=['desktop', 'mobile'])
+@pytest.mark.cross_browser
 def test_end_visibility_automatically_saves_once_with_csrf_and_persists_languages(auth_page, auth_app, learning_topics, size):
     page = auth_page
     page.set_viewport_size(size)
@@ -62,7 +63,10 @@ def test_end_visibility_automatically_saves_once_with_csrf_and_persists_language
     page.route('**/api/v1/topics/' + topic_id + '/read/', lambda route: held.append(route))
     topic_page(page, topic_id)
     check(page.context.request.get('/api/v1/progress/').json() == {'data': []}, 'Opening a long article must not record reading')
-    page.get_by_role('radio', name='English', exact=True).check()
+    # Keyboard focus is portable; WebKit intentionally blurs radios on mouse clicks.
+    english = page.get_by_role('radio', name='English', exact=True)
+    english.focus()
+    english.press('Space')
     expect(page.locator('.article-body')).to_have_attribute('lang', 'en')
     expect(page.get_by_role('radio', name='English', exact=True)).to_be_focused()
     check(not held, 'Language changes before the end must not save reading')

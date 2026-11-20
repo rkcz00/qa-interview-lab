@@ -53,6 +53,7 @@ def result(page, correct=True):
 
 
 @pytest.mark.parametrize("language,width,height", [("ru", 1280, 900), ("en", 390, 844)])
+@pytest.mark.cross_browser
 def test_article_test_practice_language_reload_keyboard_result_delete(auth_page, auth_app, practice_topics, language, width, height):
     page = auth_page
     page.set_viewport_size({"width": width, "height": height})
@@ -88,7 +89,8 @@ def test_article_test_practice_language_reload_keyboard_result_delete(auth_page,
     translated = "English" if language == "ru" else "Русский"
     control = page.get_by_role("radio", name=translated, exact=True)
     control.focus()
-    control.check()
+    # Test preserved keyboard focus without assuming mouse-click focus on WebKit.
+    control.press("Space")
     expect(page.locator(".practice-task h2")).to_have_text("Practice: Python output" if translated == "English" else "Практика: вывод Python")
     expect(control).to_be_focused()
     expect(page.locator("#practice-answer")).to_have_value(" raw draft ")
@@ -181,8 +183,11 @@ def test_conflict_loads_existing_result_without_overwriting(auth_page, practice_
     check(page.context.request.get(f"/api/v1/practice-submissions/{identifier}/").json() == original.json(), "Conflict must not overwrite the saved result")
 
 
-def test_network_failure_requires_get_and_explicit_same_payload_retry(auth_page, practice_topics):
+@pytest.mark.cross_browser
+@pytest.mark.parametrize("size", [{"width": 1280, "height": 900}, {"width": 390, "height": 844}], ids=["desktop", "mobile"])
+def test_network_failure_requires_get_and_explicit_same_payload_retry(auth_page, practice_topics, size):
     page = auth_page
+    page.set_viewport_size(size)
     signed_in(page)
     unlock(page, practice_topics["enabled"])
     identifier = begin(page, practice_topics["enabled"])
@@ -286,6 +291,7 @@ def test_unicode_limit_unsaved_leave_and_safe_decoder_errors(auth_page, practice
 
 @pytest.mark.parametrize("language,width,height", [("ru", 1280, 900), ("en", 390, 844)])
 @pytest.mark.parametrize("first_answer,first_correct", [("wrong", False), ("2", True)])
+@pytest.mark.cross_browser
 def test_restart_opens_empty_work_preserves_result_language_and_progress(auth_page, auth_app, practice_topics, language, width, height, first_answer, first_correct):
     page = auth_page
     page.set_viewport_size({"width": width, "height": height})
