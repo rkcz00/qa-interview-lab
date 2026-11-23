@@ -2,6 +2,8 @@
 
 Статус: план реализации MVP после QIL-001. Новые задачи не запускаются автоматически. Приоритет — небольшой проверяемый результат в каждой задаче.
 
+QIL-033 фиксирует утверждённые 23 ноября 2026 года [правила progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Ниже QIL-034–QIL-037 имеют статус TODO; документация и CI этого commit не считаются их реализацией. Исторические статусы QIL-001–QIL-031 не переписываются как доказательство нового поведения.
+
 Основание: [PRD](PRD.md), [архитектура](ARCHITECTURE.md), [QA-стратегия](QA_STRATEGY.md), [правила Codex](../AGENTS.md).
 
 ## 1. Как работать с backlog
@@ -248,6 +250,43 @@
 - CI: четыре job ID сохранены; `playwright_e2e` имеет browser matrix с `fail-fast: false`. Chromium full и Firefox/WebKit critical обязательны. Успешны должны быть все шесть executions; JUnit разделён по движкам и обезличен по CI_REPORTS. Deployment, production hardening, EN UI, реальные мобильные устройства и новые Practice-функции не входят в scope.
 - Проверки: три локальных browser-прогона; frontend unit/type-check/build; backend regression/HTTPX, Django checks, миграции временной БД и pip check; YAML/Markdown/ссылки/diff/secret scan; после разрешённого commit/push — фактический CI для точного SHA.
 
+### QIL-033 — Утверждённые progress, test flow и sections
+
+- Статус: DONE для контрактов и локальной валидации документации; исходники, миграции и БД не менялись. Commit/push и результат CI точного SHA фиксируются отдельно в отчёте публикации и не считаются реализацией новых функций.
+- Зависимости: существующие QIL-014/QIL-015, QIL-029/QIL-030/QIL-031 и явное утверждение пакета пользователем. План контента QIL-032 не является зависимостью реализации этих правил.
+- Результат: PROGRESS_SPEC и TOPIC_SECTIONS_SPEC, согласованные PRD/ARCHITECTURE/QA/PRACTICE; точные формулы/M=0, статусы/лучший результат, generation/reset/ошибки, incomplete_answers/Finish и backward-compatible Article GET.
+- Приёмка этапа: Markdown/JSON/ссылки, согласованность, diff/secret scan, ровно разрешённые документы, один commit `docs: specify progress and topic sections`, один обычный push и все шесть executions четырёх job IDs. Реализация/DB reset/новый seed в этот этап не входят.
+
+### QIL-034 — Completion progress и безопасный reset
+
+- Статус: TODO / NOT_IMPLEMENTED. Зависимости: QIL-033, QIL-014/QIL-015, QIL-029/QIL-030.
+- Объём: вычисление статусов/весов/среднего Published, GET completion-progress; UserProgressState, неразрушительная миграция, общий User-lock и generation во всех семи mutating POST; POST reset с квитанцией последнего request_id. Typed API-клиент, Overview/Progress/sidebar, статусы темы, подтверждение reset и обработка поздних ответов/других вкладок входят в один согласованный milestone.
+- Инварианты: только собственные данные; account/content/session сохранены; старые удалённые ID 404; нет восстановления stale POST; повтор последнего reset не удаляет новую работу; old GET DTO и mastery/scoring неизменны. Reset нельзя включать отдельно до защиты всех progress-записей и обновления клиента.
+- Приёмка: FR-14/FR-15, PGR-01–PGR-10; PostgreSQL/HTTPX/TCP, unit/UI/Playwright и regression. Тесты контролируют только свою временную БД; dev-прогресс не сбрасывается при разработке автоматически.
+- Затрагиваемые области: assessments/progress/models/views/serializers, общие learner-write операции, practice services, typed client/decoders и progress/Overview UI; CI/dependencies без изменений, если необходимость отдельно не согласована.
+
+### QIL-035 — Подтверждение ответов и Finish
+
+- Статус: TODO / NOT_IMPLEMENTED. Зависимости: QIL-033 и QIL-034 (общий generation-клиент/протокол), существующий QIL-020.
+- Объём: локальные подтверждения Question; панель «Предыдущий — Ответить — Следующий»; отдельный Finish на последнем; только полный первый submit, 400 incomplete_answers и приоритет structural validation. Убрать «На главную» только с /login.
+- Инварианты: PracticeTask не входит в Assessment Attempt; Answer без HTTP/scoring, три поля Result, exact-set и immutable snapshot сохранены; исторические submitted с пропусками повторяются прежним 200/409, старые результаты не пересчитываются.
+- Приёмка: FR-02/FR-05/FR-06, TFL-01–TFL-06; unit, PostgreSQL/HTTPX, real E2E на desktop/mobile, frozen submit/CSRF/ownership/reset и regression. Отдельное QuestionAttempt/autosave не добавляется.
+- Затрагиваемые области: assessments submit validation и tests, frontend assessment store/answers/UI/texts, auth UI и соответствующие тесты.
+
+### QIL-036 — Разделы Topic и единый reader
+
+- Статус: TODO / NOT_IMPLEMENTED. Зависимости: QIL-033/QIL-034, существующие QIL-010–QIL-012/QIL-027. QIL-035 не является технической зависимостью; циклов нет.
+- Объём: TopicSection/Translation, additive/data migration старого тела в один раздел, транзакционная публикация/порядок/revision, Content Admin 13 моделей, sections GET и сборка legacy Article, typed reader/оглавление/якоря/end-marker.
+- Инварианты: полный Published RU/EN, Draft скрыт, прежний один раздел выдаётся дословно, старые ID/Read-даты/snapshots/mastery сохранены. Новые редакции Read не сбрасывают. Отдельные SectionRead/страницы, тесты по разделам, новый контент/демо-loader не добавляются.
+- Приёмка: FR-03/FR-07/FR-11/FR-12/FR-16, SEC-01–SEC-08; migration/constraints/Admin concurrency, HTTPX/legacy compatibility, real Playwright, три движка и regression.
+- Затрагиваемые области: learning models/changes/admin/migrations/serializers/views, content permissions, frontend learning typed client/store/reader и тесты. Миграция не удаляет legacy article_body в этом milestone.
+
+### QIL-037 — Сквозная приёмка нового учебного сценария
+
+- Статус: TODO / NOT_IMPLEMENTED. Зависимости: QIL-034, QIL-035, QIL-036 и существующий QIL-031. DAG: 033 →034; 034 →035/036; 034/035/036 →037.
+- Объём: объединить PGR/TFL/SEC с существующими Auth/Learning/Practice сценариями; проверить целый путь sections→Read→полный test→Practice→completion→подтверждённый reset, две вкладки, ownership и исторические snapshot. Новых продуктовых функций нет.
+- Приёмка: полный backend/HTTPX, frontend unit/type-check/build, full Chromium + Firefox/WebKit critical, временная PostgreSQL/cleanup и фактические шесть CI executions после отдельно разрешённой публикации. Secret-safe artifacts сохраняются.
+
 ## 6. За пределами текущего backlog
 
 Подтверждение email, восстановление пароля, открытые вопросы и повторение сложных тем остаются будущими возможностями без задач реализации MVP. Объективная практика вынесена в отдельный последующий инкремент QIL-028/QIL-029; rubric, исполнение кода, несколько эталонов, SQL-таблицы и автоматический retention остаются за его пределами. Отдельно будет решаться OQ-05 о публичном размещении. Эти направления не запускаются автоматически.
@@ -269,10 +308,15 @@
 | FR-11 | QIL-011 |
 | FR-12 | QIL-011, QIL-014, QIL-015 |
 | FR-13 | QIL-008, QIL-012, QIL-014, QIL-015, QIL-021 |
+| Уточнения FR-02/FR-05/FR-06 QIL-033 | QIL-035, QIL-037 |
+| Уточнения FR-03/FR-07/FR-11/FR-12 QIL-033 | QIL-034, QIL-036, QIL-037 |
+| FR-14 | QIL-034, QIL-037 |
+| FR-15 | QIL-034, QIL-037 |
+| FR-16 | QIL-036, QIL-037 |
 | NFR-01 | QIL-003, QIL-007, QIL-008, QIL-014, QIL-019, QIL-022 |
 | NFR-02 | QIL-002, QIL-004, QIL-005, QIL-006, QIL-009, QIL-017, QIL-023 |
 | NFR-03 | QIL-016, QIL-018, QIL-019, QIL-020, QIL-022 |
 
 Тесты соответствующих требований предусмотрены в QA-стратегии; QIL-022 и QIL-024 проверяют сквозную готовность, а не откладывают тестирование отдельных функций до конца проекта.
 
-Рекомендуемая следующая задача после принятия QIL-001 — только QIL-002: read-only аудит окружения и предложение версий. Она не начинается до отдельного указания пользователя.
+После завершения документационной QIL-033 рекомендуемая следующая задача — QIL-034. Она не начинается до отдельного указания пользователя; публикация спецификаций не разрешает автоматически менять код или удалять данные.

@@ -2,6 +2,8 @@
 
 Статус: архитектура MVP; пользовательский сценарий уточнён в QIL-027. Контракт Practice согласован в QIL-028, backend принят в QIL-029; UI реализован в QIL-030, полный ручной PostgreSQL/Playwright-прогон — PASS. Существующие API и архитектурные решения сохранены. [Backend](PRACTICE_BACKEND.md), [UI и runner](PRACTICE_UI.md).
 
+QIL-033 фиксирует утверждённую целевую архитектуру [progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md); реализация QIL-034–QIL-036 **NOT_IMPLEMENTED**. Старый код ещё использует одиночное article_body, долю mastered/Published и допускает пропуски. Новые контракты ниже не являются отчётом о работающих endpoints.
+
 Связанные документы: [PRD](PRD.md), [QA-стратегия](QA_STRATEGY.md), [backlog](BACKLOG.md), [правила Codex](../AGENTS.md), [точный контракт Practice](PRACTICE_SPEC.md).
 
 ## 1. Архитектурные границы
@@ -26,9 +28,9 @@ Vite нужен для разработки и сборки React. PostgreSQL х
 
 QIL-020 добавляет UI-маршруты `/topics/{topic_id}/test` (явный start) и `/attempts/{attempt_id}` (вопросы или серверный результат). На этих адресах `language` относится только к тесту. Выбор по ID и текущий вопрос хранятся в памяти экрана и переживают перевод/Back/Forward внутри попытки; GET после reload восстанавливает вопросы либо завершённый результат, но не неотправленные ответы. На неопределённом submit payload блокируется, состояние подтверждается GET; явный повтор использует тот же payload. После 409 допустим только GET сохранённого результата. UI-роуты не являются новыми API endpoints, backend/scoring и контракт snapshot не меняются.
 
-`AppShell` объединяет header, сквозное левое меню Published-тем и общий прогресс. На mobile меню раскрывается кнопкой с `aria-expanded`; выбранная тема получает `aria-current`. `OverviewContext` и `ProgressStore` разделяют существующие GET каталога и собственного прогресса между меню и `/progress`; история попыток в UI не загружается. Общий процент вычисляется по серверным `mastered` только для ID текущего Published-каталога; при нуле тем показывается 0%. Ошибка запроса остаётся ошибкой, без выдуманного нуля. Серверные Attempt/history/result, snapshot и ownership не меняются.
+`AppShell` объединяет header, меню Published-тем и прогресс. На mobile меню раскрывается с aria-expanded, выбранная тема имеет aria-current. В QIL-034 OverviewContext/ProgressStore переходят на новый completion-progress API для общего процента и статусов; mastered остаётся отдельным серверным признаком. История в UI не загружается; loading/ошибка не подменяются нулём. На `/login` в QIL-035 убирается «На главную», без изменения перехода после входа.
 
-`useAutomaticRead` наблюдает конец статьи через IntersectionObserver. Видимость конца в активной вкладке вызывает существующий `progress.markRead()` с CSRF; блокировка pending и серверная идемпотентность сохраняются. Повторный scroll/reload/RU/EN не меняет первую дату. После ошибки UI явно проверяет сохранение GET, затем может повторить автоматический POST. Фоновое сохранение не переносит фокус. После сохранения чтения и завершения теста событие без пользовательских данных обновляет общий прогресс, сохраняя DOM меню и фокус. Новых библиотек, endpoints, миграций и фонового polling нет.
+`useAutomaticRead` наблюдает конец последнего Published-раздела полностью загруженного единого reader. Сохраняются pending, hidden/0x0/stale-marker проверки, первая дата и общий RU/EN. POST read требует CSRF и поколение прогресса; после reset старый marker не инициирует повторную запись. Обновление общего прогресса после read/submit/delete/reset сохраняет DOM и фокус; фонового polling нет. Точные правила — в двух спецификациях QIL-033.
 
 ## 2. Стек и решения
 
@@ -87,7 +89,7 @@ QA Interview Lab/
 | --- | --- | --- |
 | User / accounts | `id`, `email`, `password`, `is_active`, `is_staff`, `is_superuser`, служебные поля Django | Email уникален без учёта регистра; `password` содержит только хеш Django |
 | Topic / learning | `id`, `status`, `revision`, `created_at`, `updated_at` | `status` принимает `draft` или `published`. `revision` начинается с 1 |
-| TopicTranslation / learning | `id`, `topic_id`, `language`, `title`, `article_body` | Уникальна пара `(topic_id, language)`; одна статья на язык темы |
+| TopicTranslation / learning | `id`, `topic_id`, `language`, `title`, legacy `article_body` | Уникальна пара `(topic_id, language)`; после QIL-036 тело собирается из sections, legacy-поле read-only |
 | Term / learning | `id`, `topic_id`, `position` | Термин относится к одной теме |
 | TermTranslation / learning | `id`, `term_id`, `language`, `name`, `definition` | Уникальна пара `(term_id, language)` |
 | Question / assessments | `id`, `topic_id`, `question_type`, `position` | Тип `single_choice` или `multiple_choice`; ID общий для переводов |
@@ -96,6 +98,8 @@ QA Interview Lab/
 | ChoiceTranslation / assessments | `id`, `choice_id`, `language`, `text` | Уникальна пара `(choice_id, language)` |
 | Attempt / assessments | `id`, `user_id`, `topic_id`, `status`, `created_at`, `submitted_at`, `submitted_language`, `content_snapshot`, `submitted_answers`, `correct_count`, `total_count` | `in_progress` или `submitted`; ответы и результат фиксируются при отправке; владелец неизменяем |
 | TopicProgress / assessments | `id`, `user_id`, `topic_id`, `article_read_at` | Уникальна пара `(user_id, topic_id)`; язык не входит в ключ |
+
+QIL-033 задаёт будущие TopicSection/TopicSectionTranslation с FK/UNIQUE/CHECK и сохранением legacy article_body по [TOPIC_SECTIONS_SPEC](TOPIC_SECTIONS_SPEC.md#1-состав-темы). Техническое UserProgressState содержит поколение и квитанцию последнего reset по [PROGRESS_SPEC](PROGRESS_SPEC.md#4-поколение-прогресса-и-порядок-блокировок); оно не содержит проценты/баллы и не является доступным редактору прогрессом. Этих моделей пока нет в коде.
 
 Хранилище sessions — штатная таблица Django. Модель User задаётся через `AUTH_USER_MODEL` до первых миграций: основа `AbstractUser`, email вместо username, минимальный manager и совместимая конфигурация Admin.
 
@@ -141,12 +145,14 @@ Content Admin — отдельная Django-группа. У обычной уч
 | Модели | Permissions группы Content Admin |
 | --- | --- |
 | `Topic`, `TopicTranslation`, `Question`, `QuestionTranslation`, `Choice`, `ChoiceTranslation`, `Term`, `TermTranslation` | Только стандартные `view`, `add`, `change`, `delete` для этих моделей |
-| `User`, `Attempt`, `TopicProgress` | Нет permissions; запрещены списки, отдельные записи, изменение и административные actions |
+| `TopicPractice`, `PracticeTask`, `PracticeTaskTranslation` | Контентные permissions QIL-029; без PracticeSubmission |
+| `TopicSection`, `TopicSectionTranslation` | Контентные permissions после QIL-036; пока NOT_IMPLEMENTED |
+| `User`, `Attempt`, `TopicProgress`, `PracticeSubmission`, `UserProgressState` | Нет permissions; запрещены списки, отдельные записи, изменение и административные actions |
 | Группы, permissions, sessions и прочие модели | Нет permissions; роль не может расширить собственные права |
 
-Доступ к интерфейсу Admin по `is_staff` сам по себе не даёт модельных permissions. Запреты проверяются и при прямом URL. Публикация требует `change` для Topic и общей проверки полноты; `delete` не обходит защиту темы с историей. Статья входит в TopicTranslation. Под словом Progress в описании роли понимается существующая модель `TopicProgress`, отдельная модель не добавляется.
+Доступ к Admin по is_staff сам по себе не даёт модельных permissions. Запреты проверяются и по прямому URL. Публикация требует change и общей проверки полноты; delete не обходит защиту темы с историей. Тело статьи переносится из TopicTranslation в переводы sections; TopicProgress по-прежнему хранит только Read. UserProgressState — отдельный технический mutex/generation, а не редактируемые проценты.
 
-QIL-028 согласует добавление TopicPractice, PracticeTask и PracticeTaskTranslation: после реализации allowlist содержит 11 контентных моделей. На PracticeSubmission прав нет, она не регистрируется в Admin первого релиза. Текущий код до QIL-029 сохраняет восемь моделей. Полный перечень и ограничения удаления — в [Practice](PRACTICE_SPEC.md#9-content-admin).
+После QIL-029 allowlist содержит 11 контентных моделей, после QIL-036 — 13. PracticeSubmission/UserProgressState не регистрируются для Content Admin. Полные ограничения — в [Practice](PRACTICE_SPEC.md#9-content-admin) и спецификации sections; документация сама permissions не меняет.
 
 ## 7. Языки и публикация
 
@@ -154,7 +160,7 @@ QIL-028 согласует добавление TopicPractice, PracticeTask и P
 
 Языковые переключатели frontend держат два отдельных состояния: язык статьи и язык тестирования. Словарь следует языку статьи. Выбранные варианты хранятся по ID, а не по переведённому тексту. Смена языка текущей попытки запрашивает другой перевод того же снимка и сохраняет ответы.
 
-Публикация проверяет обе версии статьи, все вопросы и варианты, полноту словаря на обоих языках и наличие хотя бы одного термина. Структура Single-choice и Multiple-choice проверяется по FR-11. Пробельная строка считается пустой. Admin actions и сохранение статуса используют общую транзакционную операцию записи.
+После QIL-036 публикация проверяет название темы RU/EN, минимум один Published-раздел и оба его перевода, все вопросы/варианты и полный словарь с хотя бы одним термином. Draft-разделы скрыты и могут быть неполными. FR-11 и прежняя атомарная операция записи сохраняют проверки структуры вопросов и пробельных строк. Published-раздел parent Draft не выдаётся learner API.
 
 Запись в Admin передаёт `expected_revision` темы из формы или подтверждения. Операция блокирует строку Topic в PostgreSQL и сверяет ревизию перед записью. Успешное изменение статуса или дочернего контента увеличивает ревизию темы. При устаревшей ревизии Admin возвращает `409 edit_conflict`, сохраняя уже записанную версию. Родитель дочерней записи выбирается при создании.
 
@@ -171,11 +177,11 @@ Published-тему можно редактировать с проверкой �
 1. Начало теста создаёт `in_progress` Attempt только для Published-темы со снимком всех её текущих вопросов и переводов. Проверка статуса и создание снимка выполняются в одной транзакции, согласованно со снятием публикации и редактированием. Для Draft возвращается 404; попытка не создаётся.
 2. Пользователь получает только публичные поля снимка на выбранном языке: ID, тип и текст вопросов, ID и тексты вариантов. Ключи правильности отсутствуют.
 3. При отправке backend проверяет владельца, CSRF, структуру ответа, язык и принадлежность ID снимку.
-4. Отсутствие ответа на вопрос равно пустому набору; Single-choice с более чем одним выбранным ID, неизвестные ID и дубликаты отклоняются.
+4. QIL-035: первый submit требует непустого ответа на каждый вопрос snapshot; неполнота даёт 400 incomplete_answers. Single-choice с несколькими ID, неизвестные ID/дубли и неверные типы дают прежний validation_error. Для исторических submitted сохраняются нормализация пропусков и идемпотентные повторы.
 5. Backend в транзакции фиксирует нормализованные ответы, `submitted_language`, время, числа верных/всех вопросов и статус `submitted`.
 6. Пользователь получает результат только из `correct_count`, `total_count`, `percentage` и отдельные метаданные истории. Вопросы, варианты, выбранные ответы, ключи и внутренний snapshot после submit не возвращаются. Нельзя принять клиентский процент или оценивать по изменившемуся текущему контенту.
 
-Повтор submit с тем же `attempt_id` и тем же нормализованным payload возвращает `200 OK` с ранее сохранённым результатом. История, `submitted_at` и результат не меняются. Изменённый payload завершённой попытки возвращает `409 Conflict` с кодом `attempt_already_submitted`; перезаписи нет. При конкурентных запросах блокируется строка Attempt, поэтому результат записывается один раз. Сравниваются язык отправки и ответы; порядок полей JSON, вопросов в payload и ID внутри выбранных наборов незначим. Пропущенный ответ нормализуется в пустой набор; дубликаты и невалидная структура не принимаются. Изменение выбранного набора или языка является изменённым payload.
+Повтор submit с тем же attempt_id и нормализованным payload возвращает 200 с прежним результатом/датой; изменённый допустимый payload submitted даёт 409 attempt_already_submitted. Сначала блокируется текущий User по протоколу поколения, затем owned Attempt. Сравниваются язык и нормализованные наборы: порядок полей/вопросов/вариантов незначим, дубли не принимаются. Пустые ответы старых submitted нормализуются как раньше; для первого in_progress действуют новые правила полноты. После reset удалённый ID даёт 404. Точный порядок — [PROGRESS_SPEC](PROGRESS_SPEC.md#61-incomplete_answers-и-совместимость-истории).
 
 Незавершённая попытка не участвует в истории результатов или освоении. Отдельный сценарий возобновления теста после закрытия браузера не включён в MVP.
 
@@ -183,7 +189,7 @@ Published-тему можно редактировать с проверкой �
 
 Single-choice: один балл при совпадении выбранного и единственного правильного варианта. Multiple-choice: один балл при точном равенстве наборов выбранных и правильных вариантов, иначе ноль. Частичных баллов нет; порядок не важен.
 
-`percentage = 100 * correct_count / total_count`. Для API это число, округлённое до двух десятичных знаков по правилу `ROUND_HALF_UP`. Например, 1 правильный ответ из 32 даёт 3,13%. Имя поля результата во всех ответах — `percentage`. Все вопросы имеют одинаковый вес, пропуски остаются в знаменателе. Тест с `total_count = 0` не публикуется и не запускается.
+`percentage = 100 * correct_count / total_count`. Для API это число с ROUND_HALF_UP до двух знаков: например, 1/32 даёт 3,13%. Все вопросы равновесны. Пропуски исторических submitted остаются в знаменателе; новый первый неполный submit после QIL-035 отклоняется, а total_count=0 не публикуется и не запускается.
 
 Освоение: `article_read_at` задано и существует `submitted` Attempt с `100 * correct_count >= 80 * total_count` при `total_count > 0`. Условие проверяется по целым числам, не по округлённому отображаемому проценту.
 
@@ -191,7 +197,9 @@ Single-choice: один балл при совпадении выбранног�
 
 TopicProgress хранит только отметку чтения. Лучший результат и `mastered` вычисляются по завершённым Attempt; отдельные изменяемые копии этих значений не хранятся. Это исключает рассинхронизацию счётчиков на старте проекта.
 
-До отметки может не быть строки TopicProgress: API всё равно возвращает состояние «не прочитано» и вычисленный результат попыток. Операция «Прочитано» идемпотентна: повтор не создаёт дубликат и не меняет первоначальное время отметки.
+До отметки может не быть TopicProgress. Старый API возвращает сохранённые собственные записи; новый completion-progress дополнительно включает все не начатые Published-темы. Read идемпотентен и не меняет первую дату; явный полный reset удаляет отметку и разрешает новую дату в новом поколении.
+
+completion_progress вычисляется отдельно: при M>0 — 30*R + 70*S/M, при M=0 — 30*R; общий процент — среднее неокруглённых значений Published-тем, пустой каталог 0. С Practice веса 30/35/35, без неё 30/70; статусы unattempted/failed/passed и лучший сохранённый результат определены в [PROGRESS_SPEC](PROGRESS_SPEC.md#2-формулы-и-изменяемый-набор-activity). Practice не входит в is_mastered, но участвует в новом completion calculator. Текущие веса могут изменяться при публикации/удалении activity, без пересчёта snapshots/истории.
 
 Успех на любом языке подходит для общей темы. Низкий последующий результат, изменение контента и переход в Draft не отменяют историческое выполнение условий. Расчёт использует сохранённые завершённые Attempt независимо от текущего статуса Topic. Просмотр словаря не записывает прогресс. Завершение ранее начатой попытки после снятия публикации добавляет её результат и может обновить освоение по прежнему правилу 80%; сам переход в Draft ничего не пересчитывает.
 
@@ -222,6 +230,8 @@ TopicProgress хранит только отметку чтения. Лучши�
 | SubmittedAttempt | Метаданные `attempt_id`, `topic_id`, `topic_title`, `status=submitted`, `submitted_language`, `submitted_at` и объект `result` формы Result |
 | Progress | `topic_id`, `article_read_at` или `null`, `best_result` формы Result или `null`, `mastered` |
 
+Новый CompletionProgress имеет отдельный endpoint/DTO: progress_generation, overall_completion_progress и topics с article_read_at, test/practice-статусами, completion_progress и mastered. Точные поля и JSON — [PROGRESS_SPEC](PROGRESS_SPEC.md#3-api-состояния-прогресса). SectionsArticle — отдельный DTO по [TOPIC_SECTIONS_SPEC](TOPIC_SECTIONS_SPEC.md#3-точные-learner-маршруты). Прежние Article/Progress/Result/PracticeResult не расширяются.
+
 Result содержит только три агрегата. Метаданные SubmittedAttempt сохраняют прежние требования к истории; `topic_title` берётся из сохранённого текста темы, без текущей Draft-статьи или словаря. Лучший результат выбирается по точному отношению верных/всех вопросов отдельной попытки. Если завершённых попыток нет, `best_result=null` и `mastered=false`.
 
 Правильные ответы тестов и Practice, ключ Choice.is_correct, внутренний snapshot, content_snapshot, task_snapshot, submitted_answers/submitted_answer и по-вопросные тестовые оценки запрещены во всех learner responses, включая ошибки, историю и ответы после submit. После submit теста не возвращаются также PublicQuestion, варианты и выбранные ответы. Serializers имеют явный разрешённый список полей и не выдают внутренний JSON целиком.
@@ -248,8 +258,13 @@ Result содержит только три агрегата. Метаданны
 | `POST /attempts/{attempt_id}/submit/` | Владелец | `language`, массив `answers` | `200`, SubmittedAttempt; идентичный повтор даёт тот же результат |
 | `GET /attempts/` | Пользователь | Без тела | `200`, массив только своих SubmittedAttempt, новые первыми |
 | `GET /progress/` | Пользователь | Без тела | `200`, массив Progress; сохранённые собственные записи для Draft не скрываются |
+| `GET /completion-progress/` | Пользователь | Без query/body | `200`, новый CompletionProgress со всеми Published-темами и поколением |
+| `POST /progress/reset/` | Пользователь | confirmation, request_id | `200`, новое progress_generation; собственные Read/Attempt/PracticeSubmission удалены атомарно |
+| `GET /topics/{topic_id}/sections/` | Пользователь | Query language | `200`, SectionsArticle; parent Draft → 404, Draft-разделы исключены |
 
-Элемент `answers` содержит только `question_id` и массив `choice_ids`. ID принадлежат snapshot данной попытки; пропуск вопроса равен пустому набору. Дубли и несколько выбранных вариантов Single-choice невалидны. Для завершённой попытки тот же `attempt_id` и тот же нормализованный payload возвращают прежний SubmittedAttempt; изменение выбранного набора или `language` даёт 409. Нормализация описана в разделе 8.1; сохраняется один результат и одна запись истории.
+answers содержит только question_id/choice_ids из snapshot. После QIL-035 первый in_progress требует все вопросы и непустые наборы; пропуски дают incomplete_answers. Для submitted нормализация и 200/409 сохранены, включая старые пропуски. Дубли/несколько вариантов Single-choice невалидны. Старый Article GET собирает текст sections с прежними четырьмя полями; тело POST read остаётся {}.
+
+После QIL-034 все семь mutating learner POST требуют X-Progress-Generation и общего User-lock, включая Test/Practice start/submit/delete и read/reset. Header не нужен Auth/GET/Admin и не заменяет session/CSRF. До проверки generation выполняется owned lookup: старые удалённые ID дают 404, а stale create/read — 409 progress_reset. Точные поля, последние reset receipts и порядок — [PROGRESS_SPEC](PROGRESS_SPEC.md#4-поколение-прогресса-и-порядок-блокировок). Это явное изменение POST-протокола; старые GET DTO сохранены.
 
 Для Draft запрещено создание новых попыток и чтение статьи/словаря. Чтение публичных вопросов уже начатой попытки и её submit остаются разрешёнными владельцу по snapshot. Ответы истории и прогресса не раскрывают актуальное Draft-содержимое.
 
@@ -261,9 +276,12 @@ Result содержит только три агрегата. Метаданны
 | --- | --- | --- |
 | `400 Bad Request` | `validation_error` | Невалидный JSON/язык/структура ответов, неизвестные ID для начатой попытки, дубли, readonly или неизвестные поля |
 | `400 Bad Request` | `invalid_credentials` | Неверный login или неактивный аккаунт; сообщение не раскрывает существование email |
+| `400 Bad Request` | `incomplete_answers` | Неполный первый submit in_progress по snapshot; без записи результата |
 | `403 Forbidden` | `authentication_required` или `csrf_failed` | Нет допустимой session для защищённого запроса либо не пройдена CSRF-проверка |
 | `404 Not Found` | `not_found` | Объект отсутствует/чужой; статья, словарь, отметка или новая попытка для Draft |
 | `409 Conflict` | `attempt_already_submitted` | Валидный изменённый payload завершённой попытки; данные остаются прежними |
+| `409 Conflict` | `progress_reset` | Устаревшее поколение progress-записи; без автоматического повтора |
+| `409 Conflict` | `reset_request_conflict` | UUID последнего reset повторён с другим generation |
 | `405 Method Not Allowed` | `method_not_allowed` | Метод не предусмотрен контрактом |
 | `415 Unsupported Media Type` | `unsupported_media_type` | Неподдерживаемый Content-Type |
 | `500 Internal Server Error` | `internal_error` | Непредвиденный сбой с безопасным сообщением без внутренних данных |
@@ -302,7 +320,9 @@ TopicPractice имеет OneToOne-связь с Topic и единственны�
 
 Изменения контентных сущностей используют существующий Topic.revision/expected_revision и блокировку Topic. Start согласован с этой же блокировкой и фиксирует версию нормализации/эталон/RU/EN. Submit/delete блокируют строку собственной PracticeSubmission. Проверка ответа выполняет только явные строковые преобразования и сравнение, не вызывает eval/exec/SQL-исполнение/сеть. Исторический verdict не пересчитывается при edit/unpublish.
 
-Практика не участвует в summarize_progress/is_mastered; существующие Article, Attempt, Result, Progress и правило 80% сохраняются. Account deletion остаётся отдельной возможностью; FK User CASCADE определяет судьбу практических работ при её согласованном выполнении. Автоматического retention нет.
+Практика не участвует в is_mastered и старом Progress; QIL-033 включает её в отдельный completion_progress, не меняя правило 80% или Result. Reset становится явным owner-only исключением из сохранности работ. Account deletion остаётся отдельной возможностью; FK User CASCADE сохраняется, автоматического retention нет. POST Practice также участвуют в новом generation/mutex-протоколе.
+
+QIL-033 не добавляет сервисы или dependencies. UserProgressState и две контентные модели sections реализуются позже вместе с миграциями, клиентом и проверками; текущая задача фиксирует только их контракты.
 
 ## 13. Первичные источники
 

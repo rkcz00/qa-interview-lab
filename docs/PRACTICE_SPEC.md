@@ -1,5 +1,7 @@
 # Объективная практика — QIL-028
 
+Уточнение QIL-033 от 23 ноября 2026 года: утверждены [completion_progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Они ещё NOT_IMPLEMENTED: QIL-034 добавит generation/reset и участие Practice в отдельном completion_progress, QIL-036 расширит контентную роль до 13 моделей. Исходный checker, immutable snapshot, отдельная PracticeSubmission и независимость от mastery сохраняются. Ниже зафиксирован целевой контракт с этими уточнениями.
+
 Статус: требования и API согласованы пользователем 19 ноября 2026 года в QIL-028. Backend принят в QIL-029; Practice UI реализован в QIL-030, полный ручной PostgreSQL/Playwright-прогон — PASS. [Backend](PRACTICE_BACKEND.md), [UI и runner](PRACTICE_UI.md). На исходном commit `60a01aa` моделей и endpoints Practice нет. Успешный CI документации не является приёмкой функциональности.
 
 Источники: [PRD](PRD.md), [архитектура](ARCHITECTURE.md), [QA-стратегия](QA_STRATEGY.md), [backlog](BACKLOG.md), [правила Codex](../AGENTS.md). Этот документ — точная спецификация отдельного инкремента после базового MVP; FR-01–FR-13 и NFR-01–NFR-03 сохраняются.
@@ -20,9 +22,9 @@
 | PRA-06 | Immutable snapshot создаётся при явном start |
 | PRA-07 | Атомарный submit: идентичный нормализованный payload → 200, изменённый завершённый → 409 |
 | PRA-08 | Публичный результат — только verdict; эталон, внутренний snapshot и сохранённый ответ не выдаются |
-| PRA-09 | Practice не меняет mastery, TopicProgress и общий процент |
-| PRA-10 | Content Admin управляет 11 контентными моделями и не имеет доступа к PracticeSubmission |
-| PRA-11 | Ответ хранится до удаления работы владельцем или удаления аккаунта; фонового retention нет |
+| PRA-09 | Practice не меняет mastery и Read; Published Task участвует в отдельном completion_progress по QIL-033 |
+| PRA-10 | Content Admin управляет 11 моделями после QIL-029, 13 после sections QIL-036; PracticeSubmission/UserProgressState недоступны |
+| PRA-11 | Ответ хранится до удаления работы владельцем, полного reset или удаления аккаунта; фонового retention нет |
 | PRA-12 | Доступные UI-состояния, независимый RU/EN, безопасные повторы и проверки полного сценария |
 
 ## 2. Модели и ограничения
@@ -136,6 +138,8 @@ Submit блокирует строку собственной PracticeSubmission
 Все объекты ниже имеют точный разрешённый набор полей; дополнительные поля запросов отклоняются. ID — строки положительных PK; невалидный/отсутствующий/чужой ID ресурса → 404. Время — ISO 8601 UTC.
 
 Аутентификация — Django session; клиент использует credentials: include. Каждый POST требует CSRF cookie и X-CSRFToken, включая delete. Штатный GET /api/v1/auth/csrf/ используется существующим клиентом по назначению; токен не добавляется к DTO Practice. CSRF middleware не отключается.
+
+После QIL-034 каждый Practice POST дополнительно требует X-Progress-Generation из GET /api/v1/completion-progress/. Общий mutex текущего User берётся до Topic/submission-lock; отсутствующий/невалидный header даёт 400 validation_error, устаревший — 409 progress_reset, без автоматического обновления и повторения POST. Lookup чужой/удалённой работы остаётся 404 до проверки generation и тела. Точный протокол/квитанция reset — [PROGRESS_SPEC](PROGRESS_SPEC.md#4-поколение-прогресса-и-порядок-блокировок). GET/DTO Practice не расширяются.
 
 Для POST обязателен Content-Type application/json и JSON object. Query-параметры POST запрещены. GET допускает только один `language=ru|en`, по умолчанию ru; пустое, повторное, неизвестное значение/параметр → 400.
 
@@ -262,6 +266,7 @@ Preview с непрочитанной статьёй и уже завершён�
 | 403 | practice_locked | Start до Read или без собственной submitted-попытки теста |
 | 404 | not_found | Неизвестный/чужой submission; нет включения/Task/публикации для preview/start; удалённая работа |
 | 409 | practice_already_submitted | Структурно допустимый изменённый payload завершённой работы |
+| 409 | progress_reset | Поколение Practice POST устарело после полного reset; удалённый ID вместо этого даёт 404 |
 | 405 | method_not_allowed | Метод не предусмотрен для URL; Allow соответствует таблице путей |
 | 415 | unsupported_media_type | Для POST не application/json |
 | 500 | internal_error | Непредвиденная ошибка с безопасным сообщением; не превращается в 400 |
@@ -288,13 +293,15 @@ Preview с непрочитанной статьёй и уже завершён�
 
 ## 7. Хранение, удаление и неизменность mastery
 
-Хранятся snapshot, нормализованный submitted_answer и verdict до явного удаления работы владельцем либо удаления аккаунта. Автоматических TTL, retention jobs, очистки черновиков, скрытого удаления при unpublish или исправлении ключа нет. Ненормализованный исходный текст отдельно не сохраняется. Тексты ответов и ключи не логируются и не попадают в reports/artifacts. Условия используют синтетические данные; у ввода есть напоминание не вставлять реальные персональные данные и секреты. Автоматическая очистка/редактура текста не добавляется в нормализацию.
+Хранятся snapshot, нормализованный submitted_answer и verdict до явного удаления работы владельцем, подтверждённого полного reset либо удаления аккаунта. Автоматических TTL, retention jobs, очистки черновиков и скрытого удаления при unpublish/edit нет. Ненормализованный текст отдельно не сохраняется. Ответы/ключи не логируются и не попадают в reports/artifacts. Условия синтетические; ввод напоминает не вставлять персональные данные/секреты. Автоматическая редактура текста не добавляется в нормализацию.
 
 POST delete атомарно удаляет всю собственную PracticeSubmission, включая snapshot/ответ/verdict. Требуются явное подтверждение пользователя в UI и корректный CSRF. Чужая работа не удаляется. Для аутентифицированного запроса повтор delete, GET и submit удалённого ID дают 404; при отсутствии session остаётся 403 authentication_required. После удаления обещание идемпотентного submit прекращается, поскольку записи больше нет. User FK CASCADE удаляет работы при отдельно согласованном удалении аккаунта; новый account-delete endpoint в этот инкремент не входит.
 
 При гонке submit/delete блокируется одна строка: submit может завершиться до удаления, либо после удаления получить 404; восстановление удалённой записи и изменение чужих строк запрещены.
 
-Read и тестовый Attempt не удаляются вместе с PracticeSubmission. Mastery остаётся `article_read_at != null AND EXISTS submitted Attempt: 100 * correct_count >= 80 * total_count`. Практика не входит в этот запрос. Общий процент — mastered Published / все Published; отсутствие TopicPractice не исключает Topic из знаменателя. Правильная практика без успешного теста не даёт mastery; неправильная или удалённая практика не отменяет освоение.
+При отдельном delete PracticeSubmission Read и Attempt не удаляются. Mastery остаётся `article_read_at != null AND EXISTS submitted Attempt: 100 * correct_count >= 80 * total_count при total_count > 0`; Practice в этот запрос не входит. По QIL-033 новый процент — среднее completion_progress Published Topic: Read=30%, тест/Published Practice делят 70%; без Practice тест получает 70%. Статус passed означает любой сохранённый correct, failed — только incorrect, unattempted — нет submitted. Удаление последнего correct может снизить новый процент, но не mastery. Отсутствие TopicPractice не исключает тему из общего среднего.
+
+Полный reset — отдельная операция, удаляющая все собственные Read, Attempt и PracticeSubmission, включая историю/in_progress/Draft, с повышением generation. Вся работа (ответ/snapshot/verdict) удаляется, старые ID дают 404, повторный start возможен только после повторного выполнения Read+submitted-test. Поздний start/submit/delete не восстанавливает данные; другие пользователи и контент не затронуты. Это утверждённое исключение, а не скрытая очистка при редактировании. Точный API — [PROGRESS_SPEC](PROGRESS_SPEC.md#5-reset-api-и-история).
 
 ## 8. UI и безопасные сетевые сценарии
 
@@ -310,13 +317,14 @@ Start не повторяется автоматически. При потер�
 
 ## 9. Content Admin
 
-После реализации группа получает только view/add/change/delete на 11 моделях:
+После QIL-029 группа получает view/add/change/delete на 11 моделях; QIL-036 добавляет ещё две, итого целевые 13:
 - существующие Topic, TopicTranslation, Term, TermTranslation, Question, QuestionTranslation, Choice, ChoiceTranslation;
 - новые TopicPractice, PracticeTask, PracticeTaskTranslation.
+- TopicSection, TopicSectionTranslation после реализации sections по [TOPIC_SECTIONS_SPEC](TOPIC_SECTIONS_SPEC.md).
 
 До QIL-029 фактический allowlist содержит прежние восемь моделей. Публикация PracticeTask требует change и доменной проверки; массовая операция и inline не обходят транзакцию/ревизию. Пустой эталон проверяется редактором как намеренный.
 
-На PracticeSubmission, User, Group, permissions, sessions, Attempt и TopicProgress прав у группы нет; список/карточка/actions/inline/export и прямые Admin URL закрыты. PracticeSubmission не регистрируется в Admin первого релиза. Staff не означает доступ к чужим learner-данным; superuser не заменяет обычного Content Admin в тестах.
+На PracticeSubmission, User, Group, permissions, sessions, Attempt, TopicProgress и UserProgressState прав нет; список/карточка/actions/inline/export и прямые URL закрыты. PracticeSubmission и техническое состояние reset не регистрируются для Content Admin. Staff не означает доступ к чужим learner-данным; superuser не заменяет роль в тестах.
 
 FK PROTECT не даёт удалить TopicPractice с задачей или PracticeTask с работами. Снятие публикации выполняется через Draft и не удаляет пользовательские данные. Отдельная роль Reviewer и просмотр чужих ответов не вводятся.
 
@@ -343,9 +351,9 @@ FK PROTECT не даёт удалить TopicPractice с задачей или P
 | PQA-15 | PRA-07 | Параллельные одинаковые и разные submit дают один финальный результат; ошибка валидации не завершает работу | PostgreSQL, HTTPX |
 | PQA-16 | PRA-08 | Положительные списки всех JSON; нет эталона/его производных/ответа/snapshot в GET/POST/error/bundle; результат ровно verdict | API, frontend unit |
 | PQA-17 | PRA-02, PRA-08 | Строки с Python/SQL/HTML/JS не исполняются; нет eval/exec/shell/SQL-исполнителя или сетевых вызовов проверки; безопасное отображение | Unit, HTTPX, E2E |
-| PQA-18 | PRA-09 | Исходные границы mastery и общий процент неизменны при correct/incorrect/start/delete и языках практики; темы без kind остаются в знаменателе | Unit, PostgreSQL |
-| PQA-19 | PRA-10 | Реальный Content Admin без superuser управляет ровно 11 контентными моделями; новые формы/публикация работают; запрещённые URL/actions/данные закрыты | Admin HTTP, E2E |
-| PQA-20 | PRA-11 | Owner delete → 204 и отсутствие всей записи; повтор/GET/submit → 404; B не удаляет; account CASCADE; submit/delete race; Read/Test не меняются | PostgreSQL, HTTPX |
+| PQA-18 | PRA-09 | Mastery/Read неизменны при Practice; целевой completion учитывает лучший сохранённый correct Published Task, delete/unpublish меняют веса/статус по PROGRESS_SPEC. Без kind тема остаётся в среднем | Unit, PostgreSQL |
+| PQA-19 | PRA-10 | Content Admin управляет ровно 11 моделями до QIL-036, 13 после sections; запрещённые пользовательские/технические модели и прямые URL закрыты | Admin HTTP, E2E |
+| PQA-20 | PRA-11 | Отдельный owner delete → 204; повтор/GET/submit → 404; B не удаляет; Read/Test прежние. Полный reset атомарно удаляет всю собственную историю/работы; late writes отвергнуты; account CASCADE сохранён | PostgreSQL, HTTPX |
 | PQA-21 | PRA-12 | Полный путь статья → тест → практика, preview locked/404, RU/EN, правильный и неправильный ответ, пустой ответ, повтор/409, reload | Playwright |
 | PQA-22 | PRA-12 | Desktop/mobile, Tab/Enter/focus, языковая смена без потери ввода/POST, loading/disabled/errors, raw length, пустой submit доступен | Frontend unit, Playwright |
 | PQA-23 | PRA-07, PRA-12 | Потерянный start без автоповтора, submit timeout + GET + frozen repeat, 409 + GET, delete timeout + 404; нет дублей от UI | Unit, Playwright |

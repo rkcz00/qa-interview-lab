@@ -4,6 +4,8 @@
 
 Основание: [PRD](PRD.md), [архитектура](ARCHITECTURE.md), [backlog](BACKLOG.md), [Practice: требования и QA-план](PRACTICE_SPEC.md).
 
+QIL-033: ниже добавлена целевая приёмка утверждённых [progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Функции QIL-034–QIL-036 пока **NOT_IMPLEMENTED**, новые PGR/TFL/SEC-сценарии **NOT_RUN**. Старые результаты MVP/QIL-031 остаются историческим доказательством старого поведения, а не нового контракта.
+
 ## 1. Цели и приоритеты
 
 Проверить основной сценарий подготовки к интервью и наиболее опасные ошибки: доступ к чужим данным, утечку ключей ответов, неверное оценивание, потерю прогресса и рассогласование переводов.
@@ -43,16 +45,16 @@
 | QA-03 | FR-02, NFR-01 | Без CSRF/с неверным CSRF отклоняются register, login и изменяющие действия пользователя; после login токен обновлён. Штатные Set-Cookie и CSRF bootstrap разрешены, секретов в иных ответах и диагностике нет | API |
 | QA-04 | FR-03 | Published видна, Draft отсутствует в списке; статья и словарь Draft возвращают 404 по известному ID; длинная статья до видимости её конца не отмечается прочитанной; видимость конца автоматически сохраняет одну отметку с CSRF | API, E2E |
 | QA-05 | FR-04 | Термины и определения на обоих языках; просмотр словаря не изменяет ни чтение, ни освоение | API, E2E |
-| QA-06 | FR-05, FR-06 | Оба типа вопросов; точный, неполный, избыточный и пустой наборы; перестановка вариантов; пропуски остаются в знаменателе | Unit, API, E2E |
+| QA-06 | FR-05, FR-06 | Оба типа, exact-set и перестановки; непустой неполный правильный набор даёт 0. QIL-035: пропуск/пустой ответ первого submit → 400 incomplete_answers; исторический scoring/повтор с пропусками сохранён | Unit, API, E2E |
 | QA-07 | FR-06, NFR-01 | Ни до, ни после submit Learner API не выдаёт правильные ответы, внутренний snapshot или submitted_answers, включая GET завершённой попытки, историю и ошибки. После submit result содержит ровно correct_count, total_count, percentage, без вопросов, вариантов и по-вопросных оценок | API |
 | QA-08 | FR-05, FR-06, FR-13 | Чужой choice_id, неизвестный question_id, дубли, несколько вариантов Single-choice, подставленные percentage/correct_count/user_id. Невалидный запрос даёт 400, результата и изменения чужих данных нет | API |
-| QA-09 | FR-07 | «Прочитано» сохраняется; повтор не создаёт вторую строку и не меняет первоначальную дату; новый вход и смена языка сохраняют отметку | Integration, API, E2E |
+| QA-09 | FR-07 | Read после конца последнего Published-раздела; повтор/RU/EN не меняют дату. Явный reset удаляет отметку, поздний старый POST не восстанавливает её | Integration, API, E2E |
 | QA-10 | FR-08 | Нет отметки/нет успешной попытки/есть оба условия; ниже, ровно и выше 80%; худшая повторная попытка не сбрасывает освоение; неудачные попытки не суммируются | Unit, API |
 | QA-11 | FR-09 | Две новые попытки — две записи. Тот же attempt_id и нормализованный payload дают 200 с прежним результатом, без новой истории или изменения submitted_at; смена набора ответов или языка после submit даёт 409 attempt_already_submitted. Конкурентная отправка фиксирует один результат | Integration, API |
 | QA-12 | FR-09, FR-13 | Content Admin переводит Published в Draft и меняет контент: новые попытки, статья/словарь дают 404; история, прогресс и освоение от перехода не меняются. Начатая попытка завершается по исходному snapshot; наружу выдаются только агрегаты. История доступна после нового входа | Integration, API, E2E |
 | QA-13 | FR-10 | ru/ru, ru/en, en/ru, en/en; смена языка сохраняет topic_id/question_id/choice_id, текущие ответы и прогресс; переключение не создаёт новую попытку | API, E2E |
 | QA-14 | FR-11 | Пропущенный или пустой перевод, ноль вопросов или терминов и неверные ключи блокируют публикацию. Неполная правка Published даёт `400 incomplete_content` с откатом. Два POST из одной ревизии дают одну запись и `409 edit_conflict` для второго запроса | Integration, Admin HTTP |
-| QA-15 | FR-12 | Content Admin — группа с permissions только на восемь базовых контентных моделей/переводов; после реализации Practice — ровно 11 по PQA-19. is_staff=True, is_superuser=False. Нет доступа к User, Attempt, TopicProgress, PracticeSubmission и управлению permissions даже по прямому Admin URL. Superuser не заменяет роль; обычный пользователь не редактирует контент. Массовая публикация не обходит проверки, тема с историей не удаляется физически | Integration, ручная |
+| QA-15 | FR-12 | Content Admin: 8 базовых + 3 Practice, после QIL-036 ещё 2 sections =13. Не superuser; нет доступа к User, Attempt, TopicProgress, PracticeSubmission, UserProgressState/permissions по прямым URL. Массовая публикация сохраняет проверки; тема с историей защищена | Integration, ручная |
 | QA-16 | FR-13 | B запрашивает список и ID попытки A, отправляет её ответы или повторяет её submit; чужих данных нет, состояние A неизменно. То же проверяется для staff, Content Admin и superuser в Learner API; ownership не обходится | API |
 | QA-17 | NFR-01 | Session ID отсутствует в JSON; штатные Set-Cookie/CSRF bootstrap разрешены. Пароли, хеши, session/CSRF-секреты не попадают в логи и артефакты. Текст с HTML/JavaScript не исполняется; настройки HTTPS/cookie/debug проверены перед публичным запуском | API, E2E, конфигурация |
 | QA-18 | NFR-02 | Чистая тестовая PostgreSQL и повторный запуск; jobs backend_api, frontend_unit, frontend_check_build, playwright_e2e присутствуют и обязательны для MVP. Провал или пропуск обязательной проверки не считается успешной приёмкой; безопасные отчёты доступны | Integration, CI |
@@ -73,7 +75,7 @@
 | Multiple-choice, `{A, C}` | `{B}` или пусто | Ноль |
 | Любой тип | Неизвестный ID, повтор ID или вариант другого вопроса | Невалидный запрос, без результата |
 
-Генерация ожидаемых баллов в тестах не должна вызывать ту же функцию, которую тестируем. Для этих наборов ожидания задаются независимо, явно.
+Таблица является оракулом чистого scoring и исторических snapshot, а не разрешением неполного нового HTTP-submit. В QIL-035 отсутствующий вопрос/пустой choice_ids первого in_progress даёт 400 incomplete_answers без submitted; непустой неверный выбор допустим и даёт 0. Генерация ожидаемых баллов не вызывает тестируемую функцию; ожидания независимы и явны.
 
 ### 4.2. Освоение
 
@@ -107,7 +109,7 @@ Playwright использует реальный Django/PostgreSQL и сущес
 
 ### 4.6. Общий прогресс — QIL-021 / уточнение QIL-027
 
-UI читает только RU-каталог и собственный прогресс. Проверяются 0/0, 0/N, частичное и полное освоение, использование серверного mastered, исключение Draft из числителя и знаменателя, сохранность серверных данных после снятия публикации. Незавершённая попытка не увеличивает прогресс. История не запрашивается и не отображается в UI; существующая история API и прямой URL результата по-прежнему проверяются на ownership и сохранность.
+Прежняя доля mastered Published / все Published — принятый baseline QIL-027. Целевой QIL-034 использует completion-progress: 30% Read, 70% между Published activity, среднее тем; mastery отдельно. Проверяются M=0/пустой каталог, все статусы, лучший результат, отсутствие Practice и изменение весов. Draft исключена из среднего, сохранённые данные не удаляются без reset. In_progress не добавляет вклад и счётчики; история скрыта только в UI, до явного полного reset собственные API/result URL сохраняются.
 
 Loading и 403/404/timeout/network не подменяются нулём. Проверяются очистка приватных значений при истечении сессии, поздние ответы, новый вход, reload и Back/Forward. Sidebar и страница разделяют один запрос прогресса; passive refresh после чтения/submit сохраняет DOM меню и фокус.
 
@@ -153,7 +155,7 @@ Frontend unit проверяют различие busy и обычного disab
 
 Нормализация — самостоятельный оракул; код и SQL пользователя не выполняются даже при публикации. Правильный и неправильный допустимые ответы дают 200 с PracticeResult.verdict; тип/лимит/недопустимая пустота начатой работы дают 400. Повтор одинакового нормализованного ответа и языка сохраняет дату/результат; изменённый завершённый payload даёт 409. После удаления всей работы действует 404.
 
-Frontend/Playwright проверят пустую отправку без HTML required, code-point лимит, независимость языка, отсутствие эталона/подсказок, сохранность ввода при RU/EN, загрузку по ID и сетевую неопределённость без автоповтора в QIL-030; эти Practice UI-проверки пока NOT_RUN. Границы mastery, Read и общий процент должны быть неизменны при любых результатах практики и её удалении. Существующие четыре CI jobs и политика безопасных артефактов сохраняются. Статус серверных проверок QIL-029 приведён в PRACTICE_BACKEND; документационный CI не доказывает реализацию Practice.
+Frontend/Playwright QIL-030 проверяют пустую отправку без HTML required, code-point лимит, языки, отсутствие эталона, сохранность ввода/GET и сетевую неопределённость без автоповтора. После QIL-034 Practice не меняет mastery/Read, но её лучший сохранённый verdict и публикация участвуют в completion_progress; удаление последнего correct может его снизить. Полный reset — отдельное исключение. Существующие jobs/artifacts сохраняются; новые PGR-проверки пока NOT_RUN, старый CI не доказывает новое поведение.
 
 ### 4.13. Кроссбраузерная приёмка — QIL-031
 
@@ -162,6 +164,44 @@ Frontend/Playwright проверят пустую отправку без HTML r
 Browser выбирается собственным Pytest option `--qil-browser` с allowlist и Chromium по умолчанию, без нового плагина или dependencies. Одинаковые fixtures запускают реальный frontend/backend и случайную PostgreSQL, закрывают contexts/browser/driver и собственные серверы/БД. Успешные API-ответы не подменяются. Только negative retry управляемо прерывает запрос; повтор идёт в настоящий backend с прежним payload. Процент/mastery и контракт Practice не меняются.
 
 Локально проверяются Windows и три установленных движка Playwright 1.65.0; CI выполняет browser matrix на Ubuntu. Все три executions обязательны с `fail-fast: false`, без подавления ошибок. Результаты фиксируются по движку и SHA после реального запуска. WebKit не является приёмкой Safari, а viewport не подтверждает физический телефон; полный WCAG-аудит и pixel-perfect сравнение не заявляются.
+
+### 4.14. Утверждённый прогресс, reset и test flow — QIL-033
+
+Контракт: [PROGRESS_SPEC](PROGRESS_SPEC.md). Следующие наборы запланированы для QIL-034/QIL-035 и сейчас NOT_RUN. Оракулы не вычисляются тем же кодом, что проверяется; DB/API/E2E используют только собственную временную PostgreSQL и синтетические данные.
+
+| ID | Критерии и независимые оракулы | Уровень |
+| --- | --- | --- |
+| PGR-01 | FR-14: 30/70, 30/35/35; все комбинации Read/pass/fail/unattempted; M=0 даёт 30*R; пустой каталог 0; 65 и 100 дают среднее 82.5 до округления | Unit |
+| PGR-02 | Точный лучший тест/80%, включая долю ниже 80 при отображении 80.00; success→failure сохраняет passed; Practice any saved correct; язык/число попыток не меняют веса | Unit, PostgreSQL |
+| PGR-03 | Все Published, включая не начатые; Draft скрыта, practice=null при отсутствии публикации; точные DTO без ответов/keys/snapshots, generation не credential; B и staff не видят прогресс A | HTTPX |
+| PGR-04 | Delete последнего correct меняет только новый completion; edit/unpublish не пересчитывают результат/mastery, но текущие веса меняются; без Practice 100 при Read+тесте | PostgreSQL, HTTPX |
+| PGR-05 | FR-15: reset A удаляет все его Read/Attempt/PracticeSubmission, включая Draft/in_progress/history; B, account/session/content сохранены; старые ID дают 404; нет session/CSRF/confirmation → отказ без удаления | PostgreSQL, HTTPX |
+| PGR-06 | Rollback на сбое/overflow; повтор последнего reset с тем же UUID/header не удаляет новую работу; другой header того же UUID → reset_request_conflict; старый generation → progress_reset | PostgreSQL, HTTPX |
+| PGR-07 | Reset конкурентен с каждым read/Test start/submit/Practice start/submit/delete и другим reset: общий User-lock+generation; stale write не создаёт/не восстанавливает строк; lookup удалённого ID →404 прежде тела/header | PostgreSQL, HTTPX |
+| PGR-08 | Две вкладки, активный end-marker и удержанный POST: reset не вызывает автопрочтение; stale GET игнорируется, 409 не повторяет POST с новым generation; cache/drafts очищены, после явного нового чтения новая первая дата | Frontend unit, Playwright |
+| PGR-09 | Новые header/query/errors и empty catalog; старые GET Progress/Article/Result shapes сохранены; reset GET не удаляет; timeout использует тот же request_id и GET без автоматического нового reset | HTTPX, Frontend unit |
+| PGR-10 | Sidebar и /progress согласованы, mastery отдельно от двух разных случаев 65%; failed завершён и открывает Practice при Read, но даёт 0; errors не рисуют ноль; новые функции реально проверены до PASS | Playwright, regression |
+| TFL-01 | Answer локальный, без HTTP/вердикта; one radio/минимум один checkbox; изменение/clear снимает только одно подтверждение; RU/EN и навигация сохраняют ID/подтверждения | Frontend unit |
+| TFL-02 | На последнем отдельный Finish, disabled до всех подтверждений; Answer последнего не отправляет; один Finish/двойное нажатие → один POST; после reload ввод и подтверждения не выдумываются | Playwright |
+| TFL-03 | Первый in_progress: отсутствующие answers/вопрос/choice_ids, пустые наборы →400 incomplete_answers без результата; типы/чужие ID/дубли/несколько radio →validation_error; структурная ошибка имеет приоритет | HTTPX |
+| TFL-04 | Старый submitted с пропусками: нормализованный повтор 200 с прежней датой/результатом; изменённый допустимый payload 409; scoring exact-set/ROUND_HALF_UP и неизменность snapshot сохранены | PostgreSQL, HTTPX |
+| TFL-05 | Finish CSRF/ownership, frozen network/timeout/409+GET, generation/reset, keyboard/focus и desktop/mobile на трёх движках; результат только три агрегата, PracticeTask не входит в Attempt | Playwright, regression |
+| TFL-06 | Нет «На главную» на /login; registration/login/session redirect и learner navigation сохранены, русский UI и no next/returnTo | Frontend unit, Playwright |
+
+### 4.15. Многочастная статья — QIL-033
+
+Контракт [TOPIC_SECTIONS_SPEC](TOPIC_SECTIONS_SPEC.md); все новые сценарии QIL-036/QIL-037 пока NOT_RUN.
+
+| ID | Проверка | Уровень |
+| --- | --- | --- |
+| SEC-01 | FK/CHECK/UNIQUE, общий порядок RU/EN, отложенная уникальность перестановки, Draft может быть неполным; ID не меняется при reorder | PostgreSQL |
+| SEC-02 | Полный Published, запрет неполной правки/последнего раздела, 400 incomplete_content с rollback; две ревизии → одна запись и 409 edit_conflict; Content Admin 13 моделей без пользовательских данных | Admin HTTP, PostgreSQL |
+| SEC-03 | Точные SectionsArticle/legacy Article, оба языка, один раздел дословно, несколько по указанным separator; Draft Topic/sections не раскрываются, нет fallback/revision/keys | HTTPX |
+| SEC-04 | Миграция: одна section на прежнюю Topic, тексты/языки/статусы сохранены; Topic IDs, Read-даты, Attempts/Practice snapshots/user data неизменны, демо не перезаписано | PostgreSQL |
+| SEC-05 | Только актуальный конец последнего раздела полностью загруженной статьи; hidden/0x0/stale/частичная загрузка без POST; pending/RU/EN/повторы не дублируют Read | Frontend unit, Playwright |
+| SEC-06 | Редактура/добавление/reorder/unpublish не сбрасывают исторический Read/mastery; первый новый читатель использует текущие Published; reset блокирует старый marker | PostgreSQL, Playwright |
+| SEC-07 | Единый reader/оглавление/якоря, прямой URL/reload/Back/Forward, независимый язык теста, keyboard/focus/длинные RU/EN без overflow на desktop/mobile во всех движках | Playwright |
+| SEC-08 | Snapshot/test/Practice регрессия, старый Article клиент и новый reader; нет контентной записи из GET и нет частичных/секретных DTO; cleanup своей БД/процессов | HTTPX, regression |
 
 ## 5. Тестовые данные и изоляция
 
@@ -180,7 +220,7 @@ API/E2E не очищают пользовательский Docker volume и н
 
 HTTPX работает с реально поднятым Django по HTTP. Проверка через mock transport не считается проверкой реального HTTP-контракта. Клиент сохраняет session/CSRF cookies и после login обновляет CSRF-токен.
 
-Нужно проверять не только статус, но и тело ответа и отсутствие нежелательных изменений базы. Ожидаемые ошибки согласованы с архитектурой: `400` для невалидных данных, `403` для CSRF/неаутентифицированного доступа с SessionAuthentication, `404` для чужой попытки/Draft, `409` для изменённого payload завершённой попытки.
+Нужно проверять статус, тело и отсутствие нежелательных изменений БД: 400 validation_error для структуры и incomplete_answers для неполного первого submit; 403 для session/CSRF; 404 для чужого/Draft/удалённого ID; 409 attempt_already_submitted для изменённого завершённого payload, progress_reset для stale generation и reset_request_conflict для несовместимого повтора UUID. Lookup/порядок отказов и rollback проверяются по новым спецификациям.
 
 Проверки отсутствия утечки до и после submit опираются на формы данных раздела 9 архитектуры и смысл данных. Одного поиска `is_correct` недостаточно: ключ может попасть в JSON под другим именем, вложенным списком или ошибкой. Тестовый Result имеет ровно `correct_count`, `total_count`, `percentage`; метаданные истории проверяются отдельно. Поля тестовых вопросов допустимы только до submit; внутренний snapshot и сохранённые ответы пользователя не возвращаются никогда. Новый PracticeResult содержит только verdict, но expected_answer/его производные/snapshot/submitted_answer запрещены на всех этапах по PQA-16. Bootstrap CSRF и Set-Cookie используются только по назначению и не считаются утечкой.
 
