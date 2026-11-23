@@ -120,6 +120,27 @@ export interface Progress {
   mastered: boolean
 }
 
+export type ActivityStatus = 'unattempted' | 'failed' | 'passed'
+
+export interface TopicCompletion {
+  topic_id: string
+  article_read_at: string | null
+  test: { status: ActivityStatus; best_result: Result | null }
+  practice: { task_id: string; status: ActivityStatus } | null
+  completion_progress: number
+  mastered: boolean
+}
+
+export interface CompletionProgress {
+  progress_generation: string
+  overall_completion_progress: number
+  topics: TopicCompletion[]
+}
+
+export interface ResetProgress {
+  progress_generation: string
+}
+
 export interface DataEnvelope<T> {
   data: T
 }

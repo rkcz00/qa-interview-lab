@@ -118,6 +118,7 @@ def test_read_response_failure_rolls_back_mark(bilingual_topic, monkeypatch):
     monkeypatch.setattr(ProgressSerializer, "to_representation", fail_after_write)
     response = client.post(
         f"/api/v1/topics/{topic.pk}/read/", {}, content_type="application/json", HTTP_X_CSRFTOKEN=token,
+        HTTP_X_PROGRESS_GENERATION="1",
     )
     assert response.status_code == 500
     assert response.json() == {"error": {

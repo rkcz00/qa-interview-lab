@@ -336,7 +336,9 @@ def test_concurrent_submissions_commit_one_result(learner, bilingual_topic, same
                 second = pool.submit(post, second_client, url, {
                     "language": "ru", "answers": reordered if same_payload else [],
                 })
-                wait_for_lock_waiters("assessments_attempt", 2)
+                # Same-owner progress writes now serialize on User before Attempt.
+                wait_for_lock_waiters(User._meta.db_table, 1)
+                wait_for_lock_waiters("assessments_attempt", 1)
 
             first_result = data(first.result(timeout=15))
             second_response = second.result(timeout=15)

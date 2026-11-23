@@ -91,7 +91,7 @@ def test_response_failure_rolls_back_attempt_write(bilingual_topic, monkeypatch,
     client.force_login(user)
     token = client.get("/api/v1/auth/csrf/").json()["data"]["csrf_token"]
     start_url = f"/api/v1/topics/{topic.pk}/attempts/"
-    request = {"content_type": "application/json", "HTTP_X_CSRFTOKEN": token}
+    request = {"content_type": "application/json", "HTTP_X_CSRFTOKEN": token, "HTTP_X_PROGRESS_GENERATION": "1"}
     if operation == "start":
         url, payload = start_url, {"language": "ru"}
         serializer = PendingAttemptSerializer

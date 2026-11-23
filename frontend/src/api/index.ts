@@ -7,4 +7,6 @@ export type * from './types.ts'
 export const api = createApiClient({
   baseUrl: import.meta.env.VITE_API_BASE_URL ?? '/api/v1/',
   origin: window.location.origin,
+  // A new document clears stale private stores/end-markers without changing layout.
+  onProgressReset: () => { window.location.replace('/progress') },
 })

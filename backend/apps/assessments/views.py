@@ -1,7 +1,6 @@
 import logging
 from functools import wraps
 
-from django.db import transaction
 from django.http import Http404, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -13,13 +12,19 @@ from apps.learning.serializers import language_from_query
 from config.api import authentication_required, error_response, method_not_allowed, parse_json_payload, pk_from_path
 
 from .attempts import build_snapshot, grade_snapshot
+from .completion import completion_progress
 from .models import Attempt, AttemptStatus, TopicProgress
 from .progress import progress_after_read, user_progress
+from .progress_state import (
+    ProgressWriteError, generation_from_request, progress_transaction, require_generation, reset_progress,
+)
 from .scoring import InvalidAnswers
 from .serializers import (
     PendingAttemptSerializer,
+    CompletionProgressSerializer,
     ProgressSerializer,
     ReadTopicSerializer,
+    ResetProgressSerializer,
     StartAttemptSerializer,
     SubmitAttemptSerializer,
     SubmittedAttemptSerializer,
@@ -44,6 +49,8 @@ def _learner_endpoint(method, *, resource="Attempt"):
                 return error_response("not_found", "Requested resource not found.", 404)
             except UnsupportedMediaType:
                 return error_response("unsupported_media_type", "Expected application/json.", 415)
+            except ProgressWriteError as exc:
+                return error_response(exc.code, exc.message, 409)
             except (InvalidAnswers, ValidationError):
                 return error_response("validation_error", f"Invalid {resource.lower()} request.", 400)
             except Exception as exc:
@@ -72,12 +79,13 @@ def _owned_attempt(request, queryset, attempt_id):
 
 
 @_learner_endpoint("POST")
-@transaction.atomic
+@progress_transaction
 def start_attempt(request, topic_id):
     topics = Topic.objects.select_for_update().prefetch_related(
         "translations", "questions__translations", "questions__choices__translations",
     )
     topic = get_object_or_404(topics, pk=pk_from_path(topic_id), status=TopicStatus.PUBLISHED)
+    require_generation(request, request.progress_state)
     data = _request_data(request, StartAttemptSerializer)
     attempt = Attempt.objects.create(user_id=request.user.pk, topic=topic, content_snapshot=build_snapshot(topic))
     payload = PendingAttemptSerializer(attempt, context={"language": data["language"]}).data
@@ -96,9 +104,10 @@ def attempt_detail(request, attempt_id):
 
 
 @_learner_endpoint("POST")
-@transaction.atomic
+@progress_transaction
 def submit_attempt(request, attempt_id):
     attempt = _owned_attempt(request, Attempt.objects.select_for_update(), attempt_id)
+    require_generation(request, request.progress_state)
     data = _request_data(request, SubmitAttemptSerializer)
     normalized, result = grade_snapshot(attempt.content_snapshot, data["answers"])
 
@@ -131,12 +140,13 @@ def attempt_history(request):
 
 
 @_learner_endpoint("POST", resource="Progress")
-@transaction.atomic
+@progress_transaction
 def mark_article_read(request, topic_id):
     # Serialize the publication check and mark with the existing Topic editor.
     topic = get_object_or_404(
         Topic.objects.select_for_update(), pk=pk_from_path(topic_id), status=TopicStatus.PUBLISHED,
     )
+    require_generation(request, request.progress_state)
     _request_data(request, ReadTopicSerializer)
     mark, _ = TopicProgress.objects.get_or_create(user_id=request.user.pk, topic=topic)
     return JsonResponse({"data": ProgressSerializer(progress_after_read(mark)).data})
@@ -146,3 +156,19 @@ def mark_article_read(request, topic_id):
 def progress_list(request):
     _require_no_query(request)
     return JsonResponse({"data": ProgressSerializer(user_progress(request.user.pk), many=True).data})
+
+
+@_learner_endpoint("GET", resource="Progress")
+def completion_list(request):
+    _require_no_query(request)
+    payload = CompletionProgressSerializer(completion_progress(request.user.pk)).data
+    return JsonResponse({"data": payload})
+
+
+@_learner_endpoint("POST", resource="Progress")
+@progress_transaction
+def reset(request):
+    generation = generation_from_request(request)
+    data = _request_data(request, ResetProgressSerializer)
+    generation = reset_progress(request.progress_state, generation, data["request_id"])
+    return JsonResponse({"data": {"progress_generation": generation}})

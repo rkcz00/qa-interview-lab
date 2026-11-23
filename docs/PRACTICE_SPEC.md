@@ -1,6 +1,6 @@
 # Объективная практика — QIL-028
 
-Уточнение QIL-033 от 23 ноября 2026 года: утверждены [completion_progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Они ещё NOT_IMPLEMENTED: QIL-034 добавит generation/reset и участие Practice в отдельном completion_progress, QIL-036 расширит контентную роль до 13 моделей. Исходный checker, immutable snapshot, отдельная PracticeSubmission и независимость от mastery сохраняются. Ниже зафиксирован целевой контракт с этими уточнениями.
+Уточнение QIL-033 от 23 ноября 2026 года: утверждены [completion_progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend QIL-034 реализует generation/reset и участие Practice в отдельном completion_progress; необходимое расширение клиента выполнено без визуальных изменений. Новый completion/reset UI и QIL-035/QIL-036 ещё NOT_IMPLEMENTED; QIL-036 расширит контентную роль до 13 моделей. Исходный checker, immutable snapshot, отдельная PracticeSubmission и независимость от mastery сохраняются. [Границы серверного этапа](COMPLETION_BACKEND.md).
 
 Статус: требования и API согласованы пользователем 19 ноября 2026 года в QIL-028. Backend принят в QIL-029; Practice UI реализован в QIL-030, полный ручной PostgreSQL/Playwright-прогон — PASS. [Backend](PRACTICE_BACKEND.md), [UI и runner](PRACTICE_UI.md). На исходном commit `60a01aa` моделей и endpoints Practice нет. Успешный CI документации не является приёмкой функциональности.
 

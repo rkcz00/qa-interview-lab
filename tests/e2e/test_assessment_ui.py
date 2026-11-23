@@ -15,7 +15,7 @@ def request_post(context, path, payload):
     bootstrap = context.request.get("/api/v1/auth/csrf/")
     check(bootstrap.status == 200, "CSRF bootstrap failed")
     token = bootstrap.json()["data"]["csrf_token"]
-    response = context.request.post(path, data=payload, headers={"X-CSRFToken": token})
+    response = context.request.post(path, data=payload, headers={"X-CSRFToken": token, "X-Progress-Generation": "1"})
     token = None
     return response
 

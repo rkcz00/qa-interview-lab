@@ -2,7 +2,7 @@
 
 Статус: требования MVP с уточнениями ручной приёмки QIL-027 от 18 ноября 2026 года и согласованным инкрементом Practice. Backend принят в QIL-029; UI реализован в QIL-030, полная локальная приёмка подтверждена ручным прогоном. [Backend](PRACTICE_BACKEND.md), [UI и runner](PRACTICE_UI.md). Существующие API и серверное хранение истории сохранены.
 
-QIL-033: 23 ноября 2026 года утверждены новые целевые правила [progress/reset/test flow](PROGRESS_SPEC.md) и [разделов Topic](TOPIC_SECTIONS_SPEC.md). Соответствующие уточнения ниже заменяют прежний процент mastered/Published и разрешение неполного первого submit после реализации QIL-034–QIL-036. Сейчас они **NOT_IMPLEMENTED**; статус базового MVP не является приёмкой этих изменений. В этой задаче меняется только документация.
+QIL-033: 23 ноября 2026 года утверждены новые целевые правила [progress/reset/test flow](PROGRESS_SPEC.md) и [разделов Topic](TOPIC_SECTIONS_SPEC.md). Backend completion/reset и необходимая совместимость клиента реализованы в текущем серверном этапе QIL-034. Визуальный completion/reset UI, строгий первый submit/Answer/Finish QIL-035 и sections QIL-036 ещё **NOT_IMPLEMENTED**. Прежний UI пока показывает долю mastered/Published; статус базового MVP не является приёмкой новых функций. [Границы и проверки backend](COMPLETION_BACKEND.md).
 
 Связанные документы: [README](../README.md), [архитектура](ARCHITECTURE.md), [QA-стратегия](QA_STRATEGY.md), [backlog](BACKLOG.md).
 

@@ -2,6 +2,7 @@ import type {
   Account, Article, Attempt, ErrorEnvelope, ErrorFields, Language, PendingAttempt,
   Progress, PublicChoice, PublicQuestion, Result, SubmittedAttempt, Term, TopicSummary,
   PracticePreview, PendingPractice, SubmittedPractice, PracticeSubmission, PublicPracticeTask, PracticeNormalization, PracticeBlock,
+  ActivityStatus, CompletionProgress, ResetProgress, TopicCompletion,
 } from './types.ts'
 
 export type Decoder<T> = (value: unknown) => T
@@ -145,6 +146,48 @@ export function progress(value: unknown): Progress {
   }
 }
 
+export function progressGeneration(value: unknown): string {
+  const generation = text(value)
+  if (!/^[1-9][0-9]{0,18}$/.test(generation) || BigInt(generation) > 9223372036854775807n) throw new ContractError()
+  return generation
+}
+
+function activityStatus(value: unknown): ActivityStatus {
+  if (value !== 'unattempted' && value !== 'failed' && value !== 'passed') throw new ContractError()
+  return value
+}
+
+function completionPercentage(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 100) throw new ContractError()
+  return value
+}
+
+function topicCompletion(value: unknown): TopicCompletion {
+  const item = object(value, ['topic_id', 'article_read_at', 'test', 'practice', 'completion_progress', 'mastered'])
+  const test = object(item.test, ['status', 'best_result'])
+  const status = activityStatus(test.status)
+  const best = test.best_result === null ? null : result(test.best_result)
+  if ((status === 'unattempted') !== (best === null) || typeof item.mastered !== 'boolean') throw new ContractError()
+  if (best && (status === 'passed') !== (BigInt(best.correct_count) * 100n >= BigInt(best.total_count) * 80n)) throw new ContractError()
+  const practice = item.practice === null ? null : object(item.practice, ['task_id', 'status'])
+  return {
+    topic_id: id(item.topic_id), article_read_at: item.article_read_at === null ? null : text(item.article_read_at),
+    test: { status, best_result: best },
+    practice: practice === null ? null : { task_id: id(practice.task_id), status: activityStatus(practice.status) },
+    completion_progress: completionPercentage(item.completion_progress), mastered: item.mastered,
+  }
+}
+
+export function completionProgress(value: unknown): CompletionProgress {
+  const item = object(value, ['progress_generation', 'overall_completion_progress', 'topics'])
+  return { progress_generation: progressGeneration(item.progress_generation),
+    overall_completion_progress: completionPercentage(item.overall_completion_progress), topics: arrayOf(topicCompletion)(item.topics) }
+}
+
+export function resetProgress(value: unknown): ResetProgress {
+  return { progress_generation: progressGeneration(object(value, ['progress_generation']).progress_generation) }
+}
+
 function practiceMode(value: unknown): PracticeNormalization {
   if (value !== 'lf_trim_outer_v1' && value !== 'lf_exact_v1') throw new ContractError()
   return value
@@ -198,7 +241,7 @@ export function errorEnvelope(value: unknown): ErrorEnvelope {
   const item = object(object(value, ['error']).error, ['code', 'message'], ['fields'])
   let fields: ErrorFields | undefined
   if (Object.hasOwn(item, 'fields')) {
-    const inputs = ['email', 'password', 'language', 'answers', 'answer_text', 'question_id', 'choice_ids', 'topic_id', 'attempt_id', 'non_field_errors']
+    const inputs = ['email', 'password', 'language', 'answers', 'answer_text', 'question_id', 'choice_ids', 'topic_id', 'attempt_id', 'confirmation', 'request_id', 'non_field_errors']
     fields = Object.fromEntries(Object.entries(record(item.fields)).map(([key, messages]) => {
       if (!inputs.includes(key)) throw new ContractError()
       return [key, typeof messages === 'string' ? [messages] : arrayOf(text)(messages)]

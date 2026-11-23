@@ -1,5 +1,13 @@
 # Frontend: API-клиент, Auth, Learning, Assessment и Progress UI
 
+## Совместимость completion/reset — backend-этап QIL-034
+
+Добавлены публичные типы/строгие decoders и методы `progress.completion()` и `progress.reset(confirmation, requestId, expectedGeneration)`. Отдельные counts не добавляются: `test` представляет один тест, `practice` — ноль или одну задачу. Все шесть существующих учебных POST и reset передают `X-Progress-Generation` из нового GET; Auth POST остаются без него. Generation хранится только в памяти, bootstrap CSRF и `credentials: include` сохранены.
+
+Устаревший generation не обновляется с повтором POST. Поздние приватные GET отбрасываются, reset/неопределённый исход reset блокирует старое автопрочтение; вкладки получают только сигнал без пользовательских данных. Общий экземпляр клиента очищает состояние экрана переходом с перезагрузкой на `/progress`. Новый явный переход к статье допускает новое чтение. Повтор reset требует прежних UUID, тела и исходного generation.
+
+В текущем задании нет визуального расширения Progress, новых процентов в sidebar и кнопки reset. Прежний UI/GET Progress сохранены; целевой completion UI остаётся невыполненной частью backlog. Answer/Finish и sections относятся к отдельным задачам. [Backend и фактические границы](../docs/COMPLETION_BACKEND.md).
+
 ## Practice UI — QIL-030
 
 Реализованы `/topics/{topic_id}/practice` и `/practice-submissions/{submission_id}` с группой practice типизированного API-клиента и строгими runtime decoders. Ссылки со статьи и результата теста появляются только после успешного preview; 404 скрывает вход. Read и любой submitted-тест открывают start на backend. Язык задания первоначально берётся из материала, независимо от языка теста.

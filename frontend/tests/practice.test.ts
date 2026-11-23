@@ -108,6 +108,9 @@ for (const language of ['ru', 'en'] as const) test(`API routes, exact body, cred
     const calls: { url: string; init: RequestInit }[] = []
     const api = createApiClient({ origin: 'http://localhost', baseUrl: '/api/v1/', fetch: async (input, init) => {
       calls.push({ url: String(input), init: init! })
+      if (String(input).endsWith('/completion-progress/')) return Response.json({ data: {
+        progress_generation: '1', overall_completion_progress: 0, topics: [],
+      } })
       return String(input).endsWith('/csrf/') ? Response.json({ data: { csrf_token: 'synthetic-test-token' } }) : route.status === 204 ? new Response(null, { status: 204 }) : Response.json({ data: route.value }, { status: route.status })
     } })
     await route.invoke(api)
@@ -115,17 +118,26 @@ for (const language of ['ru', 'en'] as const) test(`API routes, exact body, cred
     assert.equal(call.url, 'http://localhost/api/v1/' + route.path)
     assert.equal(call.init.method, route.body === undefined ? 'GET' : 'POST')
     assert.equal(call.init.credentials, 'include')
-    assert.equal(calls.length, route.body === undefined ? 1 : 2)
+    assert.equal(calls.length, route.body === undefined ? 1 : 3)
     if (route.body !== undefined) {
       assert.ok(new Headers(call.init.headers).get('X-CSRFToken'))
+      assert.equal(new Headers(call.init.headers).get('X-Progress-Generation'), '1')
       assert.deepEqual(JSON.parse(String(call.init.body)), route.body)
     }
   }
 })
 for (const [status, code] of [[400, 'validation_error'], [403, 'csrf_failed'], [404, 'not_found'], [409, 'practice_already_submitted']] as const) test(`ApiError preserves Practice ${status}`, async () => {
-  const api = createApiClient({ origin: 'http://localhost', baseUrl: '/api/v1/', fetch: async input =>
-    String(input).endsWith('/csrf/') ? Response.json({ data: { csrf_token: 'synthetic-test-token' } }) : Response.json({ error: { code, message: 'Safe error', ...(status === 400 ? { fields: { answer_text: ['Invalid'] } } : {}) } }, { status }) })
+  let posts = 0
+  const api = createApiClient({ origin: 'http://localhost', baseUrl: '/api/v1/', fetch: async (input, init) => {
+    if (String(input).endsWith('/completion-progress/')) return Response.json({ data: {
+      progress_generation: '1', overall_completion_progress: 0, topics: [],
+    } })
+    if (String(input).endsWith('/csrf/')) return Response.json({ data: { csrf_token: 'synthetic-test-token' } })
+    if (init?.method === 'POST') posts++
+    return Response.json({ error: { code, message: 'Safe error', ...(status === 400 ? { fields: { answer_text: ['Invalid'] } } : {}) } }, { status })
+  } })
   await assert.rejects(api.practice.submit('3', 'ru', ''), e => e instanceof ApiError && e.status === status && e.code === code)
+  assert.equal(posts, 1)
 })
 test('decoders reject private and unexpected fields at every practice level', () => {
   for (const name of ['expected_answer', 'task_snapshot', 'source_revision', 'submitted_answer', 'server_key', 'user_id']) {

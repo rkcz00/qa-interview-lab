@@ -1,6 +1,6 @@
 import * as decode from './decoders.ts'
 import type { Decoder } from './decoders.ts'
-import type { Answer, ErrorFields, Language } from './types.ts'
+import type { Answer, CompletionProgress, ErrorFields, Language } from './types.ts'
 
 type ErrorKind = 'http' | 'network' | 'protocol' | 'configuration'
 
@@ -25,6 +25,7 @@ export interface ApiClientOptions {
   origin: string
   fetch?: typeof globalThis.fetch
   timeoutMs?: number
+  onProgressReset?: () => void
 }
 
 function configurationError(): never {
@@ -67,12 +68,45 @@ export function createApiClient(options: ApiClientOptions) {
   const timeoutMs = options.timeoutMs ?? 15_000
   if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2_147_483_647) configurationError()
 
-  async function request<T>(path: string, expectedStatus: number, decoder: Decoder<T>, body?: string, token?: string): Promise<T> {
+  let progressEpoch = 0
+  let progressGeneration: string | undefined
+  let generationFlight: Promise<string> | undefined
+  let progressBlocked = false
+  let sessionUserId: string | undefined
+  let channel: BroadcastChannel | undefined
+  function resetError() {
+    return new ApiError({ status: 409, code: 'progress_reset', kind: 'http', message: 'Прогресс сброшен. Откройте материал заново.' })
+  }
+  function invalidateProgress(block = false) {
+    const wasBlocked = progressBlocked
+    progressEpoch++
+    progressGeneration = undefined
+    generationFlight = undefined
+    progressBlocked = block
+    if (block && !wasBlocked) options.onProgressReset?.()
+  }
+  function progressChannel() {
+    if (channel || typeof window === 'undefined' || typeof window.BroadcastChannel !== 'function') return
+    channel = new window.BroadcastChannel('qil-progress-state')
+    channel.addEventListener('message', event => {
+      if (event.data === 'progress-reset' || event.data === 'session-changed') invalidateProgress(true)
+    })
+    window.addEventListener('pagehide', () => { channel?.close(); channel = undefined }, { once: true })
+  }
+  function signalReset() {
+    progressChannel()
+    channel?.postMessage('progress-reset')
+    invalidateProgress(true)
+  }
+
+  async function request<T>(path: string, expectedStatus: number, decoder: Decoder<T>, body?: string, token?: string,
+    generation?: string, epoch?: number): Promise<T> {
     const headers: Record<string, string> = { Accept: 'application/json' }
     if (body !== undefined) {
       if (token === undefined) configurationError()
       headers['Content-Type'] = 'application/json'
       headers['X-CSRFToken'] = token
+      if (generation !== undefined) headers['X-Progress-Generation'] = generation
     }
     let response: Response
     try {
@@ -83,6 +117,7 @@ export function createApiClient(options: ApiClientOptions) {
     } catch {
       throw new ApiError({ status: 0, code: 'network_error', kind: 'network', message: 'Не удалось получить ответ сервера.' })
     }
+    if (epoch !== undefined && epoch !== progressEpoch) throw resetError()
     if (response.status === 204 && expectedStatus === 204) return decoder(undefined)
     if (response.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {
       throw invalidResponse(response.status)
@@ -93,9 +128,11 @@ export function createApiClient(options: ApiClientOptions) {
     } catch {
       throw invalidResponse(response.status)
     }
+    if (epoch !== undefined && epoch !== progressEpoch) throw resetError()
     try {
       if (!response.ok) {
         const { error } = decode.errorEnvelope(payload)
+        if (error.code === 'progress_reset') signalReset()
         throw new ApiError({ ...error, status: response.status, kind: 'http' })
       }
       if (response.status !== expectedStatus) throw invalidResponse(response.status)
@@ -114,19 +151,68 @@ export function createApiClient(options: ApiClientOptions) {
     return csrfFlight
   }
 
-  async function post<T>(path: string, body: unknown, expectedStatus: number, decoder: Decoder<T>) {
+  async function completion(): Promise<CompletionProgress> {
+    progressChannel()
+    const value = await request('completion-progress/', 200, decode.completionProgress, undefined, undefined, undefined, progressEpoch)
+    if (progressGeneration !== undefined && BigInt(value.progress_generation) < BigInt(progressGeneration)) throw resetError()
+    progressGeneration = value.progress_generation
+    progressBlocked = false
+    return value
+  }
+
+  function generation(): Promise<string> {
+    if (progressBlocked) return Promise.reject(resetError())
+    progressChannel()
+    if (progressGeneration !== undefined) return Promise.resolve(progressGeneration)
+    const epoch = progressEpoch
+    generationFlight ??= completion().then(value => value.progress_generation).finally(() => {
+      if (epoch === progressEpoch) generationFlight = undefined
+    })
+    return generationFlight
+  }
+
+  async function post<T>(path: string, body: unknown, expectedStatus: number, decoder: Decoder<T>, progressWrite = false, explicitGeneration?: string) {
+    const epoch = progressEpoch
     const serialized = JSON.stringify(body)
     const token = await csrf()
-    return request(path, expectedStatus, decoder, serialized, token)
+    let currentGeneration: string | undefined
+    if (progressWrite) {
+      if (explicitGeneration === undefined) currentGeneration = await generation()
+      else {
+        try { currentGeneration = decode.progressGeneration(explicitGeneration) }
+        catch { configurationError() }
+      }
+      if (epoch !== progressEpoch) throw resetError()
+    }
+    return request(path, expectedStatus, decoder, serialized, token, currentGeneration, progressWrite ? epoch : undefined)
+  }
+
+  async function authPost<T>(path: string, body: unknown, status: number, decoder: Decoder<T>) {
+    invalidateProgress()
+    sessionUserId = undefined
+    const result = await post(path, body, status, decoder)
+    progressChannel()
+    channel?.postMessage('session-changed')
+    return result
   }
 
   return {
     auth: {
       bootstrap: async (): Promise<void> => { await csrf() },
-      register: (email: string, password: string) => post('auth/register/', { email, password }, 201, decode.account),
-      login: (email: string, password: string) => post('auth/login/', { email, password }, 200, decode.account),
-      logout: () => post('auth/logout/', {}, 204, () => undefined),
-      currentSession: () => request('auth/me/', 200, decode.account),
+      register: (email: string, password: string) => authPost('auth/register/', { email, password }, 201, decode.account),
+      login: (email: string, password: string) => authPost('auth/login/', { email, password }, 200, decode.account),
+      logout: () => authPost('auth/logout/', {}, 204, () => undefined),
+      currentSession: async () => {
+        try {
+          const account = await request('auth/me/', 200, decode.account)
+          if (sessionUserId !== undefined && sessionUserId !== account.user_id) invalidateProgress()
+          sessionUserId = account.user_id
+          return account
+        } catch (error) {
+          if (error instanceof ApiError && error.code === 'authentication_required') { invalidateProgress(); sessionUserId = undefined }
+          throw error
+        }
+      },
     },
     learning: {
       catalog: (language?: Language) => request(localized('topics/', language), 200, decode.arrayOf(decode.topicSummary)),
@@ -134,25 +220,41 @@ export function createApiClient(options: ApiClientOptions) {
       terms: (topicId: string, language?: Language) => request(localized(`topics/${pathId(topicId)}/terms/`, language), 200, decode.arrayOf(decode.term)),
     },
     assessment: {
-      start: (topicId: string, language: Language) => post(`topics/${pathId(topicId)}/attempts/`, { language }, 201, decode.pendingAttempt),
-      get: (attemptId: string, language?: Language) => request(localized(`attempts/${pathId(attemptId)}/`, language), 200, decode.attempt),
+      start: (topicId: string, language: Language) => post(`topics/${pathId(topicId)}/attempts/`, { language }, 201, decode.pendingAttempt, true),
+      get: (attemptId: string, language?: Language) => request(localized(`attempts/${pathId(attemptId)}/`, language), 200, decode.attempt, undefined, undefined, undefined, progressEpoch),
       submit: (attemptId: string, language: Language, answers: readonly Answer[]) => post(
         `attempts/${pathId(attemptId)}/submit/`,
         { language, answers: answers.map(answer => ({ question_id: answer.question_id, choice_ids: [...answer.choice_ids] })) },
-        200, decode.submittedAttempt,
+        200, decode.submittedAttempt, true,
       ),
-      history: () => request('attempts/', 200, decode.arrayOf(decode.submittedAttempt)),
+      history: () => request('attempts/', 200, decode.arrayOf(decode.submittedAttempt), undefined, undefined, undefined, progressEpoch),
     },
     progress: {
-      markRead: (topicId: string) => post(`topics/${pathId(topicId)}/read/`, {}, 200, decode.progress),
-      current: () => request('progress/', 200, decode.arrayOf(decode.progress)),
+      markRead: (topicId: string) => post(`topics/${pathId(topicId)}/read/`, {}, 200, decode.progress, true),
+      current: async () => {
+        const epoch = progressEpoch
+        await generation()
+        if (epoch !== progressEpoch) throw resetError()
+        return request('progress/', 200, decode.arrayOf(decode.progress), undefined, undefined, undefined, epoch)
+      },
+      completion,
+      reset: async (confirmation: 'reset_all_progress', requestId: string, expectedGeneration: string) => {
+        try {
+          const result = await post('progress/reset/', { confirmation, request_id: requestId }, 200, decode.resetProgress, true, expectedGeneration)
+          signalReset()
+          return result
+        } catch (error) {
+          if (error instanceof ApiError && (error.kind === 'network' || error.kind === 'protocol')) signalReset()
+          throw error
+        }
+      },
     },
     practice: {
       preview: (topicId: string, language?: Language) => request(localized(`topics/${pathId(topicId)}/practice/`, language), 200, decode.practicePreview),
-      start: (topicId: string, language: Language) => post(`topics/${pathId(topicId)}/practice/submissions/`, { language }, 201, decode.pendingPractice),
-      get: (submissionId: string, language?: Language) => request(localized(`practice-submissions/${pathId(submissionId)}/`, language), 200, decode.practiceSubmission),
-      submit: (submissionId: string, language: Language, answerText: string) => post(`practice-submissions/${pathId(submissionId)}/submit/`, { language, answer_text: answerText }, 200, decode.submittedPractice),
-      delete: (submissionId: string): Promise<void> => post(`practice-submissions/${pathId(submissionId)}/delete/`, {}, 204, () => undefined),
+      start: (topicId: string, language: Language) => post(`topics/${pathId(topicId)}/practice/submissions/`, { language }, 201, decode.pendingPractice, true),
+      get: (submissionId: string, language?: Language) => request(localized(`practice-submissions/${pathId(submissionId)}/`, language), 200, decode.practiceSubmission, undefined, undefined, undefined, progressEpoch),
+      submit: (submissionId: string, language: Language, answerText: string) => post(`practice-submissions/${pathId(submissionId)}/submit/`, { language, answer_text: answerText }, 200, decode.submittedPractice, true),
+      delete: (submissionId: string): Promise<void> => post(`practice-submissions/${pathId(submissionId)}/delete/`, {}, 204, () => undefined, true),
     },
   }
 }

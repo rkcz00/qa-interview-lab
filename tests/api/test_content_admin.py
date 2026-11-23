@@ -43,11 +43,16 @@ def admin_url(model, view, obj=None):
     return reverse(name, args=(obj.pk,) if obj is not None else ())
 
 
-def csrf_header(client):
+def csrf_header(client, *, progress_generation="1"):
     token = client.cookies.get(settings.CSRF_COOKIE_NAME)
     if not token:
         pytest.fail("Admin did not issue the expected CSRF cookie", pytrace=False)
-    return {"X-CSRFToken": token}
+    # Existing scenarios start at generation 1. Reset/header-negative tests pass None
+    # or an explicit generation; this helper never refreshes/replays a stale write.
+    headers = {"X-CSRFToken": token}
+    if progress_generation is not None:
+        headers["X-Progress-Generation"] = progress_generation
+    return headers
 
 
 def post(client, url, data):

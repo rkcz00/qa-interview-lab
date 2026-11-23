@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { ApiError } from '../src/api/client.ts'
-import type { ApiClient } from '../src/api/client.ts'
+import type { LearningApi } from '../src/learning/model.ts'
 import type { Progress } from '../src/api/types.ts'
 import type { Destination } from '../src/auth/routing.ts'
 import { resolveRoute } from '../src/auth/routing.ts'
@@ -17,7 +17,7 @@ const progress: Progress = { topic_id: '12', article_read_at: '2026-11-12T10:00:
 const failure = (status: number, code: string) => new ApiError({ status, code, kind: status ? 'http' : 'network', message: 'Untrusted details' })
 function mockApi() {
   const calls: string[] = []
-  const api: Pick<ApiClient, 'learning' | 'progress'> = {
+  const api: LearningApi = {
     learning: {
       catalog: async language => { calls.push('catalog:' + language); return [{ topic_id: '2', title: 'Второй' }, { topic_id: '10', title: 'Десятый' }] },
       article: async (id, language) => { calls.push(`article:${id}:${language}`); return article },

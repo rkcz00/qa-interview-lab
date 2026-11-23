@@ -40,6 +40,9 @@ function fixture(reply: () => Response | Promise<Response>, baseUrl = '/api/v1/'
     assert.ok(init)
     calls.push({ url, init })
     if (new URL(url).pathname.endsWith('/auth/csrf/')) return json({ data: { csrf_token: TOKEN } })
+    if (new URL(url).pathname.endsWith('/completion-progress/')) return json({ data: {
+      progress_generation: '1', overall_completion_progress: 0, topics: [],
+    } })
     return reply()
   }
   return { calls, api: createApiClient({ baseUrl, origin: ORIGIN, fetch }) }
@@ -86,7 +89,8 @@ for (const route of routes) {
     const value = await route.invoke(api)
     if (route.name === 'bootstrap' || route.status === 204) assert.equal(value, undefined)
     else assert.deepEqual(value, route.value)
-    assert.equal(calls.length, route.method === 'POST' ? 2 : 1)
+    const protectedPost = route.method === 'POST' && !route.path.startsWith('auth/')
+    assert.equal(calls.length, route.method === 'POST' ? (protectedPost ? 3 : 2) : route.name === 'progress' ? 2 : 1)
     const call = calls.at(-1)!
     assert.equal(call.url, BASE + route.path)
     assert.equal(call.init.method, route.method)
@@ -98,6 +102,7 @@ for (const route of routes) {
       assert.equal(new Headers(request.init.headers).has('Cookie'), false)
     }
     const headers = new Headers(call.init.headers)
+    assert.equal(headers.get('X-Progress-Generation'), protectedPost ? '1' : null)
     if (route.method === 'POST') {
       assert.equal(calls[0].url, BASE + 'auth/csrf/')
       assert.equal(headers.get('X-CSRFToken') === TOKEN, true, 'Missing CSRF header')
@@ -122,7 +127,7 @@ test('article and test language are independent, and a submitted attempt keeps i
   const pending = fixture(() => json({ data: { ...PENDING, language: 'ru' } }, 201))
   await pending.api.assessment.start('9', 'ru')
   assert.equal(calls[0].url, BASE + 'topics/9/?language=en')
-  assert.equal(pending.calls[1].init.body, JSON.stringify({ language: 'ru' }))
+  assert.equal(pending.calls.at(-1)!.init.body, JSON.stringify({ language: 'ru' }))
   const completed = fixture(() => json({ data: SUBMITTED }))
   assert.deepEqual(await completed.api.assessment.get('12', 'ru'), SUBMITTED)
   assert.equal(completed.calls[0].url, BASE + 'attempts/12/?language=ru')
@@ -215,7 +220,7 @@ test('both public question types and multiple selected IDs follow the server con
   assert.deepEqual(await read.api.assessment.get('12'), pending)
   const submit = fixture(() => json({ data: SUBMITTED }))
   await submit.api.assessment.submit('12', 'ru', [{ question_id: '21', choice_ids: ['14', '15'] }])
-  assert.equal(submit.calls[1].init.body, JSON.stringify({ language: 'ru', answers: [{ question_id: '21', choice_ids: ['14', '15'] }] }))
+  assert.equal(submit.calls.at(-1)!.init.body, JSON.stringify({ language: 'ru', answers: [{ question_id: '21', choice_ids: ['14', '15'] }] }))
 })
 
 test('CSRF bootstrap failure prevents POST and is not retried automatically', async () => {
@@ -232,7 +237,8 @@ test('CSRF bootstrap failure prevents POST and is not retried automatically', as
 test('an unsafe failure is surfaced without repeating a potentially mutating request', async () => {
   const { api, calls } = fixture(() => json({ error: { code: 'csrf_failed', message: 'CSRF отказ.' } }, 403))
   await assert.rejects(api.assessment.start('9', 'ru'), apiError(403, 'csrf_failed'))
-  assert.equal(calls.length, 2)
+  assert.equal(calls.length, 3)
+  assert.equal(calls.filter(call => call.init.method === 'POST').length, 1)
 })
 
 test('failed bootstrap is cleared so a later explicit action can try again', async () => {

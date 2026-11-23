@@ -20,7 +20,7 @@ type Content = { kind: 'loading' } | { kind: 'catalog'; topics: TopicSummary[] }
 type Read = { kind: 'loading' } | { kind: 'ready'; at: string | null; pending: boolean } |
   { kind: 'error'; message: string }
 export interface LearningState { content: Content; read: Read }
-type LearningApi = Pick<ApiClient, 'learning' | 'progress'>
+export type LearningApi = { learning: ApiClient['learning']; progress: Pick<ApiClient['progress'], 'current' | 'markRead'> }
 
 export class LearningStore {
   #state: LearningState = { content: { kind: 'loading' }, read: { kind: 'loading' } }

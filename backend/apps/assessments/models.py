@@ -138,3 +138,29 @@ class TopicProgress(models.Model):
         constraints = [
             models.UniqueConstraint(fields=("user", "topic"), name="assessments_topic_progress_owner_unique"),
         ]
+
+
+class UserProgressState(models.Model):
+    """Reset generation and its last receipt; never an editable score cache."""
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="progress_state", editable=False,
+    )
+    generation = models.PositiveBigIntegerField(default=1, editable=False)
+    last_reset_request_id = models.UUIDField(null=True, editable=False)
+    last_reset_from_generation = models.PositiveBigIntegerField(null=True, editable=False)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(condition=models.Q(generation__gte=1), name="progress_generation_positive"),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(last_reset_request_id__isnull=True, last_reset_from_generation__isnull=True)
+                    | models.Q(
+                        last_reset_request_id__isnull=False, last_reset_from_generation__isnull=False,
+                        last_reset_from_generation__gte=1,
+                        generation=models.F("last_reset_from_generation") + 1,
+                    )
+                ), name="progress_reset_receipt_valid",
+            ),
+        ]

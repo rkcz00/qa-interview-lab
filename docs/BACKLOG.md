@@ -2,7 +2,7 @@
 
 Статус: план реализации MVP после QIL-001. Новые задачи не запускаются автоматически. Приоритет — небольшой проверяемый результат в каждой задаче.
 
-QIL-033 фиксирует утверждённые 23 ноября 2026 года [правила progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Ниже QIL-034–QIL-037 имеют статус TODO; документация и CI этого commit не считаются их реализацией. Исторические статусы QIL-001–QIL-031 не переписываются как доказательство нового поведения.
+QIL-033 фиксирует утверждённые 23 ноября 2026 года [правила progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Серверный этап QIL-034 реализован; исходная визуальная часть остаётся PARTIAL, QIL-035–QIL-037 — TODO. Фактические проверки нового backend приведены отдельно; исторические статусы QIL-001–QIL-031 не переписываются как доказательство нового поведения.
 
 Основание: [PRD](PRD.md), [архитектура](ARCHITECTURE.md), [QA-стратегия](QA_STRATEGY.md), [правила Codex](../AGENTS.md).
 
@@ -259,8 +259,8 @@ QIL-033 фиксирует утверждённые 23 ноября 2026 год�
 
 ### QIL-034 — Completion progress и безопасный reset
 
-- Статус: TODO / NOT_IMPLEMENTED. Зависимости: QIL-033, QIL-014/QIL-015, QIL-029/QIL-030.
-- Объём: вычисление статусов/весов/среднего Published, GET completion-progress; UserProgressState, неразрушительная миграция, общий User-lock и generation во всех семи mutating POST; POST reset с квитанцией последнего request_id. Typed API-клиент, Overview/Progress/sidebar, статусы темы, подтверждение reset и обработка поздних ответов/других вкладок входят в один согласованный milestone.
+- Статус: PARTIAL для исходного общего scope. В текущем явно ограниченном серверном этапе реализованы backend и необходимая совместимость клиента без визуальных изменений. Overview/Progress/sidebar с новым процентом и подтверждение reset в UI остаются NOT_IMPLEMENTED. Зависимости: QIL-033, QIL-014/QIL-015, QIL-029/QIL-030. [Результат backend-этапа](COMPLETION_BACKEND.md).
+- Серверный объём: вычисление статусов/весов/среднего Published, GET completion-progress; UserProgressState, additive-миграция, общий User-lock и generation во всех семи mutating POST; POST reset с квитанцией последнего request_id. Typed API-клиент/decoders и защита поздних ответов/других вкладок сохранены. JSON не содержит отдельных counts: один test и 0/1 practice.
 - Инварианты: только собственные данные; account/content/session сохранены; старые удалённые ID 404; нет восстановления stale POST; повтор последнего reset не удаляет новую работу; old GET DTO и mastery/scoring неизменны. Reset нельзя включать отдельно до защиты всех progress-записей и обновления клиента.
 - Приёмка: FR-14/FR-15, PGR-01–PGR-10; PostgreSQL/HTTPX/TCP, unit/UI/Playwright и regression. Тесты контролируют только свою временную БД; dev-прогресс не сбрасывается при разработке автоматически.
 - Затрагиваемые области: assessments/progress/models/views/serializers, общие learner-write операции, practice services, typed client/decoders и progress/Overview UI; CI/dependencies без изменений, если необходимость отдельно не согласована.

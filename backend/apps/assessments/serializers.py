@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from rest_framework.settings import api_settings
+from uuid import UUID
 
 from apps.learning.models import Language
 
@@ -27,6 +28,20 @@ class ReadTopicSerializer(_StrictRequestSerializer):
     pass
 
 
+class ResetProgressSerializer(_StrictRequestSerializer):
+    confirmation = serializers.ChoiceField(choices=("reset_all_progress",))
+    request_id = serializers.CharField(max_length=36, trim_whitespace=False)
+
+    def validate_request_id(self, value):
+        try:
+            identifier = UUID(value)
+        except ValueError:
+            raise serializers.ValidationError("Expected a canonical UUID v4.") from None
+        if identifier.version != 4 or str(identifier) != value:
+            raise serializers.ValidationError("Expected a canonical UUID v4.")
+        return identifier
+
+
 class ResultSerializer(serializers.Serializer):
     correct_count = serializers.IntegerField(read_only=True)
     total_count = serializers.IntegerField(read_only=True)
@@ -38,6 +53,31 @@ class ProgressSerializer(serializers.Serializer):
     article_read_at = serializers.DateTimeField(format="iso-8601", allow_null=True, read_only=True)
     best_result = ResultSerializer(allow_null=True, read_only=True)
     mastered = serializers.BooleanField(read_only=True)
+
+
+class TestCompletionSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=("unattempted", "failed", "passed"), read_only=True)
+    best_result = ResultSerializer(allow_null=True, read_only=True)
+
+
+class PracticeCompletionSerializer(serializers.Serializer):
+    task_id = serializers.CharField(read_only=True)
+    status = serializers.ChoiceField(choices=("unattempted", "failed", "passed"), read_only=True)
+
+
+class TopicCompletionSerializer(serializers.Serializer):
+    topic_id = serializers.CharField(read_only=True)
+    article_read_at = serializers.DateTimeField(format="iso-8601", allow_null=True, read_only=True)
+    test = TestCompletionSerializer(read_only=True)
+    practice = PracticeCompletionSerializer(allow_null=True, read_only=True)
+    completion_progress = serializers.FloatField(read_only=True)
+    mastered = serializers.BooleanField(read_only=True)
+
+
+class CompletionProgressSerializer(serializers.Serializer):
+    progress_generation = serializers.CharField(read_only=True)
+    overall_completion_progress = serializers.FloatField(read_only=True)
+    topics = TopicCompletionSerializer(many=True, read_only=True)
 
 
 class _LocalizedItemSerializer(serializers.Serializer):

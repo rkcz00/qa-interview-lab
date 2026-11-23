@@ -2,7 +2,7 @@
 
 Статус: архитектура MVP; пользовательский сценарий уточнён в QIL-027. Контракт Practice согласован в QIL-028, backend принят в QIL-029; UI реализован в QIL-030, полный ручной PostgreSQL/Playwright-прогон — PASS. Существующие API и архитектурные решения сохранены. [Backend](PRACTICE_BACKEND.md), [UI и runner](PRACTICE_UI.md).
 
-QIL-033 фиксирует утверждённую целевую архитектуру [progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md); реализация QIL-034–QIL-036 **NOT_IMPLEMENTED**. Старый код ещё использует одиночное article_body, долю mastered/Published и допускает пропуски. Новые контракты ниже не являются отчётом о работающих endpoints.
+QIL-033 фиксирует утверждённую целевую архитектуру [progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend completion/reset, UserProgressState и необходимая совместимость клиента реализованы в серверном этапе QIL-034. Визуальный completion/reset UI и QIL-035/QIL-036 **NOT_IMPLEMENTED**: текущий UI ещё показывает долю mastered/Published, одиночное article_body и допускает пропуски. [Границы и проверки backend](COMPLETION_BACKEND.md).
 
 Связанные документы: [PRD](PRD.md), [QA-стратегия](QA_STRATEGY.md), [backlog](BACKLOG.md), [правила Codex](../AGENTS.md), [точный контракт Practice](PRACTICE_SPEC.md).
 
@@ -322,7 +322,7 @@ TopicPractice имеет OneToOne-связь с Topic и единственны�
 
 Практика не участвует в is_mastered и старом Progress; QIL-033 включает её в отдельный completion_progress, не меняя правило 80% или Result. Reset становится явным owner-only исключением из сохранности работ. Account deletion остаётся отдельной возможностью; FK User CASCADE сохраняется, автоматического retention нет. POST Practice также участвуют в новом generation/mutex-протоколе.
 
-QIL-033 не добавляет сервисы или dependencies. UserProgressState и две контентные модели sections реализуются позже вместе с миграциями, клиентом и проверками; текущая задача фиксирует только их контракты.
+QIL-033 не добавляет сервисы или dependencies. UserProgressState реализована additive-миграцией assessments 0004 в QIL-034. Общий User-lock охватывает все learner-записи и reset; completion GET получает согласованный снимок одной PostgreSQL-командой. Отсутствующая строка состояния означает generation=1 без записи из GET. Две контентные модели sections и их миграции остаются задачей QIL-036.
 
 ## 13. Первичные источники
 

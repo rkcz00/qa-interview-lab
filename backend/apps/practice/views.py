@@ -1,7 +1,6 @@
 import logging
 from functools import wraps
 
-from django.db import transaction
 from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -9,6 +8,7 @@ from django.views.decorators.cache import never_cache
 from rest_framework.exceptions import UnsupportedMediaType, ValidationError
 
 from apps.assessments.models import Attempt, AttemptStatus, TopicProgress
+from apps.assessments.progress_state import ProgressWriteError, progress_transaction, require_generation
 from apps.learning.models import Topic, TopicStatus
 from apps.learning.serializers import language_from_query
 from config.api import authentication_required, error_response, method_not_allowed, parse_json_payload, pk_from_path
@@ -40,6 +40,8 @@ def practice_endpoint(method):
                 return error_response("not_found", "Requested resource not found.", 404)
             except UnsupportedMediaType:
                 return error_response("unsupported_media_type", "Expected application/json.", 415)
+            except ProgressWriteError as exc:
+                return error_response(exc.code, exc.message, 409)
             except (InvalidAnswer, ValidationError):
                 return error_response("validation_error", "Invalid practice request.", 400)
             except Exception as exc:
@@ -95,10 +97,11 @@ def preview(request, topic_id):
 
 
 @practice_endpoint("POST")
-@transaction.atomic
+@progress_transaction
 def start(request, topic_id):
     topic = get_object_or_404(Topic.objects.select_for_update(), pk=pk_from_path(topic_id), status=TopicStatus.PUBLISHED)
     task = published_task(topic.pk)
+    require_generation(request, request.progress_state)
     data = request_data(request, StartPracticeSerializer)
     if blocked_by(request.user.pk, topic.pk):
         return error_response("practice_locked", "Read the article and submit a test first.", 403)
@@ -116,9 +119,10 @@ def detail(request, submission_id):
 
 
 @practice_endpoint("POST")
-@transaction.atomic
+@progress_transaction
 def submit(request, submission_id):
     submission = owned_submission(request, submission_id, lock=True)
+    require_generation(request, request.progress_state)
     data = request_data(request, SubmitPracticeSerializer)
     normalized = normalize_answer(data["answer_text"], submission.task_snapshot["normalization_mode"])
     if submission.status == SubmissionStatus.SUBMITTED:
@@ -135,9 +139,10 @@ def submit(request, submission_id):
 
 
 @practice_endpoint("POST")
-@transaction.atomic
+@progress_transaction
 def delete(request, submission_id):
     submission = owned_submission(request, submission_id, lock=True)
+    require_generation(request, request.progress_state)
     request_data(request, DeletePracticeSerializer)
     submission.delete()
     return HttpResponse(status=204)

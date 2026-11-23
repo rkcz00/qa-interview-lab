@@ -266,7 +266,8 @@ def test_concurrent_read_marks_keep_one_row_and_the_first_timestamp(learner, bil
                 first = pool.submit(post, client, read_url(topic.pk), {})
                 wait_for_lock_waiters("learning_topic", 1)
                 second = pool.submit(post, second_client, read_url(topic.pk), {})
-                wait_for_lock_waiters("learning_topic", 2)
+                wait_for_lock_waiters(User._meta.db_table, 1)
+                wait_for_lock_waiters("learning_topic", 1)
             marked = data(first.result(timeout=15))
             assert data(second.result(timeout=15)) == marked
     assert TopicProgress.objects.filter(user=user, topic=topic).count() == 1
