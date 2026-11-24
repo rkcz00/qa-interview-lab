@@ -190,7 +190,7 @@ Browser выбирается собственным Pytest option `--qil-browser
 
 ### 4.15. Многочастная статья — QIL-033
 
-Контракт [TOPIC_SECTIONS_SPEC](TOPIC_SECTIONS_SPEC.md); все новые сценарии QIL-036/QIL-037 пока NOT_RUN.
+Контракт [TOPIC_SECTIONS_SPEC](TOPIC_SECTIONS_SPEC.md); новые сценарии отложенных sections и QIL-037 пока NOT_RUN. Прежний план sections использовал номер QIL-036; текущий явный QIL-036 относится только к устойчивости CI.
 
 | ID | Проверка | Уровень |
 | --- | --- | --- |
@@ -242,6 +242,8 @@ Content Admin без superuser вручную оценивает смысл и �
 
 Для приёмки MVP обязательны четыре именованных job из [workflow CI](../.github/workflows/ci.yml).
 
+QIL-036 разделяет установку pip, системных зависимостей и browser binary. Matrix include задаёт job budgets: Chromium/Firefox 30 минут, WebKit 45 минут; fail-fast=false и прежние имена executions сохранены. Отдельный startup preflight выполняет setup/teardown существующих fixtures без тела теста и очищает свою БД/процессы; затем настоящие E2E используют свежую временную PostgreSQL. Coverage/full/critical и критерий шести completed/success не меняются. При timeout виден конкретный активный шаг; preflight не считается запуском E2E. [Подробности и доказательства](CROSS_BROWSER_ACCEPTANCE.md#qil-036--раздельная-установка-и-бюджет-webkit).
+
 | Job | Минимальные обязательные проверки | Критерий успеха |
 | --- | --- | --- |
 | `backend_api` | Django checks и согласованность миграций; unit/integration и Pytest + HTTPX API на отдельной PostgreSQL с реальным backend. Покрываются ownership, разрешённые схемы до/после submit, 409/idempotency, Draft и Content Admin | Все проверки выполнены и успешны; API и DB-поведение не подменены mocks/SQLite |
@@ -255,7 +257,7 @@ Workflow также поддерживает ручной запуск. Jobs в�
 
 GitHub Actions хранит пять компактных JUnit artifacts семь дней: backend, frontend unit и по одному на browser matrix execution Playwright. Четыре job ID дают шесть executions. После реальных тестов общий formatter строит XML только из фиксированного job ID, порядковых case IDs, counts, длительности и статусов. Движок указан в уникальном имени artifact по allowlist matrix. Имена/параметры тестов, exception/SQL/assertion diff, properties и stdout/stderr не переносятся. Raw XML/logs остаются только в `RUNNER_TEMP`; upload ограничен одним новым разрешённым XML-файлом каждого runner с ready-gate, `include-hidden-files: false` и `if-no-files-found: error`. Missing/invalid report не маскируется под PASS.
 
-Formatter/upload выполняются после успеха или ошибки тестов, кроме cancelled; исходный ненулевой exit code сохраняет failure job. Успешный run создаёт только три необходимых XML; build не создаёт artifact. Screenshot/trace/HAR/video/HTML и auth state сейчас не публикуются: безопасная универсальная очистка не реализована. Допустимый fallback на сбое — обезличенный JUnit. Будущий media-upload допускается только после отдельной проверки очистки и с `if: failure()`; сырой trace с session/CSRF запрещён. Подробная политика, результаты аудита и ограничения — в [CI_REPORTS.md](CI_REPORTS.md).
+Formatter/upload выполняются после успеха или ошибки тестов, кроме cancelled; исходный ненулевой exit code сохраняет failure job. Успешный run создаёт пять необходимых XML с учётом browser matrix; build не создаёт artifact. Startup raw log также не публикуется. Screenshot/trace/HAR/video/HTML и auth state сейчас не публикуются: безопасная универсальная очистка не реализована. Допустимый fallback на сбое — обезличенный JUnit. Будущий media-upload допускается только после отдельной проверки очистки и с `if: failure()`; сырой trace с session/CSRF запрещён. Подробная политика, результаты аудита и ограничения — в [CI_REPORTS.md](CI_REPORTS.md).
 
 Ошибка обязательного теста должна давать ненулевой exit code и неуспешный job. Публикация JUnit сама по себе не меняет статус job. Автоматические повторы не должны скрывать первоначальное падение; flaky-тест разбирается, а не отключается без объяснения.
 

@@ -49,7 +49,39 @@ $env:PLAYWRIGHT_BROWSERS_PATH = (Resolve-Path '.venv\ms-playwright').Path;
 
 [CI_REPORTS](CI_REPORTS.md) сохраняет обезличенный XML, ready-gate, точный файл, `include-hidden-files: false`, `if-no-files-found: error` и семь дней хранения. Artifact names — backend_api-junit, frontend_unit-junit и playwright_e2e-{chromium,firefox,webkit}-junit: пять XML-артефактов без конфликтов имён. Raw XML/logs, environment, screenshots/trace/HAR/video/HTML/auth state и DB dumps не публикуются. Подробности приватной диагностики воспроизводятся локально на синтетических данных, без вывода ответов и credentials.
 
-## Границы доказательств
+## QIL-036 — раздельная установка и бюджет WebKit
+
+Текущий QIL-036 по явному заданию пользователя относится только к CI. Прежний план sections с этим номером остаётся отложенным в [backlog](BACKLOG.md); TopicSection, приложение, API, fixtures, миграции и зависимости здесь не меняются.
+
+Основание — [run 45347762983](https://github.com/rkcz00/qa-interview-lab/actions/runs/45347762983), SHA `86203eab38fa12184490a2e946596441ea6dc43d`. Chromium и Firefox завершились success. WebKit потратил 29:27 на объединённый установочный шаг и был отменён по общему лимиту 30 минут до E2E/JUnit. Авторизованный UI подтвердил успешный pip с cached wheels и продолжавшееся получение Linux-пакетов apt: 181 новый пакет, 6 обновлений, 126 MB архивов. Причина низкой скорости сети/зеркала не доказана. Stop containers завершился успешно.
+
+Matrix задаётся через три объекта `include`: browser и числовой timeout_minutes. Job использует `timeout-minutes: ${{ matrix.timeout_minutes }}`, а явное имя `playwright_e2e (${{ matrix.browser }})` сохраняет прежние названия executions. `fail-fast: false`, четыре job IDs и полный набор тестов сохранены.
+
+| Движок | Лимит job | Набор |
+| --- | --- | --- |
+| chromium | 30 минут | Все tests/e2e |
+| firefox | 30 минут | cross_browser |
+| webkit | 45 минут | cross_browser |
+
+Шаги GitHub теперь отдельно показывают checkout/Node/build/Python setup; Install locked Python dependencies (pip и pip check); Install Playwright system dependencies (`python -m playwright install-deps` для выбранного движка); Install Playwright browser binary (Chromium по-прежнему only-shell); Check backend/frontend startup and cleanup; Run Playwright tests; прежние Build/Upload safe JUnit report. Установка браузера не повторяет install-deps. При timeout состояние cancelled относится к конкретному видимому шагу; лимит job остаётся верхней границей всех фаз, а не обещанием завершения установки.
+
+### Startup preflight и владение процессами
+
+Существующий `auth_app` запускает реальный Django и frontend preview через HTTPX/TCP readiness на свободных loopback-портах, применяет миграции только в собственной случайной PostgreSQL и проверяет cleanup. Новый отдельный CI-шаг вызывает `--setup-only` для существующего `test_direct_routes_guest_restore_and_home`: setup/teardown тех же fixtures, включая выбранный браузер, без выполнения тела теста и без создания learner-аккаунта.
+
+Preflight закрывает свои процессы/браузер и БД до следующего шага. Полный pytest затем создаёт свежую изолированную среду обычным lifecycle; общая dev-БД и оставленные background services не используются. Это проверка запуска, а не замена E2E. Её нулевое число выполненных test bodies не засчитывается в тестовое покрытие. Настоящий Run Playwright tests сохраняет исходную команду, выбор full/critical и обязательный непустой JUnit.
+
+### Безопасность и проверка результата
+
+Raw startup output находится только в `RUNNER_TEMP/qil-e2e-startup.log`; он не публикуется. Политика [CI_REPORTS](CI_REPORTS.md), пять обезличенных XML, retention=7, ready-gate, include-hidden-files=false и if-no-files-found=error сохранены. Секреты остаются ephemeral/masked. При cancelled formatter/upload пропускаются; при обычном failure исходный exit code не подавляется. Cache браузеров не добавляется: подтверждённая задержка относится к apt, а npm/pip cache не содержит Linux-зависимости WebKit.
+
+Локальная приёмка 24 ноября 2026 года — PASS: 251 frontend unit-тест, type-check/build; 404 backend-теста и 22 подтеста, Django checks, миграции и pip check; три startup preflight; Chromium full 127, Firefox critical 42 и WebKit critical 42 E2E без skips/failures. Временные БД и принадлежащие fixtures процессы очищены; read-only проверка PostgreSQL подтвердила ноль оставшихся harness-БД. YAML 1.2/aliases, matrix expansion 30/30/45 и 29 Bash syntax checks прошли; остальные jobs, команда E2E и artifacts неизменны. Markdown/ссылки/diff/secret scan проверяются после финальной редакции. Windows и browser binaries локально не устанавливаются. CI нового SHA проверяется только после единственного разрешённого push, без намеренного failing push.
+
+Для полного PASS нужны completed/success всех шести executions и непустые E2E/JUnit каждого движка, включая WebKit. Bigger timeout сам по себе не подтверждает тесты. Run URL, SHA и результаты публикации приводятся в финальном отчёте; отдельная ручная пользовательская приёмка продукта к этой CI-правке не относится.
+
+Изменяемые файлы: workflow, этот отчёт, QA_STRATEGY, CI_REPORTS и BACKLOG. Продуктовые исходники, fixtures/config, lock-файлы, .env и семь исходных untracked helpers сохраняются. Следующий шаг после проверки CI — ручная приёмка Progress/reset на тестовом аккаунте; новые продуктовые задачи не запускаются автоматически.
+
+## Границы доказательств QIL-031
 
 Первый опубликованный [run 44783943535](https://github.com/rkcz00/qa-interview-lab/actions/runs/44783943535) для SHA `c727eafab3eeeb6dde08b4a4b6165690c6493396` завершился cancelled: backend_api, frontend_unit, frontend_check_build и Chromium — success; Firefox/WebKit — cancelled. Job/Check Run annotations подтверждают превышение прежнего общего лимита 15 минут. Подготовка Firefox заняла около 13 минут, WebKit — около 14 минут; E2E были начаты, но не завершены к deadline. Это не результат PASS/FAIL самих critical assertions. После отдельного разрешения пользователя бюджет browser job увеличен до 30 минут с сохранением состава тестов, fail-fast=false и правил артефактов. Исправление публикуется дополнительным commit/push; итог CI относится к новому SHA и фиксируется в отчёте. Старый run не перезапускается.
 

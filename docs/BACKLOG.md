@@ -2,7 +2,7 @@
 
 Статус: план реализации MVP после QIL-001. Новые задачи не запускаются автоматически. Приоритет — небольшой проверяемый результат в каждой задаче.
 
-QIL-033 фиксирует утверждённые 23 ноября 2026 года [правила progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend QIL-034 и Progress/reset UI QIL-035 реализованы и локально проверены; результат CI точного нового SHA фиксируется в отчёте публикации. QIL-036/QIL-037 — TODO, прежний план Answer/Finish сохранён как отложенный TFL-scope без нового номера. Исторические статусы не переписываются как доказательство нового поведения.
+QIL-033 фиксирует утверждённые 23 ноября 2026 года [правила progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend QIL-034 и Progress/reset UI QIL-035 реализованы и локально проверены; исходный CI QIL-035 отменил WebKit на установке apt. Текущий QIL-036 по явному заданию пользователя стабилизирует только CI. Прежние планы sections (ранее QIL-036) и Answer/Finish остаются отложенными без нового номера; QIL-037 — TODO. Исторические статусы не переписываются как доказательство нового поведения.
 
 Основание: [PRD](PRD.md), [архитектура](ARCHITECTURE.md), [QA-стратегия](QA_STRATEGY.md), [правила Codex](../AGENTS.md).
 
@@ -281,9 +281,16 @@ QIL-033 фиксирует утверждённые 23 ноября 2026 год�
 - Приёмка: FR-02/FR-05/FR-06, TFL-01–TFL-06; unit, PostgreSQL/HTTPX, real E2E на desktop/mobile, frozen submit/CSRF/ownership/reset и regression. Отдельное QuestionAttempt/autosave не добавляется.
 - Затрагиваемые области: assessments submit validation и tests, frontend assessment store/answers/UI/texts, auth UI и соответствующие тесты.
 
-### QIL-036 — Разделы Topic и единый reader
+### QIL-036 — Устойчивый CI для WebKit
 
-- Статус: TODO / NOT_IMPLEMENTED. Зависимости: QIL-033/QIL-034, существующие QIL-010–QIL-012/QIL-027. Отложенный TFL не является технической зависимостью; циклов нет.
+- Статус: LOCAL_PASS; публикация и приёмка нового GitHub Actions run остаются обязательными, их SHA/URL и итог фиксируются в отчёте задачи. Локально: 251 frontend unit, 404 backend-теста + 22 подтеста, Chromium 127 / Firefox 42 / WebKit 42, startup/cleanup и статические проверки — PASS. Зависимости: QIL-031, QIL-035 и подтверждённая read-only диагностика run 45347762983. [Отчёт CI](CROSS_BROWSER_ACCEPTANCE.md#qil-036--раздельная-установка-и-бюджет-webkit).
+- Объём: только workflow и относящаяся документация; matrix chromium/firefox/webkit и fail-fast=false, budgets 30/30/45 через matrix; раздельные pip/system-dependencies/browser/startup/E2E/JUnit шаги.
+- Инварианты: реальный TCP и временная PostgreSQL, прежнее полное/критическое покрытие, прежние пять безопасных JUnit artifacts; приложение, API, миграции, fixtures и dependencies не меняются. Startup setup-only не заменяет E2E.
+- Приёмка: YAML/matrix/Bash/Markdown/diff/secret scan, unit/backend/type-check/build, startup и доступная browser matrix, cleanup; после одного commit/push все шесть CI executions completed/success, WebKit с реально выполненными E2E/JUnit.
+
+### Отложенные sections — Разделы Topic и единый reader
+
+- Статус: TODO / NOT_IMPLEMENTED. Ранее планировалось как QIL-036; пользователь назначил этот номер CI-задаче. Новый номер sections требует отдельного решения. Зависимости: QIL-033/QIL-034, существующие QIL-010–QIL-012/QIL-027. Отложенный TFL не является технической зависимостью; циклов нет.
 - Объём: TopicSection/Translation, additive/data migration старого тела в один раздел, транзакционная публикация/порядок/revision, Content Admin 13 моделей, sections GET и сборка legacy Article, typed reader/оглавление/якоря/end-marker.
 - Инварианты: полный Published RU/EN, Draft скрыт, прежний один раздел выдаётся дословно, старые ID/Read-даты/snapshots/mastery сохранены. Новые редакции Read не сбрасывают. Отдельные SectionRead/страницы, тесты по разделам, новый контент/демо-loader не добавляются.
 - Приёмка: FR-03/FR-07/FR-11/FR-12/FR-16, SEC-01–SEC-08; migration/constraints/Admin concurrency, HTTPX/legacy compatibility, real Playwright, три движка и regression.
@@ -291,7 +298,7 @@ QIL-033 фиксирует утверждённые 23 ноября 2026 год�
 
 ### QIL-037 — Сквозная приёмка нового учебного сценария
 
-- Статус: TODO / NOT_IMPLEMENTED. Зависимости: QIL-034, текущий UI QIL-035, QIL-036, отложенный TFL и существующий QIL-031. DAG: 033 →034; 034 →035/036/TFL; 034/035/036/TFL →037.
+- Статус: TODO / NOT_IMPLEMENTED. Зависимости: QIL-034, текущий UI QIL-035, отложенные sections/TFL и существующий QIL-031. DAG: 033 →034; 034 →035/sections/TFL; 034/035/sections/TFL →037. Текущий CI QIL-036 не реализует sections.
 - Объём: объединить PGR/TFL/SEC с существующими Auth/Learning/Practice сценариями; проверить целый путь sections→Read→полный test→Practice→completion→подтверждённый reset, две вкладки, ownership и исторические snapshot. Новых продуктовых функций нет.
 - Приёмка: полный backend/HTTPX, frontend unit/type-check/build, full Chromium + Firefox/WebKit critical, временная PostgreSQL/cleanup и фактические шесть CI executions после отдельно разрешённой публикации. Secret-safe artifacts сохраняются.
 
