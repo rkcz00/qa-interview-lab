@@ -39,12 +39,33 @@ def choose_correct(page, language="ru"):
     check(page.locator(".question-card input:checked").count() == 1, "Single choice must contain only one selection")
 
 
+def confirm_answers(page):
+    """Prepare explicit local confirmations for existing nonempty-submit scenarios."""
+    previous = page.get_by_role("button", name="Предыдущий вопрос", exact=True)
+    while previous.is_enabled():
+        previous.click()
+    while True:
+        if not page.locator(".question-card input:checked").count():
+            page.locator(".question-card input").first.check()
+        page.get_by_role("button", name="Ответить", exact=True).click()
+        following = page.get_by_role("button", name="Следующий вопрос", exact=True)
+        if not following.is_enabled():
+            break
+        following.click()
+    expect(page.get_by_role("button", name="Завершить тест", exact=True)).to_be_enabled()
+
+
+def incorrect_answers(pending):
+    return [{"question_id": q["question_id"], "choice_ids": [q["choices"][-1 if q["question_type"] == "single_choice" else 0]["choice_id"]]}
+            for q in pending["questions"]]
+
+
 def result(page, correct="2", total="2", percentage="100%"):
     expect(page.get_by_role("heading", name="Результат теста", exact=True)).to_be_visible()
     expect(page.locator(".result-summary dt")).to_have_text(["Верных ответов", "Всего вопросов", "Процент"])
     expect(page.locator(".result-summary dd")).to_have_text([correct, total, percentage])
     expect(page.locator(".question-card")).to_have_count(0)
-    expect(page.get_by_role("button", name="Отправить тест", exact=True)).to_have_count(0)
+    expect(page.get_by_role("button", name="Завершить тест", exact=True)).to_have_count(0)
     expect(page.get_by_role("group", name="Язык теста", exact=True)).to_have_count(0)
 
 
@@ -125,7 +146,8 @@ def test_submit_only_aggregates_idempotent_repeat_keyboard_and_layout(auth_page,
         route.continue_()
 
     page.route("**/api/v1/attempts/" + attempt_id + "/submit/", capture)
-    page.get_by_role("button", name="Отправить тест", exact=True).click()
+    confirm_answers(page)
+    page.get_by_role("button", name="Завершить тест", exact=True).click()
     result(page)
     check(len(requests) == 1, "One explicit UI submit is expected")
     check(set(requests[0]) == {"language", "answers"}, "Submit payload must contain only agreed fields")
@@ -151,6 +173,7 @@ def test_submit_only_aggregates_idempotent_repeat_keyboard_and_layout(auth_page,
     result(page)
 
 
+@pytest.mark.cross_browser
 def test_lost_saved_submit_response_is_confirmed_by_get_without_another_post(auth_page, auth_app, learning_topics):
     page = auth_page
     signed_in(page)
@@ -166,12 +189,14 @@ def test_lost_saved_submit_response_is_confirmed_by_get_without_another_post(aut
         route.abort("failed")
 
     page.route("**/api/v1/attempts/" + attempt_id + "/submit/", response_lost)
-    page.get_by_role("button", name="Отправить тест", exact=True).click()
+    confirm_answers(page)
+    page.get_by_role("button", name="Завершить тест", exact=True).click()
     result(page)
     check(len(writes) == 1, "A lost response must not automatically replay POST")
     check(auth_app.learning_data("info", [topic_id])["submitted_count"] == 1, "Saved result must remain unique")
 
 
+@pytest.mark.cross_browser
 def test_network_failure_freezes_payload_and_explicit_retry_uses_the_same_answers(auth_page, auth_app, learning_topics):
     page = auth_page
     signed_in(page)
@@ -186,7 +211,8 @@ def test_network_failure_freezes_payload_and_explicit_retry_uses_the_same_answer
         else: route.continue_()
 
     page.route("**/api/v1/attempts/" + attempt_id + "/submit/", disconnected_once)
-    page.get_by_role("button", name="Отправить тест", exact=True).click()
+    confirm_answers(page)
+    page.get_by_role("button", name="Завершить тест", exact=True).click()
     expect(page.get_by_role("alert")).to_contain_text("Результат пока неизвестен.")
     expect(page.locator(".question-card")).to_have_count(0)
     page.get_by_role("button", name="Повторить ту же отправку", exact=True).click()
@@ -195,6 +221,7 @@ def test_network_failure_freezes_payload_and_explicit_retry_uses_the_same_answer
     check(auth_app.learning_data("info", [topic_id])["submitted_count"] == 1, "Retry must not duplicate history")
 
 
+@pytest.mark.cross_browser
 def test_submit_timeout_never_displays_a_guessed_grade_or_replays_automatically(auth_page, learning_topics):
     page = auth_page
     signed_in(page)
@@ -202,7 +229,8 @@ def test_submit_timeout_never_displays_a_guessed_grade_or_replays_automatically(
     page.evaluate("() => { const original = AbortSignal.timeout.bind(AbortSignal); AbortSignal.timeout = () => original(500) }")
     held = []
     page.route("**/api/v1/attempts/" + attempt_id + "/submit/", lambda route: held.append(route))
-    page.get_by_role("button", name="Отправить тест", exact=True).click()
+    confirm_answers(page)
+    page.get_by_role("button", name="Завершить тест", exact=True).click()
     expect(page.get_by_role("alert")).to_contain_text("Результат пока неизвестен.")
     expect(page.locator(".result-summary")).to_have_count(0)
     check(len(held) == 1, "Timeout must not repeat POST")
@@ -228,13 +256,15 @@ def test_real_validation_and_csrf_refusal_allow_a_corrected_explicit_submit(auth
 
     page.route(pattern, invalid_request)
     with page.expect_response(lambda response: response.url.endswith("/submit/")) as response:
-        page.get_by_role("button", name="Отправить тест", exact=True).click()
+        confirm_answers(page)
+        page.get_by_role("button", name="Завершить тест", exact=True).click()
     wanted_status, wanted_code = (403, "csrf_failed") if failure_kind == "csrf" else (400, "validation_error")
     check(response.value.status == wanted_status and response.value.json()["error"]["code"] == wanted_code, "Expected the documented real backend rejection")
     expect(page.get_by_role("alert")).to_contain_text("Не удалось подтвердить запрос." if failure_kind == "csrf" else "Ответы не приняты.")
     check(auth_app.learning_data("info", [topic_id])["submitted_count"] == 0, "Rejected request must not store a result")
     page.unroute(pattern)
-    page.get_by_role("button", name="Отправить тест", exact=True).click()
+    confirm_answers(page)
+    page.get_by_role("button", name="Завершить тест", exact=True).click()
     result(page)
 
 
@@ -244,10 +274,11 @@ def test_conflict_uses_the_other_submitted_result_without_overwriting_it(auth_pa
     topic_id = learning_topics["first"]
     attempt_id = begin(page, topic_id)
     choose_correct(page)
-    check(request_post(page.context, "/api/v1/attempts/" + attempt_id + "/submit/", {"language": "ru", "answers": []}).status == 200,
+    check(request_post(page.context, "/api/v1/attempts/" + attempt_id + "/submit/", {"language": "ru", "answers": incorrect_answers(page.context.request.get("/api/v1/attempts/" + attempt_id + "/?language=ru").json()["data"])}).status == 200,
         "Concurrent tab's synthetic submission failed")
     with page.expect_response(lambda response: response.url.endswith("/submit/")) as response:
-        page.get_by_role("button", name="Отправить тест", exact=True).click()
+        confirm_answers(page)
+        page.get_by_role("button", name="Завершить тест", exact=True).click()
     check(response.value.status == 409 and response.value.json()["error"]["code"] == "attempt_already_submitted", "Changed completed payload must conflict")
     result(page, "0", "2", "0%")
     expect(page.get_by_role("status")).to_contain_text("Эта попытка уже отправлена.")
@@ -306,7 +337,8 @@ def test_started_attempt_finishes_from_snapshot_after_unpublication(auth_page, a
     page.reload()
     expect(page.locator(".question-card h2")).to_have_text("ru question 10")
     choose_correct(page)
-    page.get_by_role("button", name="Отправить тест", exact=True).click()
+    confirm_answers(page)
+    page.get_by_role("button", name="Завершить тест", exact=True).click()
     result(page)
 
 
@@ -343,11 +375,12 @@ def test_conflict_with_unavailable_result_get_never_offers_another_submit(auth_p
     signed_in(page)
     attempt_id = begin(page, learning_topics["first"])
     choose_correct(page)
-    check(request_post(page.context, "/api/v1/attempts/" + attempt_id + "/submit/", {"language": "ru", "answers": []}).status == 200,
+    check(request_post(page.context, "/api/v1/attempts/" + attempt_id + "/submit/", {"language": "ru", "answers": incorrect_answers(page.context.request.get("/api/v1/attempts/" + attempt_id + "/?language=ru").json()["data"])}).status == 200,
         "Other tab's real submission failed")
     pattern = "**/api/v1/attempts/" + attempt_id + "/?*"
     page.route(pattern, lambda route: route.abort("failed"))
-    page.get_by_role("button", name="Отправить тест", exact=True).click()
+    confirm_answers(page)
+    page.get_by_role("button", name="Завершить тест", exact=True).click()
     expect(page.get_by_role("alert")).to_contain_text("Попытка уже отправлена, но сохранённый результат пока не удалось получить.")
     expect(page.locator(".question-card,.result-summary")).to_have_count(0)
     expect(page.get_by_role("button", name="Повторить ту же отправку", exact=True)).to_have_count(0)

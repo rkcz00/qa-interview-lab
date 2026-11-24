@@ -11,7 +11,7 @@ from apps.learning.models import Topic, TopicStatus
 from apps.learning.serializers import language_from_query
 from config.api import authentication_required, error_response, method_not_allowed, parse_json_payload, pk_from_path
 
-from .attempts import build_snapshot, grade_snapshot
+from .attempts import IncompleteAnswers, build_snapshot, grade_initial_snapshot, grade_snapshot
 from .completion import completion_progress
 from .models import Attempt, AttemptStatus, TopicProgress
 from .progress import progress_after_read, user_progress
@@ -27,6 +27,7 @@ from .serializers import (
     ResetProgressSerializer,
     StartAttemptSerializer,
     SubmitAttemptSerializer,
+    InitialSubmitAttemptSerializer,
     SubmittedAttemptSerializer,
 )
 
@@ -108,8 +109,14 @@ def attempt_detail(request, attempt_id):
 def submit_attempt(request, attempt_id):
     attempt = _owned_attempt(request, Attempt.objects.select_for_update(), attempt_id)
     require_generation(request, request.progress_state)
-    data = _request_data(request, SubmitAttemptSerializer)
-    normalized, result = grade_snapshot(attempt.content_snapshot, data["answers"])
+    already_submitted = attempt.status == AttemptStatus.SUBMITTED
+    data = _request_data(request, SubmitAttemptSerializer if already_submitted else InitialSubmitAttemptSerializer)
+    try:
+        normalized, result = (grade_snapshot if already_submitted else grade_initial_snapshot)(
+            attempt.content_snapshot, data["answers"],
+        )
+    except IncompleteAnswers:
+        return error_response("incomplete_answers", "Answer every question before submitting the test.", 400)
 
     if attempt.status == AttemptStatus.SUBMITTED:
         if attempt.submitted_language != data["language"] or attempt.submitted_answers != normalized:

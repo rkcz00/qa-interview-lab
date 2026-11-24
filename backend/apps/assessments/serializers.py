@@ -24,6 +24,13 @@ class SubmitAttemptSerializer(StartAttemptSerializer):
     answers = serializers.ListField()
 
 
+class InitialSubmitAttemptSerializer(SubmitAttemptSerializer):
+    def to_internal_value(self, data):
+        if isinstance(data, dict) and data.keys() == {"language"}:
+            data = {**data, "answers": []}
+        return super().to_internal_value(data)
+
+
 class ReadTopicSerializer(_StrictRequestSerializer):
     pass
 

@@ -4,7 +4,7 @@
 
 Основание: [PRD](PRD.md), [архитектура](ARCHITECTURE.md), [backlog](BACKLOG.md), [Practice: требования и QA-план](PRACTICE_SPEC.md).
 
-QIL-033: ниже добавлена целевая приёмка утверждённых [progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend QIL-034 проверяет completion/reset/generation; текущий QIL-035 добавляет [приёмку Progress/reset UI](COMPLETION_UI.md), включая server-driven проценты, dialog, ошибки, ownership и смену session. TFL/SEC остаются **NOT_RUN / NOT_IMPLEMENTED**; TFL более не обозначается как реализованный QIL-035. Старый CI не доказывает новое поведение.
+QIL-033 задаёт приёмку [progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend QIL-034 проверяет completion/reset/generation; QIL-035 — [Progress/reset UI](COMPLETION_UI.md). Текущий QIL-038 проверяет TFL-01–TFL-05 (Answer/Finish/strict submit); [результаты](ANSWER_FINISH.md). TFL-06/login и SEC остаются NOT_RUN / NOT_IMPLEMENTED. Старый CI не доказывает новое поведение.
 
 ## 1. Цели и приоритеты
 
@@ -45,7 +45,7 @@ QIL-033: ниже добавлена целевая приёмка утверж�
 | QA-03 | FR-02, NFR-01 | Без CSRF/с неверным CSRF отклоняются register, login и изменяющие действия пользователя; после login токен обновлён. Штатные Set-Cookie и CSRF bootstrap разрешены, секретов в иных ответах и диагностике нет | API |
 | QA-04 | FR-03 | Published видна, Draft отсутствует в списке; статья и словарь Draft возвращают 404 по известному ID; длинная статья до видимости её конца не отмечается прочитанной; видимость конца автоматически сохраняет одну отметку с CSRF | API, E2E |
 | QA-05 | FR-04 | Термины и определения на обоих языках; просмотр словаря не изменяет ни чтение, ни освоение | API, E2E |
-| QA-06 | FR-05, FR-06 | Оба типа, exact-set и перестановки; непустой неполный правильный набор даёт 0. Отложенный TFL: пропуск/пустой ответ первого submit → 400 incomplete_answers; исторический scoring/повтор с пропусками сохранён | Unit, API, E2E |
+| QA-06 | FR-05, FR-06 | Оба типа, exact-set и перестановки; непустой неполный правильный набор даёт 0. QIL-038: пропуск/пустой ответ первого submit → 400 incomplete_answers; исторический scoring/повтор с пропусками сохранён | Unit, API, E2E |
 | QA-07 | FR-06, NFR-01 | Ни до, ни после submit Learner API не выдаёт правильные ответы, внутренний snapshot или submitted_answers, включая GET завершённой попытки, историю и ошибки. После submit result содержит ровно correct_count, total_count, percentage, без вопросов, вариантов и по-вопросных оценок | API |
 | QA-08 | FR-05, FR-06, FR-13 | Чужой choice_id, неизвестный question_id, дубли, несколько вариантов Single-choice, подставленные percentage/correct_count/user_id. Невалидный запрос даёт 400, результата и изменения чужих данных нет | API |
 | QA-09 | FR-07 | Read после конца последнего Published-раздела; повтор/RU/EN не меняют дату. Явный reset удаляет отметку, поздний старый POST не восстанавливает её | Integration, API, E2E |
@@ -75,7 +75,7 @@ QIL-033: ниже добавлена целевая приёмка утверж�
 | Multiple-choice, `{A, C}` | `{B}` или пусто | Ноль |
 | Любой тип | Неизвестный ID, повтор ID или вариант другого вопроса | Невалидный запрос, без результата |
 
-Таблица является оракулом чистого scoring и исторических snapshot, а не разрешением неполного нового HTTP-submit. В будущем TFL отсутствующий вопрос/пустой choice_ids первого in_progress даёт 400 incomplete_answers без submitted; непустой неверный выбор допустим и даёт 0. Генерация ожидаемых баллов не вызывает тестируемую функцию; ожидания независимы и явны.
+Таблица является оракулом чистого scoring и исторических snapshot, а не разрешением неполного нового HTTP-submit. В QIL-038 отсутствующий вопрос/пустой choice_ids первого in_progress даёт 400 incomplete_answers без submitted; непустой неверный выбор допустим и даёт 0. Генерация ожидаемых баллов не вызывает тестируемую функцию; ожидания независимы и явны.
 
 ### 4.2. Освоение
 
@@ -167,7 +167,7 @@ Browser выбирается собственным Pytest option `--qil-browser
 
 ### 4.14. Утверждённый прогресс, reset и test flow — QIL-033
 
-Контракт: [PROGRESS_SPEC](PROGRESS_SPEC.md). Серверная часть PGR-01–PGR-07/PGR-09 покрыта unit/PostgreSQL/HTTPX-тестами QIL-034. PGR-08/PGR-10 расширены в QIL-035 реальным dialog/reset UI, подтверждённым GET, frozen display при ошибке, single-flight/квитанцией, двумя вкладками и сменой session. Пользовательская ручная приёмка нового UI отмечается отдельно. TFL остаётся отложенным scope. Оракулы не вычисляются тем же кодом, что проверяется; DB/API/E2E используют только собственную временную PostgreSQL и синтетические данные.
+Контракт: [PROGRESS_SPEC](PROGRESS_SPEC.md). Серверная часть PGR-01–PGR-07/PGR-09 покрыта unit/PostgreSQL/HTTPX-тестами QIL-034. PGR-08/PGR-10 расширены в QIL-035 реальным dialog/reset UI, подтверждённым GET, frozen display при ошибке, single-flight/квитанцией, двумя вкладками и сменой session. Пользователь подтвердил ручную приёмку этого UI. QIL-038 реализует TFL-01–TFL-05; только TFL-06/login остаётся отложенным. Оракулы не вычисляются тем же кодом, что проверяется; DB/API/E2E используют только собственную временную PostgreSQL и синтетические данные.
 
 | ID | Критерии и независимые оракулы | Уровень |
 | --- | --- | --- |
@@ -182,11 +182,11 @@ Browser выбирается собственным Pytest option `--qil-browser
 | PGR-09 | Новые header/query/errors и empty catalog; старые GET Progress/Article/Result shapes сохранены; reset GET не удаляет; timeout использует тот же request_id и GET без автоматического нового reset | HTTPX, Frontend unit |
 | PGR-10 | Sidebar и /progress согласованы, mastery отдельно от двух разных случаев 65%; failed завершён и открывает Practice при Read, но даёт 0; errors не рисуют ноль; новые функции реально проверены до PASS | Playwright, regression |
 | TFL-01 | Answer локальный, без HTTP/вердикта; one radio/минимум один checkbox; изменение/clear снимает только одно подтверждение; RU/EN и навигация сохраняют ID/подтверждения | Frontend unit |
-| TFL-02 | На последнем отдельный Finish, disabled до всех подтверждений; Answer последнего не отправляет; один Finish/двойное нажатие → один POST; после reload ввод и подтверждения не выдумываются | Playwright |
+| TFL-02 | На последнем Finish появляется только после всех подтверждений; до этого скрыт; Answer последнего не отправляет; один Finish/двойное нажатие → один POST; после reload ввод и подтверждения не выдумываются | Playwright |
 | TFL-03 | Первый in_progress: отсутствующие answers/вопрос/choice_ids, пустые наборы →400 incomplete_answers без результата; типы/чужие ID/дубли/несколько radio →validation_error; структурная ошибка имеет приоритет | HTTPX |
 | TFL-04 | Старый submitted с пропусками: нормализованный повтор 200 с прежней датой/результатом; изменённый допустимый payload 409; scoring exact-set/ROUND_HALF_UP и неизменность snapshot сохранены | PostgreSQL, HTTPX |
 | TFL-05 | Finish CSRF/ownership, frozen network/timeout/409+GET, generation/reset, keyboard/focus и desktop/mobile на трёх движках; результат только три агрегата, PracticeTask не входит в Attempt | Playwright, regression |
-| TFL-06 | Нет «На главную» на /login; registration/login/session redirect и learner navigation сохранены, русский UI и no next/returnTo | Frontend unit, Playwright |
+| TFL-06 | Отложено, вне QIL-038: убрать «На главную» на /login; сохранить registration/login/session redirect и learner navigation, русский UI и no next/returnTo | Frontend unit, Playwright |
 
 ### 4.15. Многочастная статья — QIL-033
 

@@ -36,6 +36,16 @@ function mock() {
 }
 const tick = async () => { await new Promise<void>(resolve => setTimeout(resolve, 0)) }
 
+function confirmAll(store: AttemptStore) {
+  const state = store.getSnapshot()
+  if (state.kind !== 'pending') return
+  for (const [index, question] of state.attempt.questions.entries()) {
+    store.move(index)
+    if (!state.selected.get(question.question_id)?.length) store.choose(question.question_id, question.choices[0].choice_id, true)
+    store.confirm()
+  }
+}
+
 test('single choice replaces the previous selection; multiple choice toggles an exact set', () => {
   const attempt = pending()
   let selected: Selection = new Map()
@@ -50,10 +60,10 @@ test('single choice replaces the previous selection; multiple choice toggles an 
   assert.deepEqual(selected.get('2'), ['22'])
 })
 
-test('answer payload contains only agreed fields, preserves snapshot order and includes skips', () => {
-  const selected = new Map([['2', ['22', '21']]])
+test('complete answer payload contains only agreed fields and preserves snapshot order', () => {
+  const selected = new Map([['2', ['22', '21']], ['1', ['11']]])
   const payload = answerPayload(pending(), selected)
-  assert.deepEqual(payload, [{ question_id: '2', choice_ids: ['21', '22'] }, { question_id: '1', choice_ids: [] }])
+  assert.deepEqual(payload, [{ question_id: '2', choice_ids: ['21', '22'] }, { question_id: '1', choice_ids: ['11'] }])
   selected.get('2')?.push('21')
   assert.deepEqual(payload[0].choice_ids, ['21', '22'])
   assert.equal(Object.isFrozen(payload), true)
@@ -62,7 +72,8 @@ test('answer payload contains only agreed fields, preserves snapshot order and i
 
 test('unknown, duplicate and multiple single-choice selections cannot become a payload', () => {
   for (const selected of [new Map([['missing', ['21']]]), new Map([['2', ['unknown']]]),
-    new Map([['2', ['21', '21']]]), new Map([['1', ['11', '12']]])]) assert.throws(() => answerPayload(pending(), selected), RangeError)
+    new Map([['2', ['21', '21']]]), new Map([['1', ['11', '12']]]), new Map(),
+    new Map([['2', ['21']]])]) assert.throws(() => answerPayload(pending(), selected), RangeError)
   assert.throws(() => selectChoice(pending(), new Map(), '1', '21', true), RangeError)
 })
 
@@ -153,10 +164,12 @@ test('a successful submit sends agreed answers and removes questions and selecti
   const store = new AttemptStore(api, '51')
   await store.load('en')
   store.choose('2', '22', true)
+  confirmAll(store)
   await store.submit()
-  assert.deepEqual(calls.at(-1), { method: 'submit', language: 'en', body: '[{"question_id":"2","choice_ids":["22"]},{"question_id":"1","choice_ids":[]}]' })
+  assert.deepEqual(calls.at(-1), { method: 'submit', language: 'en', body: '[{"question_id":"2","choice_ids":["22"]},{"question_id":"1","choice_ids":["11"]}]' })
   assert.deepEqual(store.getSnapshot(), { kind: 'result', result: submitted().result,
     topic: { id: '12', title: 'Saved title', language: 'ru' }, notice: undefined })
+  confirmAll(store)
   await store.submit()
   assert.equal(calls.filter(call => call.method === 'submit').length, 1)
 })
@@ -167,7 +180,9 @@ test('double submit is blocked before the first network response', async () => {
   api.submit = async () => { calls.push({ method: 'submit' }); return new Promise(resolve => { finish = resolve }) }
   const store = new AttemptStore(api, '51')
   await store.load('ru')
+  confirmAll(store)
   const first = store.submit()
+  confirmAll(store)
   await store.submit()
   store.choose('2', '21', true)
   assert.equal(store.getSnapshot().kind, 'sending')
@@ -177,7 +192,7 @@ test('double submit is blocked before the first network response', async () => {
   assert.equal(store.getSnapshot().kind, 'result')
 })
 
-for (const [status, code, expected] of [[400, 'validation_error', 'pending'], [403, 'csrf_failed', 'pending'],
+for (const [status, code, expected] of [[400, 'validation_error', 'pending'], [400, 'incomplete_answers', 'pending'], [403, 'csrf_failed', 'pending'],
   [403, 'authentication_required', 'authentication'], [404, 'not_found', 'not_found']] as const) {
   test(`submit ${code} follows the documented contract without rendering internal errors`, async () => {
     const { api } = mock()
@@ -185,6 +200,7 @@ for (const [status, code, expected] of [[400, 'validation_error', 'pending'], [4
     const store = new AttemptStore(api, '51')
     await store.load('ru')
     store.choose('2', '21', true)
+    confirmAll(store)
     await store.submit()
     const state = store.getSnapshot()
     assert.equal(state.kind, expected)
@@ -200,6 +216,7 @@ test('an interrupted response can be confirmed by GET without another submit', a
   api.submit = async () => { calls.push({ method: 'submit' }); saved = true; throw failure(0, 'network_error') }
   const store = new AttemptStore(api, '51')
   await store.load('ru')
+  confirmAll(store)
   await store.submit()
   assert.equal(store.getSnapshot().kind, 'result')
   assert.equal(calls.length, 1)
@@ -215,10 +232,12 @@ test('uncertain submit freezes answers and language; explicit retry sends exactl
   const store = new AttemptStore(api, '51')
   await store.load('ru')
   store.choose('2', '22', true)
+  confirmAll(store)
   await store.submit()
   assert.equal(store.getSnapshot().kind, 'uncertain')
   store.choose('2', '21', true)
   await store.load('en')
+  confirmAll(store)
   await store.submit()
   await store.retrySame()
   const writes = calls.filter(call => call.method === 'submit')
@@ -234,6 +253,7 @@ test('409 fetches the saved result and never retries the changed submission', as
   api.submit = async () => { calls.push({ method: 'submit' }); saved = true; throw failure(409, 'attempt_already_submitted') }
   const store = new AttemptStore(api, '51')
   await store.load('ru')
+  confirmAll(store)
   await store.submit()
   await store.retrySame()
   const state = store.getSnapshot()
@@ -249,6 +269,7 @@ test('409 with unavailable GET exposes no editable questions, grade or retry POS
   api.submit = async () => { calls.push({ method: 'submit' }); conflict = true; throw failure(409, 'attempt_already_submitted') }
   const store = new AttemptStore(api, '51')
   await store.load('ru')
+  confirmAll(store)
   await store.submit()
   const state = store.getSnapshot()
   assert.equal(state.kind, 'uncertain')
@@ -294,4 +315,91 @@ test('changed snapshot identity or question order cannot silently rebind the sel
   await store.load('en')
   assert.equal(store.getSnapshot().kind, 'error')
   await tick()
+})
+
+test('Answer is local, requires a choice and does not auto-advance or score', async () => {
+  const { api, calls } = mock()
+  const store = new AttemptStore(api, '51')
+  await store.load('ru')
+  store.confirm()
+  let state = store.getSnapshot()
+  if (state.kind === 'pending') { assert.equal(state.confirmed.size, 0); assert.equal(state.canFinish, false) }
+  store.choose('2', '21', true)
+  store.confirm()
+  store.confirm()
+  state = store.getSnapshot()
+  assert.equal(state.kind, 'pending')
+  if (state.kind === 'pending') {
+    assert.deepEqual([...state.confirmed], ['2'])
+    assert.equal(state.index, 0)
+    assert.equal(state.canFinish, false)
+    assert.equal('result' in state, false)
+  }
+  assert.deepEqual(calls, [{ method: 'get', language: 'ru' }])
+})
+
+test('confirmations survive RU/EN and navigation; editing invalidates only the changed question', async () => {
+  const { api } = mock()
+  const store = new AttemptStore(api, '51')
+  await store.load('ru')
+  confirmAll(store)
+  store.move(0)
+  await store.load('en')
+  await store.load('ru')
+  let state = store.getSnapshot()
+  if (state.kind === 'pending') { assert.equal(state.canFinish, true); assert.equal(state.index, 0); assert.equal(state.confirmed.size, 2) }
+  store.choose('2', '21', true)
+  state = store.getSnapshot()
+  if (state.kind === 'pending') assert.equal(state.confirmed.size, 2)
+  store.choose('2', '22', true)
+  state = store.getSnapshot()
+  if (state.kind === 'pending') { assert.deepEqual([...state.confirmed], ['1']); assert.equal(state.canFinish, false) }
+  store.confirm()
+  store.move(1)
+  store.choose('1', '12', true)
+  state = store.getSnapshot()
+  if (state.kind === 'pending') { assert.deepEqual([...state.confirmed], ['2']); assert.deepEqual(state.selected.get('1'), ['12']) }
+  store.confirm()
+  store.clear()
+  state = store.getSnapshot()
+  if (state.kind === 'pending') { assert.deepEqual([...state.confirmed], ['2']); assert.equal(state.canFinish, false) }
+})
+
+test('Finish cannot POST until every selection has been locally confirmed', async () => {
+  const { api, calls } = mock()
+  const store = new AttemptStore(api, '51')
+  await store.load('ru')
+  await store.submit()
+  store.choose('2', '21', true)
+  store.choose('1', '11', true)
+  store.confirm()
+  await store.submit()
+  assert.equal(calls.filter(call => call.method === 'submit').length, 0)
+  store.move(1)
+  store.confirm()
+  await store.submit()
+  assert.equal(calls.filter(call => call.method === 'submit').length, 1)
+  const body = JSON.parse(calls.at(-1)!.body!)
+  assert.ok(body.every((item: object) => Object.keys(item).sort().join(',') === 'choice_ids,question_id'))
+})
+
+test('reload creates no invented choices or confirmations; translation retry preserves both', async () => {
+  const { api } = mock()
+  const store = new AttemptStore(api, '51')
+  await store.load('ru')
+  confirmAll(store)
+  api.get = async () => { throw failure(0, 'network_error') }
+  await store.load('en')
+  assert.equal(store.getSnapshot().kind, 'error')
+  api.get = async (_id, language = 'ru') => pending(language)
+  await store.load('en')
+  let state = store.getSnapshot()
+  if (state.kind === 'pending') { assert.equal(state.confirmed.size, 2); assert.equal(state.canFinish, true) }
+  const reloaded = new AttemptStore(api, '51')
+  await reloaded.load('en')
+  state = reloaded.getSnapshot()
+  if (state.kind === 'pending') { assert.equal(state.confirmed.size, 0); assert.equal(state.selected.size, 0); assert.equal(state.canFinish, false) }
+  api.get = async () => { throw failure(403, 'authentication_required') }
+  await store.load('ru')
+  assert.deepEqual(store.getSnapshot(), { kind: 'authentication' })
 })

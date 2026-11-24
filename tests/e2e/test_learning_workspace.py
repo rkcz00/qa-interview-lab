@@ -6,7 +6,7 @@ from playwright.sync_api import expect
 
 from tests.e2e.test_auth_ui import check, fill, seed
 from tests.e2e.test_learning_ui import signed_in, topic_page
-from tests.e2e.test_assessment_ui import begin, choose_correct, request_post, result
+from tests.e2e.test_assessment_ui import begin, choose_correct, request_post, result, confirm_answers
 from tests.e2e.test_progress_ui import complete
 
 
@@ -232,6 +232,7 @@ def test_sidebar_updates_after_automatic_read_and_submit_without_reload_or_focus
     read_article(page)
     begin(page, second)
     choose_correct(page)
-    page.get_by_role('button', name='Отправить тест', exact=True).click()
+    confirm_answers(page)
+    page.get_by_role('button', name='Завершить тест', exact=True).click()
     result(page)
     expect(page.locator('aside .overall-percentage')).to_have_text('100%')

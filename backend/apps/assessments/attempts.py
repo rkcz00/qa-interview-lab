@@ -3,6 +3,10 @@ from apps.learning.models import require_translations
 from .scoring import QuestionKey, grade_answers
 
 
+class IncompleteAnswers(ValueError):
+    """A first submit must contain a nonempty selection for every snapshot question."""
+
+
 def _texts_by_language(translations, field):
     rows = list(translations)
     require_translations(rows, fields=(field,), label="Attempt snapshot")
@@ -52,3 +56,17 @@ def grade_snapshot(snapshot, answers):
         for question in snapshot["questions"]
     )
     return grade_answers(questions, answers)
+
+
+def grade_initial_snapshot(snapshot, answers):
+    """Keep structural validation first and leave historical scoring unchanged."""
+    if isinstance(answers, list):
+        answers = [
+            {**answer, "choice_ids": []}
+            if isinstance(answer, dict) and answer.keys() == {"question_id"} else answer
+            for answer in answers
+        ]
+    normalized, result = grade_snapshot(snapshot, answers)
+    if any(not answer["choice_ids"] for answer in normalized):
+        raise IncompleteAnswers()
+    return normalized, result

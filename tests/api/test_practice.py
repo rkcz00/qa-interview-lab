@@ -15,7 +15,7 @@ from apps.practice.models import PracticeSubmission, PracticeTask, PracticeTaskT
 from apps.practice.tests.factories import create_practice, write
 
 from .pg_locks import wait_for_lock_waiters
-from .test_attempts import correct_answers, data, post
+from .test_attempts import correct_answers, incorrect_answers, data, post
 from .test_catalog import publish, sign_in
 from .test_content_admin import RevisionFields, admin_url, content_editor, csrf_header
 from .test_content_admin import post as admin_post
@@ -71,7 +71,7 @@ def submitted(response, verdict="correct"):
 def unlock(client, topic):
     assert post(client, f"/api/v1/topics/{topic.pk}/read/", {}).status_code == 200
     attempt = data(post(client, f"/api/v1/topics/{topic.pk}/attempts/", {"language": "en"}), 201)
-    assert post(client, f"/api/v1/attempts/{attempt['attempt_id']}/submit/", {"language": "en", "answers": []}).status_code == 200
+    assert post(client, f"/api/v1/attempts/{attempt['attempt_id']}/submit/", {"language": "en", "answers": incorrect_answers(attempt)}).status_code == 200
 
 
 @pytest.fixture
@@ -108,7 +108,7 @@ def test_preview_is_readonly_public_localized_and_prerequisites_belong_to_curren
     assert data(client.get(preview_url(topic)))["blocked_by"] == ["test_not_submitted"]
     attempt = data(post(client, f"/api/v1/topics/{topic.pk}/attempts/", {"language": "ru"}), 201)
     assert_error(post(client, start_url(topic), {"language": "en"}), 403, "practice_locked")
-    post(client, f"/api/v1/attempts/{attempt['attempt_id']}/submit/", {"language": "en", "answers": []})
+    post(client, f"/api/v1/attempts/{attempt['attempt_id']}/submit/", {"language": "en", "answers": incorrect_answers(attempt)})
     before = TopicProgress.objects.get(user=user, topic=topic).article_read_at
     assert data(client.get(preview_url(topic)))["can_start"] is True
     pending(post(client, start_url(topic), {"language": "en"}), status=201, language="en")
@@ -280,7 +280,7 @@ def test_complete_published_edit_allows_new_snapshot_and_preserves_old_one(start
 def test_submitted_test_alone_does_not_replace_read_and_historical_test_remains_valid(practice):
     client, _, topic, task = practice
     quiz = data(post(client, f"/api/v1/topics/{topic.pk}/attempts/", {"language": "ru"}), 201)
-    post(client, f"/api/v1/attempts/{quiz['attempt_id']}/submit/", {"language": "ru", "answers": []})
+    post(client, f"/api/v1/attempts/{quiz['attempt_id']}/submit/", {"language": "ru", "answers": incorrect_answers(quiz)})
     assert data(client.get(preview_url(topic)))["blocked_by"] == ["article_not_read"]
     assert_error(post(client, start_url(topic), {"language": "ru"}), 403, "practice_locked")
     write(task, topic, source_text="print('text') # revised content")

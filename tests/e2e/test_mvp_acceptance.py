@@ -11,7 +11,7 @@ import pytest
 
 from tests.e2e.test_auth_ui import check, fill, form, identity, post, LOGIN, ME, REGISTER
 from tests.e2e.test_learning_ui import signed_in, read_article
-from tests.e2e.test_assessment_ui import begin, choose_correct, request_post, result
+from tests.e2e.test_assessment_ui import begin, choose_correct, request_post, result, confirm_answers
 from tests.e2e.test_progress_ui import overall, complete, open_progress
 
 
@@ -127,7 +127,8 @@ def test_mvp_learner_journey(auth_page, auth_app, learning_topics, article_langu
     submit_path = "/api/v1/attempts/" + attempt_id + "/submit/"
     page.on("request", lambda request: payloads.append(request.post_data_json) if request.url.endswith(submit_path) and request.method == "POST" else None)
     with page.expect_response(lambda response: response.url.endswith(submit_path)) as submitted:
-        page.get_by_role("button", name="Отправить тест", exact=True).click()
+        confirm_answers(page)
+        page.get_by_role("button", name="Завершить тест", exact=True).click()
     check(submitted.value.status == 200 and len(payloads) == 1, "UI must submit once through the real backend")
     saved = submitted.value.json()
     public_attempt(saved["data"])
@@ -223,7 +224,8 @@ def test_mvp_unpublish_edit_snapshot_and_second_user_isolation(auth_page, auth_a
     page.reload()
     expect(page.locator(".question-card h2")).to_have_text("ru question 10")
     choose_correct(page)
-    page.get_by_role("button", name="Отправить тест", exact=True).click()
+    confirm_answers(page)
+    page.get_by_role("button", name="Завершить тест", exact=True).click()
     result(page)
     page.get_by_role("link", name="Мой прогресс", exact=True).click()
     overall(page, '0%', 'Освоено 0 из 1 тем')

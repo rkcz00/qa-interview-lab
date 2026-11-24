@@ -5,9 +5,11 @@ import httpx
 import pytest
 from django.contrib.auth.models import Group
 from django.db import transaction
+from django.utils import timezone
 
 from apps.accounts.models import User
 from apps.assessments.models import Attempt, AttemptStatus, ChoiceTranslation, QuestionTranslation, QuestionType
+from apps.assessments.attempts import grade_snapshot
 from apps.learning.changes import edit_topics
 from apps.learning.models import Language, Topic, TopicStatus
 from apps.learning.tests.test_content import bilingual_topic
@@ -69,6 +71,12 @@ def correct_answers(pending):
         choices = [choice["choice_id"] for choice in question["choices"] if choice["position"] in positions]
         answers.append(answer(question["question_id"], *choices))
     return answers
+
+
+def incorrect_answers(pending):
+    """Nonempty wrong selections for the fixed bilingual test fixture."""
+    return [answer(question["question_id"], question["choices"][-1 if question["question_type"] == QuestionType.SINGLE_CHOICE else 0]["choice_id"])
+            for question in pending["questions"]]
 
 
 def assert_pending(payload, topic, language):
@@ -134,7 +142,7 @@ def test_attempt_lifecycle_and_history_after_new_login(learner, bilingual_topic)
     second = start(client, topic)
     second_id = second["attempt_id"]
     assert second_id != attempt_id
-    second_result = data(post(client, submit_url(second_id), {"language": "ru", "answers": []}))
+    second_result = data(post(client, submit_url(second_id), {"language": "ru", "answers": incorrect_answers(second)}))
     assert_submitted(second_result, second_id, topic.pk, "ru", 0, 2, 0.0)
     assert Attempt.objects.filter(user=user, topic=topic).count() == 2
     assert data(client.get(ATTEMPTS_URL)) == [second_result, submitted]
@@ -159,7 +167,7 @@ def test_snapshot_keeps_both_languages_order_and_keys_after_edits_and_unpublish(
     assert original["topic_id"] == str(topic.pk)
     assert original["topic_titles"] == {"ru": "ru title", "en": "en title"}
     earlier = start(client, topic)
-    earlier_result = data(post(client, submit_url(earlier["attempt_id"]), {"language": "ru", "answers": []}))
+    earlier_result = data(post(client, submit_url(earlier["attempt_id"]), {"language": "ru", "answers": incorrect_answers(earlier)}))
 
     single = topic.questions.get(question_type=QuestionType.SINGLE_CHOICE)
     old_key = single.choices.get(position=10)
@@ -194,19 +202,31 @@ def test_snapshot_keeps_both_languages_order_and_keys_after_edits_and_unpublish(
     assert Attempt.objects.filter(topic=topic).count() == 2
 
 
-def test_submit_normalizes_order_and_omissions_and_rejects_valid_changes(learner, bilingual_topic):
+def test_historical_submit_normalizes_order_and_omissions_and_rejects_valid_changes(learner, bilingual_topic):
     client, _ = learner
     publish(bilingual_topic)
     pending = start(client, bilingual_topic)
     attempt_id = pending["attempt_id"]
     url = submit_url(attempt_id)
     multiple, single = correct_answers(pending)
-    first = data(post(client, url, {"language": "ru", "answers": [multiple]}))
+    # A historical submitted row is seeded only in this isolated test database.
+    row = Attempt.objects.get(pk=attempt_id)
+    normalized, result = grade_snapshot(row.content_snapshot, [multiple])
+    row.status = AttemptStatus.SUBMITTED
+    row.submitted_at = timezone.now()
+    row.submitted_language = "ru"
+    row.submitted_answers = normalized
+    row.correct_count, row.total_count = result["correct_count"], result["total_count"]
+    row.save()
+    first = data(client.get(attempt_url(attempt_id)))
     assert_submitted(first, attempt_id, bilingual_topic.pk, "ru", 1, 2, 50.0)
     row = Attempt.objects.get(pk=attempt_id)
     reordered = answer(multiple["question_id"], *reversed(multiple["choice_ids"]))
     retry = {"answers": [answer(single["question_id"]), reordered], "language": "ru"}
     assert data(post(client, url, retry)) == first
+    assert data(post(client, url, {"language": "ru", "answers": [multiple]})) == first
+    assert_error(post(client, url, {"language": "ru"}), 400, "validation_error")
+    assert_error(post(client, url, {"language": "ru", "answers": [{"question_id": single["question_id"]}]}), 400, "validation_error")
 
     assert_error(post(client, url, {**retry, "language": "en"}), 409, "attempt_already_submitted")
     assert_error(post(client, url, {**retry, "answers": [multiple, single]}), 409, "attempt_already_submitted")
@@ -228,7 +248,7 @@ def test_attempt_access_is_scoped_to_the_owner_for_every_role(learner, bilingual
     publish(topic)
     own = start(client, topic)
     unfinished = start(client, topic)
-    own_result = data(post(client, submit_url(own["attempt_id"]), {"language": "ru", "answers": []}))
+    own_result = data(post(client, submit_url(own["attempt_id"]), {"language": "ru", "answers": incorrect_answers(own)}))
 
     if role == "superuser":
         other = User.objects.create_superuser("other-attempt@example.invalid", TEST_PASSWORD)
@@ -248,7 +268,7 @@ def test_attempt_access_is_scoped_to_the_owner_for_every_role(learner, bilingual
             assert foreign.json() == missing.json()
             assert_error(post(outsider, submit_url(attempt["attempt_id"]), {}), 404, "not_found")
         other_attempt = start(outsider, topic)
-        other_result = data(post(outsider, submit_url(other_attempt["attempt_id"]), {"language": "ru", "answers": []}))
+        other_result = data(post(outsider, submit_url(other_attempt["attempt_id"]), {"language": "ru", "answers": incorrect_answers(other_attempt)}))
         assert data(outsider.get(ATTEMPTS_URL)) == [other_result]
     assert data(client.get(ATTEMPTS_URL)) == [own_result]
     assert Attempt.objects.get(pk=unfinished["attempt_id"]).status == AttemptStatus.IN_PROGRESS
@@ -373,7 +393,7 @@ def test_content_admin_cannot_delete_topic_with_attempts_or_open_attempt_admin(l
     publish(topic)
     pending = start(client, topic)
     attempt_id = pending["attempt_id"]
-    assert post(client, submit_url(attempt_id), {"language": "ru", "answers": []}).status_code == 200
+    assert post(client, submit_url(attempt_id), {"language": "ru", "answers": incorrect_answers(pending)}).status_code == 200
     editor = content_editor("attempt-content-editor")
     assert not editor.has_perm("assessments.view_attempt")
     with httpx.Client(base_url=client.base_url, trust_env=False) as admin_client:

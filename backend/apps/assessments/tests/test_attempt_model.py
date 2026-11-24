@@ -99,7 +99,10 @@ def test_response_failure_rolls_back_attempt_write(bilingual_topic, monkeypatch,
         started = client.post(start_url, {"language": "ru"}, **request)
         assert started.status_code == 201
         attempt_id = started.json()["data"]["attempt_id"]
-        url, payload = f"/api/v1/attempts/{attempt_id}/submit/", {"language": "en", "answers": []}
+        url, payload = f"/api/v1/attempts/{attempt_id}/submit/", {"language": "en", "answers": [
+            {"question_id": q["question_id"], "choice_ids": [q["choices"][0]["choice_id"]]}
+            for q in started.json()["data"]["questions"]
+        ]}
         serializer = SubmittedAttemptSerializer
 
     status_during_response = []

@@ -5,7 +5,7 @@ import pytest
 
 from tests.e2e.test_auth_ui import check, fill, post, seed
 from tests.e2e.test_learning_ui import signed_in
-from tests.e2e.test_assessment_ui import request_post, result
+from tests.e2e.test_assessment_ui import request_post, result, incorrect_answers
 
 
 def open_progress(page):
@@ -29,6 +29,8 @@ def complete(context, topic_id, language='ru', correct=True):
             positions = {10, 20} if question['question_type'] == 'multiple_choice' else {10}
             answers.append({'question_id': question['question_id'],
                             'choice_ids': [choice['choice_id'] for choice in question['choices'] if choice['position'] in positions]})
+    else:
+        answers = incorrect_answers(attempt)
     submitted = request_post(context, '/api/v1/attempts/' + attempt['attempt_id'] + '/submit/', {'language': language, 'answers': answers})
     check(submitted.status == 200, 'Real attempt submit failed')
     return attempt['attempt_id']

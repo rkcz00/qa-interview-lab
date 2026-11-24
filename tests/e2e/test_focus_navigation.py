@@ -10,7 +10,7 @@ from playwright.sync_api import expect
 
 from tests.e2e.test_auth_ui import check, fill, identity, REGISTER, ME, form
 from tests.e2e.test_learning_ui import signed_in, topic_page
-from tests.e2e.test_assessment_ui import result
+from tests.e2e.test_assessment_ui import result, confirm_answers
 
 
 SIZES = [{"width": 1280, "height": 900}, {"width": 390, "height": 844}]
@@ -133,7 +133,8 @@ def test_attempt_keyboard_answers_result_context_navigation_and_logout(auth_page
     expect(first).to_be_checked()
     expect(page.locator(".question-card").get_by_role("checkbox", name="ru choice 20", exact=True)).to_be_checked()
     page.get_by_role("button", name="Следующий вопрос", exact=True).click()
-    page.get_by_role("button", name="Отправить тест", exact=True).focus()
+    confirm_answers(page)
+    page.get_by_role("button", name="Завершить тест", exact=True).focus()
     page.keyboard.press("Enter")
     result(page)
     expect(page.get_by_role("heading", name="Результат теста", exact=True)).to_be_focused()

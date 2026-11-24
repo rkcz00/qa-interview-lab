@@ -6,7 +6,7 @@ from playwright.sync_api import expect
 
 from tests.e2e.test_auth_ui import check
 from tests.e2e.test_learning_ui import signed_in, read_article
-from tests.e2e.test_assessment_ui import request_post
+from tests.e2e.test_assessment_ui import request_post, incorrect_answers, confirm_answers
 
 
 def article(page, topic_id, language="ru"):
@@ -20,7 +20,7 @@ def unlock(page, topic_id):
     started = request_post(page.context, f"/api/v1/topics/{topic_id}/attempts/", {"language": "en"})
     check(started.status == 201, "Quiz start failed")
     identifier = started.json()["data"]["attempt_id"]
-    check(request_post(page.context, f"/api/v1/attempts/{identifier}/submit/", {"language": "en", "answers": []}).status == 200, "Quiz submit failed")
+    check(request_post(page.context, f"/api/v1/attempts/{identifier}/submit/", {"language": "en", "answers": incorrect_answers(started.json()["data"])}).status == 200, "Quiz submit failed")
 
 
 def begin(page, topic_id, language="ru"):
@@ -76,7 +76,8 @@ def test_article_test_practice_language_reload_keyboard_result_delete(auth_page,
         page.get_by_role("radio", name="English", exact=True).check()
     page.get_by_role("button", name="Начать тест", exact=True).click()
     expect(page.locator(".question-card")).to_be_visible()
-    page.get_by_role("button", name="Отправить тест", exact=True).click()
+    confirm_answers(page)
+    page.get_by_role("button", name="Завершить тест", exact=True).click()
     expect(page.get_by_role("heading", name="Результат теста", exact=True)).to_be_visible()
     entry = page.get_by_role("link", name="Открыть практику", exact=True)
     expect(entry).to_have_attribute("href", f"/topics/{topic_id}/practice" + ("?language=en" if language == "en" else ""))

@@ -12,7 +12,8 @@ export function LanguageSelector({ name, legend, language, disabled = false, cho
   return <fieldset className="material-language" disabled={disabled}>
     <legend>{legend}</legend>
     {(['ru', 'en'] as const).map(value => <label key={value}>
-      <input type="radio" name={name} value={value} checked={language === value} onChange={() => choose(value)} />
+      <input type="radio" name={name} value={value} checked={language === value}
+        onChange={event => { event.currentTarget.focus(); choose(value) }} />
       <span lang={value}>{value === 'ru' ? 'Русский' : 'English'}</span>
     </label>)}
   </fieldset>

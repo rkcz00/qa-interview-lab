@@ -21,7 +21,7 @@ export function answerPayload(attempt: PendingAttempt, selected: Selection): rea
   if ([...selected.keys()].some(key => !known.has(key))) throw new RangeError('Unknown assessment question')
   return Object.freeze(attempt.questions.map(question => {
     const ids = selected.get(question.question_id) ?? []
-    if (new Set(ids).size !== ids.length || ids.some(id => !question.choices.some(choice => choice.choice_id === id)) ||
+    if (ids.length === 0 || new Set(ids).size !== ids.length || ids.some(id => !question.choices.some(choice => choice.choice_id === id)) ||
         (question.question_type === 'single_choice' && ids.length > 1)) throw new RangeError('Invalid assessment selection')
     return Object.freeze({
       question_id: question.question_id,

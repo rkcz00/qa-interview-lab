@@ -18,7 +18,7 @@ from apps.learning.models import Topic, TopicStatus
 from apps.learning.tests.test_content import bilingual_topic
 
 from .pg_locks import wait_for_lock_waiters
-from .test_attempts import correct_answers, data, learner, post, start, start_url, submit_url
+from .test_attempts import correct_answers, incorrect_answers, data, learner, post, start, start_url, submit_url
 from .test_catalog import article_url, publish, sign_in, terms_url
 from .test_content_admin import admin_url, content_editor, csrf_header
 from .test_content_admin import sign_in as sign_in_admin
@@ -119,7 +119,7 @@ def test_read_and_test_languages_share_one_progress_in_both_orders(
     assert_progress(marked, topic.pk, read_at=marked["article_read_at"], result=result, mastered=True)
     assert TopicProgress.objects.filter(user=user, topic=topic).count() == 1
     later = start(client, topic, article_language)
-    post(client, submit_url(later["attempt_id"]), {"language": article_language, "answers": []}).raise_for_status()
+    post(client, submit_url(later["attempt_id"]), {"language": article_language, "answers": incorrect_answers(later)}).raise_for_status()
     start(client, topic, test_language)  # An unfinished attempt cannot replace the result.
     assert data(client.get(PROGRESS_URL)) == [marked]
     assert data(post(client, read_url(topic.pk), {})) == marked
@@ -161,7 +161,7 @@ def test_saved_progress_survives_edits_draft_and_old_snapshot_submission(learner
     publish(topic)
     marked = data(post(client, read_url(topic.pk), {}))
     failed = start(client, topic)
-    post(client, submit_url(failed["attempt_id"]), {"language": "ru", "answers": []}).raise_for_status()
+    post(client, submit_url(failed["attempt_id"]), {"language": "ru", "answers": incorrect_answers(failed)}).raise_for_status()
     pending = start(client, topic, "en")
     before = data(client.get(PROGRESS_URL))
     assert before[0]["mastered"] is False

@@ -11,7 +11,7 @@ import pytest
 
 from tests.e2e.test_auth_ui import check
 from tests.e2e.test_learning_ui import signed_in
-from tests.e2e.test_assessment_ui import begin, request_post, result
+from tests.e2e.test_assessment_ui import begin, request_post, result, confirm_answers
 from tests.e2e.test_mvp_acceptance import public_attempt
 from tests.e2e.test_progress_ui import overall
 
@@ -49,7 +49,8 @@ def answer_demo(page):
     for value in ("0", "1", "100", "101"):
         page.locator(".question-card").get_by_role("checkbox", name=value, exact=True).check()
     with page.expect_response(lambda response: response.url.endswith("/submit/")) as submitted:
-        page.get_by_role("button", name="Отправить тест", exact=True).click()
+        confirm_answers(page)
+        page.get_by_role("button", name="Завершить тест", exact=True).click()
     check(submitted.value.status == 200, "Demo attempt must finish through the real API")
     public_attempt(submitted.value.json()["data"])
     result(page)

@@ -8,7 +8,7 @@ from playwright.sync_api import expect
 
 from tests.e2e.test_auth_ui import check, form
 from tests.e2e.test_learning_ui import signed_in, topic_page
-from tests.e2e.test_assessment_ui import choose_correct, result
+from tests.e2e.test_assessment_ui import choose_correct, result, confirm_answers
 
 
 SIZES = [{"width": 1280, "height": 900}, {"width": 390, "height": 844}]
@@ -85,7 +85,8 @@ def test_shared_styles_on_all_auth_learning_assessment_progress_routes(auth_page
     check(previous.evaluate("element => getComputedStyle(element).cursor") == "not-allowed", "Static disabled cursor must differ from busy")
     visual(page, "attempt", size)
     choose_correct(page)
-    page.get_by_role("button", name="Отправить тест", exact=True).click()
+    confirm_answers(page)
+    page.get_by_role("button", name="Завершить тест", exact=True).click()
     result(page)
     visual(page, "result", size)
     page.get_by_role("link", name="Посмотреть прогресс", exact=True).click()

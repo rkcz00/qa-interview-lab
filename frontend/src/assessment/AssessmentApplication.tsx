@@ -124,13 +124,18 @@ function AttemptScreen({ location, navigate, articleLink, articleLanguage, expir
           </label>)}
         </div>
       </fieldset>
+      <p id="answer-confirmation" role="status">{pending.confirmed.has(question.question_id) ? text.answered : text.unconfirmed}</p>
+      <p className="help-text">{text.confirmedCount} {pending.confirmed.size} {text.of} {pending.attempt.questions.length}</p>
       <div className="assessment-actions question-navigation">
-        <Button variant="secondary" disabled={pending.index === 0} onClick={() => { movedQuestion.current = true; store.move(pending.index - 1) }}>{text.previous}</Button>
-        <Button variant="secondary" disabled={pending.index === pending.attempt.questions.length - 1} onClick={() => { movedQuestion.current = true; store.move(pending.index + 1) }}>{text.next}</Button>
+        <Button variant="secondary" aria-label={text.previousLabel} disabled={pending.index === 0} onClick={() => { movedQuestion.current = true; store.move(pending.index - 1) }}>{text.previous}</Button>
+        <Button aria-describedby="answer-confirmation" disabled={!pending.selected.get(question.question_id)?.length} onClick={() => store.confirm()}>{text.answer}</Button>
+        <Button variant="secondary" aria-label={text.nextLabel} disabled={pending.index === pending.attempt.questions.length - 1} onClick={() => { movedQuestion.current = true; store.move(pending.index + 1) }}>{text.next}</Button>
+      </div>
+      <div className="assessment-actions">
         <Button variant="secondary" disabled={!pending.selected.get(question.question_id)?.length} onClick={() => store.clear()}>{text.clear}</Button>
       </div>
       <p className="help-text assessment-submit-help">{text.submitHelp}</p>
-      <Button onClick={() => { void store.submit() }}>{text.submit}</Button>
+      {pending.canFinish && pending.index === pending.attempt.questions.length - 1 && <Button onClick={() => { void store.submit() }}>{text.submit}</Button>}
     </>}
     {state.kind === 'result' && <section aria-label={text.result}>
       <h2 className="result-topic" lang={state.topic.language}>{state.topic.title}</h2>

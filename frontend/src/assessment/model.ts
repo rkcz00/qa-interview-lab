@@ -9,6 +9,7 @@ import { assessmentRu as text } from './texts.ts'
 export function assessmentFailure(error: unknown) {
   if (error instanceof ApiError) {
     if (error.status === 400 && error.code === 'validation_error') return 'validation'
+    if (error.status === 400 && error.code === 'incomplete_answers') return 'incomplete'
     if (error.status === 409 && error.code === 'attempt_already_submitted') return 'conflict'
   }
   return learningFailure(error)
@@ -82,7 +83,7 @@ export class StartStore extends Observable<StartState> {
 }
 
 export type AttemptState = { kind: 'loading' | 'sending' | 'checking' | 'authentication' | 'not_found' } |
-  { kind: 'pending'; attempt: PendingAttempt; selected: Selection; index: number; message?: string } |
+  { kind: 'pending'; attempt: PendingAttempt; selected: Selection; confirmed: ReadonlySet<string>; canFinish: boolean; index: number; message?: string } |
   { kind: 'result'; result: Result; topic: { id: string; title: string; language: Language }; notice?: string } |
   { kind: 'error'; message: string } |
   { kind: 'uncertain'; message: string; canRetry: boolean }
@@ -95,6 +96,7 @@ export class AttemptStore extends Observable<AttemptState> {
   #generation = 0
   #draft: PendingAttempt | null = null
   #selected: Selection = new Map()
+  #confirmed: ReadonlySet<string> = new Set()
   #index = 0
   #language: Language = 'ru'
   #frozen: FrozenSubmission | null = null
@@ -104,7 +106,7 @@ export class AttemptStore extends Observable<AttemptState> {
   #message: string = text.submitUncertain
   constructor(api: ApiClient['assessment'], attemptId: string) { super({ kind: 'loading' }); this.#api = api; this.#id = attemptId }
   invalidate = () => { this.#generation++ }
-  #clearDraft() { this.#draft = null; this.#selected = new Map(); this.#index = 0 }
+  #clearDraft() { this.#draft = null; this.#selected = new Map(); this.#confirmed = new Set(); this.#index = 0 }
   #terminal(kind: 'authentication' | 'not_found') {
     this.invalidate(); this.#clearDraft(); this.#frozen = null; this.#writing = false; this.publish({ kind })
   }
@@ -120,7 +122,12 @@ export class AttemptStore extends Observable<AttemptState> {
       topic: { id: attempt.topic_id, title: attempt.topic_title, language: attempt.submitted_language }, notice })
   }
   #pending(message?: string) {
-    if (this.#draft) this.publish({ kind: 'pending', attempt: this.#draft, selected: this.#selected, index: this.#index, message })
+    if (this.#draft) this.publish({ kind: 'pending', attempt: this.#draft, selected: this.#selected,
+      confirmed: this.#confirmed, canFinish: this.#allConfirmed(), index: this.#index, message })
+  }
+  #allConfirmed() {
+    return Boolean(this.#draft?.questions.length && this.#draft.questions.every(question =>
+      this.#confirmed.has(question.question_id) && this.#selected.get(question.question_id)?.length))
   }
   async load(language: Language) {
     if (this.#writing) return
@@ -146,7 +153,17 @@ export class AttemptStore extends Observable<AttemptState> {
   }
   choose(questionId: string, choiceId: string, checked: boolean) {
     if (this.getSnapshot().kind !== 'pending' || !this.#draft) return
-    try { this.#selected = selectChoice(this.#draft, this.#selected, questionId, choiceId, checked); this.#pending() }
+    try {
+      const next = selectChoice(this.#draft, this.#selected, questionId, choiceId, checked)
+      const previous = this.#selected.get(questionId) ?? []
+      const current = next.get(questionId) ?? []
+      if (previous.length !== current.length || previous.some(id => !current.includes(id))) {
+        const confirmed = new Set(this.#confirmed)
+        confirmed.delete(questionId)
+        this.#confirmed = confirmed
+      }
+      this.#selected = next; this.#pending()
+    }
     catch (error) { if (error instanceof RangeError) this.#pending(text.validation); else throw error }
   }
   move(index: number) {
@@ -157,10 +174,19 @@ export class AttemptStore extends Observable<AttemptState> {
     if (this.getSnapshot().kind !== 'pending' || !this.#draft) return
     const next = new Map(this.#selected)
     next.delete(this.#draft.questions[this.#index].question_id)
-    this.#selected = next; this.#pending()
+    const confirmed = new Set(this.#confirmed)
+    confirmed.delete(this.#draft.questions[this.#index].question_id)
+    this.#confirmed = confirmed; this.#selected = next; this.#pending()
+  }
+  confirm() {
+    if (this.getSnapshot().kind !== 'pending' || !this.#draft) return
+    const id = this.#draft.questions[this.#index].question_id
+    if (!this.#selected.get(id)?.length) { this.#pending(text.incomplete); return }
+    this.#confirmed = new Set([...this.#confirmed, id]); this.#pending()
   }
   async submit() {
     if (this.getSnapshot().kind !== 'pending' || !this.#draft || this.#writing) return
+    if (!this.#allConfirmed()) { this.#pending(text.incomplete); return }
     try { this.#frozen = Object.freeze({ language: this.#draft.language, answers: answerPayload(this.#draft, this.#selected) }) }
     catch (error) { if (error instanceof RangeError) this.#pending(text.validation); else throw error; return }
     await this.#write()
@@ -184,8 +210,8 @@ export class AttemptStore extends Observable<AttemptState> {
       this.#writing = false
       const failure = assessmentFailure(error)
       if (failure === 'authentication' || failure === 'not_found') { this.#terminal(failure); return }
-      if (!this.#uncertain && (failure === 'validation' || failure === 'csrf')) {
-        this.#frozen = null; this.#pending(failure === 'csrf' ? text.csrf : text.validation); return
+      if (!this.#uncertain && (failure === 'validation' || failure === 'csrf' || failure === 'incomplete')) {
+        this.#frozen = null; this.#pending(failure === 'csrf' ? text.csrf : failure === 'incomplete' ? text.incomplete : text.validation); return
       }
       this.#uncertain = true
       if (failure === 'conflict') { this.#conflict = true; this.#frozen = null; this.#message = text.conflictPending }
