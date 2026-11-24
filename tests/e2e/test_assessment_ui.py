@@ -47,11 +47,10 @@ def confirm_answers(page):
     while True:
         if not page.locator(".question-card input:checked").count():
             page.locator(".question-card input").first.check()
+        last = not page.get_by_role("button", name="Следующий вопрос", exact=True).is_enabled()
         page.get_by_role("button", name="Ответить", exact=True).click()
-        following = page.get_by_role("button", name="Следующий вопрос", exact=True)
-        if not following.is_enabled():
+        if last:
             break
-        following.click()
     expect(page.get_by_role("button", name="Завершить тест", exact=True)).to_be_enabled()
 
 

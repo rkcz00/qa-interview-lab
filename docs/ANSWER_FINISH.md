@@ -2,14 +2,15 @@
 
 ## Решение и границы
 
-Пользователь подтвердил свободный ID QIL-038 и уточнил прежний [PROGRESS_SPEC](PROGRESS_SPEC.md#6-тест-локальное-подтверждение-и-финальная-отправка): на последнем вопросе Finish появляется только после всех подтверждений, до этого скрыт. [Backlog](BACKLOG.md#qil-038--answerfinish-и-полный-первый-submit), FR-05/06 и TFL-01–TFL-05 — критерии этой задачи. Отдельный TFL-06/login, sections, Practice, scoring/mastery/completion/reset, миграции, зависимости, CI и deployment не меняются.
+Пользователь подтвердил свободный ID QIL-038 и уточнил прежний [PROGRESS_SPEC](PROGRESS_SPEC.md#6-тест-локальное-подтверждение-и-финальная-отправка): на последнем вопросе Finish появляется только после всех подтверждений, до этого скрыт. Базовая версия `c77ff7f` опубликована; [run 45400397751](https://github.com/rkcz00/qa-interview-lab/actions/runs/45400397751) завершён успешно во всех шести executions. Следующее уточнение пользователя в рамках того же QIL-038 добавляет автоматический переход после Answer и меняет только frontend/связанные тесты/документацию. [Backlog](BACKLOG.md#qil-038--answerfinish-и-полный-первый-submit), FR-05/06 и TFL-01–TFL-05 — критерии. Backend/API, TFL-06/login, sections, Practice, scoring/mastery/completion/reset, миграции, зависимости, CI и deployment в уточнении не меняются.
 
 Маршруты прежние: `/topics/{id}/test` → `/attempts/{id}`; POST submit остаётся `/api/v1/attempts/{id}/submit/`. PracticeTask не входит в этот Attempt.
 
 ## Клиент
 
-- «Предыдущий — Ответить — Следующий» сохраняет возможность пропустить экран и вернуться. Answer требует непустой выбор: один radio или хотя бы один checkbox. Он не делает HTTP, не оценивает выбор и не переключает вопрос.
-- ReadonlySet подтверждённых question IDs хранится рядом с выбором в AttemptStore, только в памяти экрана. Доступный status сообщает answered, отдельный текст — число подтверждений. Изменение/clear снимает только одно подтверждение; повтор того же выбора/Answer его сохраняет.
+- «Предыдущий — Ответить — Следующий» сохраняет возможность пропустить экран и вернуться. Answer требует непустой выбор: один radio или хотя бы один checkbox. Без выбора показана ошибка, перехода нет. С выбором Answer локально подтверждает текущий вопрос и сразу открывает следующий, фокусируя его заголовок; HTTP и оценки нет.
+- ReadonlySet подтверждённых question IDs хранится рядом с выбором в AttemptStore, только в памяти экрана. Доступный status сообщает answered, отдельный текст — число подтверждений. Изменение/clear снимает только одно подтверждение; повтор того же выбора его сохраняет. После возврата Answer вновь подтверждает изменённый ответ и переводит вперёд; последний только подтверждает, без перехода/submit.
+- Store принимает ожидаемый question ID и отклоняет устаревшее действие. UI отбрасывает второй native click двойного нажатия, включая клик по появившемуся Finish, и при необходимости восстанавливает focus нового заголовка. Это защищает заранее заполненный следующий вопрос без таймера и не мешает последовательным клавиатурным подтверждениям.
 - RU/EN, загрузка/ошибка перевода и Browser Back/Forward того же адреса сохраняют номер, выбор и подтверждения. Reload/уход теряют локальное состояние с явной подсказкой; autosave, storage, QuestionAttempt и новые API не добавляются.
 - Finish виден только на последнем вопросе после всех подтверждений. Store также запрещает отправку без них, а answerPayload отвергает пустые наборы. Уход в sending синхронный, поэтому двойной клик не даёт второй POST. Payload содержит только language и массив question_id/choice_ids.
 - Сохраняется прежняя frozen-модель для network/timeout: GET проверяет результат, автоматического POST нет, явный retry отправляет тот же payload. Изменённый повтор →409 и GET сохранённого результата. Result по-прежнему содержит только три серверных агрегата.
@@ -37,7 +38,7 @@ InitialSubmitAttemptSerializer допускает отсутствующий ans
 
 Шесть новых E2E (desktop 1280×900 / mobile 390×844) включены в cross_browser: skip/return, radio/checkbox/keyboard, отсутствие POST на Answer, подтверждения при RU/EN/Back/Forward, скрытый Finish, clear, reload, двойной клик и реальный incomplete_answers с явным успешным Finish. Три существующих Assessment transport-сценария (потерянный сохранённый ответ, network + frozen retry, timeout без автоматического POST) также включены в cross_browser. Критический путь не замокан; negative-route изменяет только запрос или транспорт, который проверяет настоящий backend. Сырые ответы/credentials/media не публикуются.
 
-## Фактическая приёмка
+## Приёмка базовой версии
 
 Локальная приёмка 24 ноября 2026 года — PASS:
 
@@ -47,10 +48,28 @@ InitialSubmitAttemptSerializer допускает отсутствующий ans
 - Ошибок/skips нет. Browser contexts, backend/frontend дочерние процессы и собственные БД очищены; read-only PostgreSQL count test_qil006_* = 0. Пользовательская dev-БД не сбрасывалась.
 - YAML 1.2/aliases, неизменность workflow с четырьмя job IDs и тремя browser executions, Markdown/ссылки, git diff --check и scan реальных локальных секретов/ключей прошли. Финальная редакция документации и staged blobs проверяются перед commit.
 
-CI точного SHA проверяется после единственного разрешённого push; URL и результаты шести executions приводятся в финальном отчёте, без повторного push/re-run. Локальный PASS не заменяет итог GitHub Actions. Начальный WebKit focus-failure устранён явным focus на выбранном radio; assertions не ослаблены, после правки прошли focused и regression прогоны.
+CI базового SHA `c77ff7f` подтверждён [run 45400397751](https://github.com/rkcz00/qa-interview-lab/actions/runs/45400397751): backend_api, frontend_check_build, frontend_unit и три playwright_e2e completed/success. Начальный WebKit focus-failure устранён явным focus на выбранном radio; assertions не ослаблены.
+
+## Уточнение: автоматический переход после Answer
+
+Runtime изменён только в `frontend/src/assessment/model.ts`, `AssessmentApplication.tsx`, `texts.ts`. Связанные тесты: `frontend/tests/assessment.test.ts`, `tests/e2e/test_assessment_ui.py`, `test_answer_finish.py`, новый `test_answer_advance.py` и `learning_data.py`. Последний добавляет третью полную двуязычную question только явным fixture-действием в собственной временной PostgreSQL через существующую операцию edit_topics; dev-контент и backend-код не меняются. Пользователь отдельно разрешил уточнение общих helpers в `tests/e2e/test_auth_ui.py` и `test_learning_ui.py` после диагностики HTTP 304.
+
+Два новых unit и два desktop/mobile E2E проверяют заранее заполненные три вопроса, native double click, focus, локальный последний Answer, Back → изменение → новый Answer, RU/EN и browser Back/Forward. Прежние шесть Answer/Finish E2E сохранены и адаптированы к автопереходу. Все существующие сценарии сохраняют собственные проверки результата/transport; helper больше не делает лишний Next после Answer.
+
+Frontend unit 258/258, type-check/build и focused E2E 8/8 в каждом движке — PASS. Первый полный прогон: Chromium 135 PASS; Firefox 132 PASS / 3 FAIL; WebKit 133 PASS / 2 FAIL, без skips. Все Answer/Finish прошли; ошибки были в старых helpers прямой SPA-навигации. После согласованной правки helpers диагностические три сценария прошли в обоих движках, затем одинаковый полный suite прошёл в Chromium/Firefox/WebKit: по 135 PASS, ноль failures/skips. CI-конфигурация сохранена: полный Chromium и critical Firefox/WebKit, отдельные безопасные JUnit. Первый focused прогон выявил потерю focus на повторном mousedown: добавлено восстановление focus при отклонённом клике, assertion сохранён, повторный focused прогон всех движков успешен.
+
+Изолированная диагностика без подмены ответов установила причину пяти E2E-сбоев: повторный `/login` возвращал 304 в Firefox/WebKit, повторная статья — 304 в Firefox. Helpers ошибочно требовали 200 от каждого `page.goto`. [RFC 9110 §15.4.5](https://www.rfc-editor.org/rfc/rfc9110.html#section-15.4.5) разрешает 304 для условного GET. С согласия пользователя helpers теперь сначала отдельно требуют HTTP 200 через APIRequestContext без браузерного кэша, затем допускают 200/304 браузерной навигации и сохраняют обязательные проверки DOM. Ответы API, runtime, cache policy приложения и assertions доступности/ownership не меняются; перехвата или подмены критического HTTP нет.
+
+Документация уточнения: `README.md`, `frontend/README.md`, `docs/PRD.md`, `ARCHITECTURE.md`, `QA_STRATEGY.md`, `BACKLOG.md`, `PROGRESS_SPEC.md`, этот отчёт. Итого 18 файлов: три runtime, семь тестовых (включая один новый), восемь документов.
+
+Первый backend regression: 456 успешных проверок и один setup PermissionError на `ready_file.is_file()` в HTTPX harness; это проверка временного файла готовности, причина отказа доступа не установлена. Повтор только упавшего теста прошёл. Затем полный последовательный повтор завершён успешно: 435 тестов и 22 подтеста (457 passed), ноль failures/skips, Django checks, makemigrations --check --dry-run, migrate --check, pip check и cleanup — PASS. Harness не изменялся; первоначальный сбой не скрывается.
+
+Финальная локальная приёмка уточнения — PASS: frontend unit/type-check/build, полный backend/HTTPX, миграции/Django/pip, полный suite 135 × 3. Тестовые исходники совпадают с хешами до финального прогона. Контексты/дочерние процессы завершены штатными teardown; read-only PostgreSQL count test_qil006_* = 0. Dev-БД и работающие пользовательские сервисы не сбрасывались.
+
+Перед единственным commit/push проверяются границы diff, Markdown/ссылки, YAML, staged blobs и отсутствие секретов. Новый CI подтверждается только для опубликованного SHA; локальный PASS его не заменяет. Повторный push/re-run не разрешён. Локальная ручная приёмка нового автоперехода — NOT_RUN, следующий отдельный пользовательский шаг.
 
 `.env` и семь пользовательских untracked helpers не меняются и не добавляются. Все DB/browser-прогоны используют собственные временные БД/процессы; dev-БД не сбрасывается. Локальная ручная приёмка обновлённого Answer/Finish остаётся отдельным пользовательским шагом.
 
 ## Что проверить пользователю
 
-На desktop/mobile открыть тест, пропустить вопрос, вернуться и подтвердить radio/checkbox. Убедиться, что Answer не завершает тест, смена RU/EN сохраняет подтверждения/focus, а изменение ответа скрывает Finish до нового Answer. После подтверждения всех вопросов на последнем нажать Finish: один результат без ключей, snapshot и Practice. Следующий отдельный milestone — согласование sections и её ID; автоматически он не начинается.
+На desktop/mobile открыть тест, пропустить вопрос, вернуться и подтвердить radio/checkbox. Проверить, что пустой Answer показывает ошибку, выбранный Answer открывает ровно следующий вопрос с focus, двойной клик не пропускает экран. RU/EN и Back/Forward сохраняют выбор/подтверждения, изменение снимает только одно. Последний Answer не отправляет HTTP; после всех подтверждений отдельный Finish даёт один результат без ключей, snapshot и Practice. Ручная приёмка автоперехода — отдельный следующий шаг; sections автоматически не начинаются.

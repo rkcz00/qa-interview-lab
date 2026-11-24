@@ -42,8 +42,9 @@ def seed(context):
 
 
 def form(page, route):
+    check(page.request.get(route, headers={"Cache-Control": "no-cache"}).status == 200, "Direct SPA route must return HTTP 200")
     response = page.goto(route)
-    check(response is not None and response.status == 200, "Direct SPA route must return HTTP 200")
+    check(response is not None and response.status in (200, 304), "Browser SPA navigation must load or revalidate the page")
     expect(page.get_by_label("Email", exact=True)).to_be_visible()
     expect(page.get_by_label("Пароль", exact=True)).to_be_visible()
 

@@ -75,6 +75,7 @@ function AttemptScreen({ location, navigate, articleLink, articleLanguage, expir
   const focusPage = state.kind === 'pending' ? 'attempt' : state.kind === 'result' ? 'result' : state.kind === 'not_found' ? 'not_found' : null
   const resultHeading = usePageHeadingFocus(focusPage !== null, focusPage)
   const movedQuestion = useRef(false)
+  const answerAdvanced = useRef(false)
   useEffect(() => { void store.load(location.language) }, [store, location.language])
   useEffect(() => () => store.invalidate(), [store])
   useEffect(() => { if (state.kind === 'authentication') expired() }, [state.kind, expired])
@@ -128,14 +129,28 @@ function AttemptScreen({ location, navigate, articleLink, articleLanguage, expir
       <p className="help-text">{text.confirmedCount} {pending.confirmed.size} {text.of} {pending.attempt.questions.length}</p>
       <div className="assessment-actions question-navigation">
         <Button variant="secondary" aria-label={text.previousLabel} disabled={pending.index === 0} onClick={() => { movedQuestion.current = true; store.move(pending.index - 1) }}>{text.previous}</Button>
-        <Button aria-describedby="answer-confirmation" disabled={!pending.selected.get(question.question_id)?.length} onClick={() => store.confirm()}>{text.answer}</Button>
+        <Button aria-describedby="answer-confirmation" onClick={event => {
+          if (event.detail > 1) {
+            if (answerAdvanced.current) questionHeading.current?.focus()
+            return
+          }
+          movedQuestion.current = true
+          answerAdvanced.current = store.confirm(question.question_id)
+          if (!answerAdvanced.current) movedQuestion.current = false
+        }}>{text.answer}</Button>
         <Button variant="secondary" aria-label={text.nextLabel} disabled={pending.index === pending.attempt.questions.length - 1} onClick={() => { movedQuestion.current = true; store.move(pending.index + 1) }}>{text.next}</Button>
       </div>
       <div className="assessment-actions">
         <Button variant="secondary" disabled={!pending.selected.get(question.question_id)?.length} onClick={() => store.clear()}>{text.clear}</Button>
       </div>
       <p className="help-text assessment-submit-help">{text.submitHelp}</p>
-      {pending.canFinish && pending.index === pending.attempt.questions.length - 1 && <Button onClick={() => { void store.submit() }}>{text.submit}</Button>}
+      {pending.canFinish && pending.index === pending.attempt.questions.length - 1 && <Button onClick={event => {
+        if (event.detail > 1) {
+          if (answerAdvanced.current) questionHeading.current?.focus()
+          return
+        }
+        void store.submit()
+      }}>{text.submit}</Button>}
     </>}
     {state.kind === 'result' && <section aria-label={text.result}>
       <h2 className="result-topic" lang={state.topic.language}>{state.topic.title}</h2>

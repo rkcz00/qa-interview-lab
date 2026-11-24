@@ -12,8 +12,10 @@ def signed_in(page):
 
 
 def topic_page(page, topic_id, language="ru"):
-    response = page.goto("/topics/" + topic_id + ("?language=en" if language == "en" else ""))
-    check(response is not None and response.status == 200, "Direct Learning SPA route must load")
+    route = "/topics/" + topic_id + ("?language=en" if language == "en" else "")
+    check(page.request.get(route, headers={"Cache-Control": "no-cache"}).status == 200, "Direct Learning SPA route must return HTTP 200")
+    response = page.goto(route)
+    check(response is not None and response.status in (200, 304), "Browser Learning navigation must load or revalidate the page")
     expect(page.get_by_role("heading", name="Основы тестирования" if language == "ru" else "Testing foundations", exact=True)).to_be_visible()
     expect(page.locator(".article-body")).to_be_visible()
 

@@ -178,11 +178,16 @@ export class AttemptStore extends Observable<AttemptState> {
     confirmed.delete(this.#draft.questions[this.#index].question_id)
     this.#confirmed = confirmed; this.#selected = next; this.#pending()
   }
-  confirm() {
-    if (this.getSnapshot().kind !== 'pending' || !this.#draft) return
+  confirm(questionId: string): boolean {
+    if (this.getSnapshot().kind !== 'pending' || !this.#draft) return false
     const id = this.#draft.questions[this.#index].question_id
-    if (!this.#selected.get(id)?.length) { this.#pending(text.incomplete); return }
-    this.#confirmed = new Set([...this.#confirmed, id]); this.#pending()
+    if (id !== questionId) return false
+    if (!this.#selected.get(id)?.length) { this.#pending(text.answerRequired); return false }
+    this.#confirmed = new Set([...this.#confirmed, id])
+    const advanced = this.#index < this.#draft.questions.length - 1
+    if (advanced) this.#index++
+    this.#pending()
+    return advanced
   }
   async submit() {
     if (this.getSnapshot().kind !== 'pending' || !this.#draft || this.#writing) return

@@ -11,7 +11,7 @@ def main():
     database, action, *ids = sys.argv[1:]
     if not re.fullmatch(r"test_qil006_[0-9a-f]{32}", database) or os.environ.get("POSTGRES_DB") != database:
         raise RuntimeError("Expected the owning disposable database")
-    if action not in {"create", "cleanup", "draft", "revise_draft", "long_article", "info"} or any(not value.isascii() or not value.isdigit() for value in ids):
+    if action not in {"create", "cleanup", "draft", "revise_draft", "long_article", "three_questions", "info"} or any(not value.isascii() or not value.isdigit() for value in ids):
         raise RuntimeError("Invalid fixture action")
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
     import django
@@ -20,7 +20,7 @@ def main():
     from apps.learning.models import Language, Term, TermTranslation, Topic, TopicStatus, TopicTranslation
     from apps.learning.changes import edit_topics
     from apps.learning.tests.test_content import create_bilingual_topic
-    from apps.assessments.models import Attempt, AttemptStatus, ChoiceTranslation, QuestionTranslation, TopicProgress
+    from apps.assessments.models import Attempt, AttemptStatus, Choice, ChoiceTranslation, Question, QuestionTranslation, TopicProgress
 
     with connection.cursor() as cursor:
         cursor.execute("SELECT current_database()")
@@ -64,6 +64,20 @@ def main():
                 topic.status = TopicStatus.DRAFT
                 topic.save(update_fields=("status",))
             result = {"draft": "PASS"}
+        elif action == "three_questions":
+            topics = list(Topic.objects.filter(pk__in=ids))
+            if not ids or len(topics) != len(set(ids)) or any(topic.questions.count() != 2 for topic in topics):
+                raise RuntimeError("Third question requires owned two-question topics")
+            with edit_topics({topic.pk: topic.revision for topic in topics}, using="default") as locked:
+                for topic in locked.values():
+                    question = Question.objects.create(topic=topic, question_type="single_choice", position=30)
+                    for language in Language.values:
+                        QuestionTranslation.objects.create(question=question, language=language, text=language + " question 30")
+                    for position in (10, 20, 30):
+                        choice = Choice.objects.create(question=question, position=position, is_correct=position == 10)
+                        for language in Language.values:
+                            ChoiceTranslation.objects.create(choice=choice, language=language, text=language + " choice " + str(position))
+            result = {"three_questions": "PASS"}
         elif action == "long_article":
             topics = list(Topic.objects.filter(pk__in=ids))
             if not ids or len(topics) != len(set(ids)):
