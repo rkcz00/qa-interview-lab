@@ -14,6 +14,7 @@ import { practiceDestination } from './routing.ts'
 import type { PracticeLocation } from './routing.ts'
 import { practiceRu as text } from './texts.ts'
 import { useUnsavedPractice } from './useUnsavedPractice.ts'
+import { notifyProgressChanged } from '../ui/OverviewContext.tsx'
 
 interface Props { location: PracticeLocation; navigate: Navigate; requireLogin: () => void }
 
@@ -69,6 +70,9 @@ function SubmissionScreen({ location, navigate, requireLogin }: Props) {
     if (state.kind === 'deleted') navigate(state.deletedTopic ? practiceDestination({ kind: 'preview', id: state.deletedTopic, language: location.language }) : '/', true)
     if (state.kind === 'restarted' && state.nextSubmission) navigate(practiceDestination({ kind: 'submission', ...state.nextSubmission }))
   }, [state.kind, state.deletedTopic, state.nextSubmission, requireLogin, navigate, location.language])
+  useEffect(() => {
+    if (state.kind === 'result' || state.kind === 'deleted') notifyProgressChanged()
+  }, [state.kind, state.item?.submission_id])
   useEffect(() => {
     if (['ready', 'result', 'restart_uncertain'].includes(state.kind) && state.message) {
       if (state.fieldError) answer.current?.focus()

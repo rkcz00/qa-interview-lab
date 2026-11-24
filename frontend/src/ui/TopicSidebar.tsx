@@ -19,8 +19,8 @@ export function TopicSidebar({ navigate, topicId }: { navigate: Navigate; topicI
       <Button variant="secondary" className="topic-menu-toggle" aria-expanded={expanded} aria-controls="topic-menu"
         onClick={() => setExpanded(!expanded)}>Темы подготовки <span aria-hidden="true">▾</span></Button>
       <nav id="topic-menu" className={`topic-menu ${expanded ? 'is-open' : ''}`} aria-label="Выбор темы">
-        {state.view.topics.length === 0 ? <p className="help-text">{progressRu.empty}</p> : <ol>
-          {state.view.topics.map(topic => <li key={topic.topic_id}>
+        {state.view.navigationTopics.length === 0 ? <p className="help-text">{progressRu.empty}</p> : <ol>
+          {state.view.navigationTopics.map(topic => <li key={topic.topic_id}>
             <NavigationLink to={`/topics/${encodeURIComponent(topic.topic_id)}`} navigate={navigate}
               current={topicId === topic.topic_id ? (window.location.pathname === `/topics/${topic.topic_id}` ? 'page' : 'location') : undefined}>{topic.title}</NavigationLink>
           </li>)}

@@ -25,7 +25,7 @@ export interface ApiClientOptions {
   origin: string
   fetch?: typeof globalThis.fetch
   timeoutMs?: number
-  onProgressReset?: () => void
+  onProgressReset?: (reason: 'reset' | 'session') => void
 }
 
 function configurationError(): never {
@@ -77,19 +77,21 @@ export function createApiClient(options: ApiClientOptions) {
   function resetError() {
     return new ApiError({ status: 409, code: 'progress_reset', kind: 'http', message: 'Прогресс сброшен. Откройте материал заново.' })
   }
-  function invalidateProgress(block = false) {
+  function invalidateProgress(block = false, reason: 'reset' | 'session' = 'reset') {
     const wasBlocked = progressBlocked
     progressEpoch++
     progressGeneration = undefined
     generationFlight = undefined
     progressBlocked = block
-    if (block && !wasBlocked) options.onProgressReset?.()
+    if (block && (!wasBlocked || reason === 'session')) options.onProgressReset?.(reason)
   }
   function progressChannel() {
     if (channel || typeof window === 'undefined' || typeof window.BroadcastChannel !== 'function') return
     channel = new window.BroadcastChannel('qil-progress-state')
     channel.addEventListener('message', event => {
-      if (event.data === 'progress-reset' || event.data === 'session-changed') invalidateProgress(true)
+      if (event.data === 'progress-reset' || event.data === 'session-changed') {
+        invalidateProgress(true, event.data === 'session-changed' ? 'session' : 'reset')
+      }
     })
     window.addEventListener('pagehide', () => { channel?.close(); channel = undefined }, { once: true })
   }

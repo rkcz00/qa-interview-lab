@@ -84,7 +84,7 @@ def test_read_only_and_completed_without_read_are_not_mastered(auth_page, learni
     check(request_post(page.context, '/api/v1/topics/' + first + '/read/', {}).status == 200, 'Read mark failed')
     complete(page.context, second)
     open_progress(page)
-    overall(page, '0%', 'Освоено 0 из 2 тем')
+    overall(page, '50%', 'Освоено 0 из 2 тем')
 
 
 def test_unpublished_topics_leave_totals_but_keep_stored_progress_and_results(auth_page, auth_app, learning_topics):
@@ -136,7 +136,7 @@ def test_pending_load_hides_old_values_without_writes(auth_page, learning_topics
     open_progress(page)
     held, writes = [], []
     page.on('request', lambda request: writes.append(request.method) if '/api/v1/' in request.url and request.method != 'GET' else None)
-    page.route('**/api/v1/progress/', lambda route: held.append(route))
+    page.route('**/api/v1/completion-progress/', lambda route: held.append(route))
     page.reload()
     expect(page.locator('main .ui-loading')).to_have_text('Загружаем прогресс…')
     expect(page.locator('main .overall-progress')).to_have_count(0)
@@ -152,7 +152,7 @@ def test_progress_errors_are_safe_and_retry_never_invents_zero(auth_page, learni
     page = auth_page
     signed_in(page)
     open_progress(page)
-    pattern = '**/api/v1/progress/'
+    pattern = '**/api/v1/completion-progress/'
     if failure == 'timeout':
         page.add_init_script("const original = AbortSignal.timeout.bind(AbortSignal); AbortSignal.timeout = () => original(300)")
         page.route(pattern, lambda route: None)

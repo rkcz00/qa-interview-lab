@@ -36,11 +36,19 @@ export function AppShell({ navigate, canLogout, className = '', topicId, childre
     if (!canLogout) return
     reload()
     const refresh = () => { void overview.load(true) }
+    const preserveReset = (event: Event) => {
+      if (window.location.pathname === '/progress' && overview.ownsReset()) event.preventDefault()
+    }
     window.addEventListener('qil-progress-changed', refresh)
-    return () => { overview.invalidate(); window.removeEventListener('qil-progress-changed', refresh) }
+    window.addEventListener('qil-progress-invalidated', preserveReset)
+    return () => {
+      overview.invalidate()
+      window.removeEventListener('qil-progress-changed', refresh)
+      window.removeEventListener('qil-progress-invalidated', preserveReset)
+    }
   }, [canLogout, overview, reload])
   useEffect(() => { if (summary.kind === 'authentication') navigate('/login', true) }, [summary.kind, navigate])
-  return <OverviewContext value={{ state: summary, reload }}>
+  return <OverviewContext value={{ state: summary, reload, store: overview }}>
     <div className="app-shell">
       <header className="app-header">
         <NavigationLink to="/" navigate={navigate} className="app-brand">{ru.brand}</NavigationLink>

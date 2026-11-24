@@ -2,7 +2,7 @@
 
 Статус: архитектура MVP; пользовательский сценарий уточнён в QIL-027. Контракт Practice согласован в QIL-028, backend принят в QIL-029; UI реализован в QIL-030, полный ручной PostgreSQL/Playwright-прогон — PASS. Существующие API и архитектурные решения сохранены. [Backend](PRACTICE_BACKEND.md), [UI и runner](PRACTICE_UI.md).
 
-QIL-033 фиксирует утверждённую целевую архитектуру [progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend completion/reset, UserProgressState и необходимая совместимость клиента реализованы в серверном этапе QIL-034. Визуальный completion/reset UI и QIL-035/QIL-036 **NOT_IMPLEMENTED**: текущий UI ещё показывает долю mastered/Published, одиночное article_body и допускает пропуски. [Границы и проверки backend](COMPLETION_BACKEND.md).
+QIL-033 фиксирует утверждённую целевую архитектуру [progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend completion/reset и UserProgressState реализованы в QIL-034, completion/reset UI — текущий scope QIL-035 с [отдельной приёмкой](COMPLETION_UI.md). Отложенный TFL-scope (прежний план QIL-035) и sections QIL-036 **NOT_IMPLEMENTED**: одиночное article_body и допуск пропусков первого submit пока сохранены. [Границы backend](COMPLETION_BACKEND.md).
 
 Связанные документы: [PRD](PRD.md), [QA-стратегия](QA_STRATEGY.md), [backlog](BACKLOG.md), [правила Codex](../AGENTS.md), [точный контракт Practice](PRACTICE_SPEC.md).
 
@@ -28,7 +28,7 @@ Vite нужен для разработки и сборки React. PostgreSQL х
 
 QIL-020 добавляет UI-маршруты `/topics/{topic_id}/test` (явный start) и `/attempts/{attempt_id}` (вопросы или серверный результат). На этих адресах `language` относится только к тесту. Выбор по ID и текущий вопрос хранятся в памяти экрана и переживают перевод/Back/Forward внутри попытки; GET после reload восстанавливает вопросы либо завершённый результат, но не неотправленные ответы. На неопределённом submit payload блокируется, состояние подтверждается GET; явный повтор использует тот же payload. После 409 допустим только GET сохранённого результата. UI-роуты не являются новыми API endpoints, backend/scoring и контракт snapshot не меняются.
 
-`AppShell` объединяет header, меню Published-тем и прогресс. На mobile меню раскрывается с aria-expanded, выбранная тема имеет aria-current. В QIL-034 OverviewContext/ProgressStore переходят на новый completion-progress API для общего процента и статусов; mastered остаётся отдельным серверным признаком. История в UI не загружается; loading/ошибка не подменяются нулём. На `/login` в QIL-035 убирается «На главную», без изменения перехода после входа.
+`AppShell` объединяет header, меню Published-тем и прогресс. На mobile меню раскрывается с aria-expanded, выбранная тема имеет aria-current. В QIL-035 OverviewContext/ProgressStore используют completion-progress API для процентов и статусов без клиентского расчёта; mastered остаётся отдельным серверным признаком. История в UI не загружается; loading/ошибка не подменяются нулём. Reset 200 подтверждается GET, до него удерживается прежний read-only view. Session change всегда очищает приватный экран, даже при активном reset. Изменение ссылки «На главную» на /login остаётся в отложенном TFL-scope.
 
 `useAutomaticRead` наблюдает конец последнего Published-раздела полностью загруженного единого reader. Сохраняются pending, hidden/0x0/stale-marker проверки, первая дата и общий RU/EN. POST read требует CSRF и поколение прогресса; после reset старый marker не инициирует повторную запись. Обновление общего прогресса после read/submit/delete/reset сохраняет DOM и фокус; фонового polling нет. Точные правила — в двух спецификациях QIL-033.
 
@@ -177,7 +177,7 @@ Published-тему можно редактировать с проверкой �
 1. Начало теста создаёт `in_progress` Attempt только для Published-темы со снимком всех её текущих вопросов и переводов. Проверка статуса и создание снимка выполняются в одной транзакции, согласованно со снятием публикации и редактированием. Для Draft возвращается 404; попытка не создаётся.
 2. Пользователь получает только публичные поля снимка на выбранном языке: ID, тип и текст вопросов, ID и тексты вариантов. Ключи правильности отсутствуют.
 3. При отправке backend проверяет владельца, CSRF, структуру ответа, язык и принадлежность ID снимку.
-4. QIL-035: первый submit требует непустого ответа на каждый вопрос snapshot; неполнота даёт 400 incomplete_answers. Single-choice с несколькими ID, неизвестные ID/дубли и неверные типы дают прежний validation_error. Для исторических submitted сохраняются нормализация пропусков и идемпотентные повторы.
+4. Отложенный TFL-scope: первый submit требует непустого ответа на каждый вопрос snapshot; неполнота даёт 400 incomplete_answers. Single-choice с несколькими ID, неизвестные ID/дубли и неверные типы дают прежний validation_error. Для исторических submitted сохраняются нормализация пропусков и идемпотентные повторы.
 5. Backend в транзакции фиксирует нормализованные ответы, `submitted_language`, время, числа верных/всех вопросов и статус `submitted`.
 6. Пользователь получает результат только из `correct_count`, `total_count`, `percentage` и отдельные метаданные истории. Вопросы, варианты, выбранные ответы, ключи и внутренний snapshot после submit не возвращаются. Нельзя принять клиентский процент или оценивать по изменившемуся текущему контенту.
 
@@ -189,7 +189,7 @@ Published-тему можно редактировать с проверкой �
 
 Single-choice: один балл при совпадении выбранного и единственного правильного варианта. Multiple-choice: один балл при точном равенстве наборов выбранных и правильных вариантов, иначе ноль. Частичных баллов нет; порядок не важен.
 
-`percentage = 100 * correct_count / total_count`. Для API это число с ROUND_HALF_UP до двух знаков: например, 1/32 даёт 3,13%. Все вопросы равновесны. Пропуски исторических submitted остаются в знаменателе; новый первый неполный submit после QIL-035 отклоняется, а total_count=0 не публикуется и не запускается.
+`percentage = 100 * correct_count / total_count`. Для API это число с ROUND_HALF_UP до двух знаков: например, 1/32 даёт 3,13%. Все вопросы равновесны. Пропуски исторических submitted остаются в знаменателе; новый первый неполный submit после реализации TFL отклоняется, а total_count=0 не публикуется и не запускается.
 
 Освоение: `article_read_at` задано и существует `submitted` Attempt с `100 * correct_count >= 80 * total_count` при `total_count > 0`. Условие проверяется по целым числам, не по округлённому отображаемому проценту.
 
@@ -262,7 +262,7 @@ Result содержит только три агрегата. Метаданны
 | `POST /progress/reset/` | Пользователь | confirmation, request_id | `200`, новое progress_generation; собственные Read/Attempt/PracticeSubmission удалены атомарно |
 | `GET /topics/{topic_id}/sections/` | Пользователь | Query language | `200`, SectionsArticle; parent Draft → 404, Draft-разделы исключены |
 
-answers содержит только question_id/choice_ids из snapshot. После QIL-035 первый in_progress требует все вопросы и непустые наборы; пропуски дают incomplete_answers. Для submitted нормализация и 200/409 сохранены, включая старые пропуски. Дубли/несколько вариантов Single-choice невалидны. Старый Article GET собирает текст sections с прежними четырьмя полями; тело POST read остаётся {}.
+answers содержит только question_id/choice_ids из snapshot. После реализации TFL первый in_progress требует все вопросы и непустые наборы; пропуски дают incomplete_answers. Для submitted нормализация и 200/409 сохранены, включая старые пропуски. Дубли/несколько вариантов Single-choice невалидны. Старый Article GET собирает текст sections с прежними четырьмя полями; тело POST read остаётся {}.
 
 После QIL-034 все семь mutating learner POST требуют X-Progress-Generation и общего User-lock, включая Test/Practice start/submit/delete и read/reset. Header не нужен Auth/GET/Admin и не заменяет session/CSRF. До проверки generation выполняется owned lookup: старые удалённые ID дают 404, а stale create/read — 409 progress_reset. Точные поля, последние reset receipts и порядок — [PROGRESS_SPEC](PROGRESS_SPEC.md#4-поколение-прогресса-и-порядок-блокировок). Это явное изменение POST-протокола; старые GET DTO сохранены.
 

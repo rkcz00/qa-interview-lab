@@ -24,7 +24,7 @@ function deferred<T>() {
   return { promise, resolve }
 }
 type Call = { path: string; init: RequestInit }
-function fixture(reply: (call: Call) => Response | Promise<Response>, onProgressReset?: () => void) {
+function fixture(reply: (call: Call) => Response | Promise<Response>, onProgressReset?: (reason: 'reset' | 'session') => void) {
   const calls: Call[] = []
   const api = createApiClient({ baseUrl: '/api/v1/', origin, onProgressReset, fetch: async (input, init) => {
     const call = { path: new URL(String(input)).pathname.slice('/api/v1/'.length), init: init! }
@@ -198,8 +198,9 @@ test('cross-tab signal contains no personal data and blocks stale writes until e
   } })
   t.after(() => { if (prior) Object.defineProperty(globalThis, 'window', prior); else Reflect.deleteProperty(globalThis, 'window') })
   let notices = 0
+  const reasons: string[] = []
   const f = fixture(call => call.path === 'completion-progress/' ? json(empty()) : json({ progress_generation: '2' }),
-    () => { notices++ })
+    reason => { notices++; reasons.push(reason) })
   await f.api.progress.completion()
   assert.equal(channels[0].name, 'qil-progress-state')
   channels[0].receive('progress-reset')
@@ -208,6 +209,9 @@ test('cross-tab signal contains no personal data and blocks stale writes until e
   await f.api.progress.reset('reset_all_progress', resetId, '1')
   assert.deepEqual(channels[0].messages, ['progress-reset'])
   assert.equal(notices, 1)
+  channels[0].receive('session-changed')
+  assert.equal(notices, 2, 'Session loss must notify even while reset is already blocking writes')
+  assert.deepEqual(reasons, ['reset', 'session'])
   pagehide?.()
   assert.equal(channels[0].closed, true)
 })

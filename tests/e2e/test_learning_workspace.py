@@ -221,7 +221,7 @@ def test_sidebar_updates_after_automatic_read_and_submit_without_reload_or_focus
     complete(page.context, first)
     auth_app.learning_data('long_article', [first])
     topic_page(page, first)
-    expect(page.locator('aside .overall-percentage')).to_have_text('0%')
+    expect(page.locator('aside .overall-percentage')).to_have_text('35%')
     selector = page.get_by_role('radio', name='Русский', exact=True)
     selector.focus()
     read_article(page)

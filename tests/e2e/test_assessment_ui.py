@@ -11,11 +11,11 @@ from tests.e2e.test_auth_ui import check, fill, post, seed, LOGIN
 from tests.e2e.test_learning_ui import signed_in, topic_page
 
 
-def request_post(context, path, payload):
+def request_post(context, path, payload, *, generation="1"):
     bootstrap = context.request.get("/api/v1/auth/csrf/")
     check(bootstrap.status == 200, "CSRF bootstrap failed")
     token = bootstrap.json()["data"]["csrf_token"]
-    response = context.request.post(path, data=payload, headers={"X-CSRFToken": token, "X-Progress-Generation": "1"})
+    response = context.request.post(path, data=payload, headers={"X-CSRFToken": token, "X-Progress-Generation": generation})
     token = None
     return response
 

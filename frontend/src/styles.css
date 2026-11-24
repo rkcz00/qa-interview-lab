@@ -144,6 +144,22 @@ ul.field-error { padding-left: var(--space-5); }
 .material-language label { display: inline-flex; align-items: center; gap: var(--space-2); cursor: pointer; min-height: var(--target-height); }
 input[type="radio"], input[type="checkbox"] { accent-color: var(--color-accent); }
 .topic-list, .topic-progress-list, .attempt-history-list { display: grid; gap: var(--space-4); padding: 0; list-style: none; }
+.completion-topic-list { display: grid; gap: var(--space-4); padding: 0; list-style: none; }
+.completion-topic { min-width: 0; overflow-wrap: anywhere; }
+.topic-completion-percentage { font-weight: var(--weight-semibold); }
+.completion-statuses { margin: 0; display: grid; gap: var(--space-3); }
+.completion-statuses > div { display: grid; grid-template-columns: minmax(6rem, 1fr) minmax(0, 3fr); gap: var(--space-3); }
+.completion-statuses dt { font-weight: var(--weight-semibold); }
+.completion-statuses dd { margin: 0; }
+.test-result-counts { margin: var(--space-2) 0 0; }
+.activity-status--failed { color: var(--color-error); }
+.activity-status--passed { color: var(--color-success); }
+.progress-reset { margin-top: var(--space-8); padding-top: var(--space-5); border-top: var(--border-width) solid var(--color-border); }
+.reset-trigger, .reset-confirm:not(:disabled) { color: var(--color-error); background: var(--color-error-bg); border-color: var(--color-error-border); }
+.reset-dialog { width: min(36rem, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; padding: var(--space-6); color: var(--color-text); background: var(--color-surface); border: var(--border-width) solid var(--color-control-border); border-radius: var(--radius-card); }
+.reset-dialog::backdrop { background: #0008; }
+.reset-agreement { display: flex; align-items: start; gap: var(--space-3); margin: var(--space-5) 0; min-height: var(--target-height); }
+.reset-agreement input { margin-top: var(--space-1); flex-shrink: 0; }
 .topic-list a { display: block; padding: var(--space-6); border: var(--border-width) solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); font-size: var(--font-h3); font-weight: var(--weight-semibold); overflow-wrap: anywhere; }
 .topic-list a:hover { border-color: var(--color-accent); }
 .learning-card { margin: var(--space-6) 0; }
