@@ -129,7 +129,10 @@ function AttemptScreen({ location, navigate, articleLink, articleLanguage, expir
       <p className="help-text">{text.confirmedCount} {pending.confirmed.size} {text.of} {pending.attempt.questions.length}</p>
       <div className="assessment-actions question-navigation">
         <Button variant="secondary" aria-label={text.previousLabel} disabled={pending.index === 0} onClick={() => { movedQuestion.current = true; store.move(pending.index - 1) }}>{text.previous}</Button>
-        <Button aria-describedby="answer-confirmation" onClick={event => {
+        <Button aria-describedby="answer-confirmation" onMouseDown={event => {
+          // The repeated press must not take native focus back from the new heading.
+          if (event.detail > 1 && answerAdvanced.current) event.preventDefault()
+        }} onClick={event => {
           if (event.detail > 1) {
             if (answerAdvanced.current) questionHeading.current?.focus()
             return

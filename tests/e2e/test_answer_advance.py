@@ -10,14 +10,16 @@ from tests.e2e.test_assessment_ui import begin, result
 pytestmark = pytest.mark.cross_browser
 
 
+@pytest.mark.parametrize("language", ["ru", "en"])
+@pytest.mark.parametrize("activation", ["Enter", "Space"])
 @pytest.mark.parametrize("size", [{"width": 1280, "height": 900}, {"width": 390, "height": 844}], ids=["desktop", "mobile"])
-def test_answer_double_click_back_edit_language_focus_and_explicit_finish(auth_page, auth_app, learning_topics, size):
+def test_answer_double_click_back_edit_language_focus_and_explicit_finish(auth_page, auth_app, learning_topics, size, language, activation):
     page = auth_page
     page.set_viewport_size(size)
     topic = learning_topics["first"]
     check(auth_app.learning_data("three_questions", [topic])["three_questions"] == "PASS", "Own three-question fixture")
     signed_in(page)
-    begin(page, topic)
+    begin(page, topic, language)
     posts = []
     page.on("request", lambda request: posts.append(1) if request.method == "POST" and request.url.endswith("/submit/") else None)
     following = page.get_by_role("button", name="Следующий вопрос", exact=True)
@@ -35,16 +37,33 @@ def test_answer_double_click_back_edit_language_focus_and_explicit_finish(auth_p
     options.nth(0).check()
     previous.click()
     previous.click()
+    page.evaluate("""() => {
+        const heading = document.querySelector('.question-card h2');
+        const answer = document.querySelector('.question-navigation button:nth-child(2)');
+        const sequence = [];
+        const record = event => {
+            if (event.target === heading) sequence.push('heading');
+            if (event.target === answer) sequence.push('answer');
+        };
+        document.addEventListener('focusin', record);
+        window.answerFocusSequence = () => {
+            document.removeEventListener('focusin', record);
+            return sequence;
+        };
+    }""")
     answer.dblclick(delay=80)
     expect(page.locator(".question-card legend")).to_have_text("Вопрос 2 из 3")
     expect(page.locator(".question-card h2")).to_be_focused()
+    focus_sequence = page.evaluate("window.answerFocusSequence()")
+    check("heading" in focus_sequence and "answer" not in focus_sequence[focus_sequence.index("heading") + 1:],
+          "Repeated Answer mousedown must not take focus back from the new heading")
     expect(options.nth(0)).to_be_checked()
     expect(page.locator("#answer-confirmation")).to_have_text("Ответ ещё не подтверждён.")
     expect(finish).to_have_count(0)
     check(posts == [], "Double Answer must not submit")
 
     answer.focus()
-    page.keyboard.press("Enter")
+    page.keyboard.press(activation)
     expect(page.locator(".question-card legend")).to_have_text("Вопрос 3 из 3")
     expect(page.locator(".question-card h2")).to_be_focused()
     expect(finish).to_have_count(0)
@@ -64,19 +83,20 @@ def test_answer_double_click_back_edit_language_focus_and_explicit_finish(auth_p
     expect(page.locator(".question-card h2")).to_be_focused()
     expect(page.locator("#answer-confirmation")).to_have_text("Ответ подтверждён.")
 
-    language = page.get_by_role("radio", name="English", exact=True)
-    language.focus()
-    language.check()
-    expect(language).to_be_focused()
+    other = "en" if language == "ru" else "ru"
+    language_control = page.get_by_role("radio", name="English" if other == "en" else "Русский", exact=True)
+    language_control.focus()
+    language_control.check()
+    expect(language_control).to_be_focused()
     expect(page.locator(".question-card legend")).to_have_text("Вопрос 2 из 3")
     expect(options.nth(0)).to_be_checked()
     page.go_back()
-    expect(page.get_by_role("radio", name="Русский", exact=True)).to_be_checked()
+    expect(page.get_by_role("radio", name="Русский" if language == "ru" else "English", exact=True)).to_be_checked()
     page.go_forward()
-    expect(language).to_be_checked()
+    expect(language_control).to_be_checked()
     expect(page.locator("#answer-confirmation")).to_have_text("Ответ подтверждён.")
     answer.click()
-    expect(page.locator(".question-card h2")).to_have_text("en question 30")
+    expect(page.locator(".question-card h2")).to_have_text(other + " question 30")
     expect(page.locator(".question-card h2")).to_be_focused()
     expect(finish).to_be_enabled()
     check(posts == [], "No automatic submit after navigation or Answer")

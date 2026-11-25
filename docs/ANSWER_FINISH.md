@@ -70,6 +70,26 @@ Frontend unit 258/258, type-check/build и focused E2E 8/8 в каждом дв�
 
 `.env` и семь пользовательских untracked helpers не меняются и не добавляются. Все DB/browser-прогоны используют собственные временные БД/процессы; dev-БД не сбрасывается. Локальная ручная приёмка обновлённого Answer/Finish остаётся отдельным пользовательским шагом.
 
+## QIL-040 — Устойчивый focus после Answer
+
+Исходный [CI run 45608561380](https://github.com/rkcz00/qa-interview-lab/actions/runs/45608561380), SHA `7a2d8f612d5842626b5ccdaccedc5ae07e50de33`, подтвердил AssertionError в `test_answer_advance.py:40` во всех трёх движках: новый h2 не удержал focus после двойного Answer. QIL-039 корректно сообщил failed=1/errors=0 и не маскировал падение. Исправление приложения выделено в QIL-040; formatter, workflow и artifacts не меняются.
+
+Локальная исходная версия на Windows прошла конечный focus-assertion, но запись только типов DOM-событий показала переход h2 → Answer → h2: второй mousedown забирал native focus, а обработчик второго click пытался восстановить его позднее. Защита только в click оставляла лишнее изменение фокуса. Новая регрессия запрещает такой промежуточный возврат и падает на исходной версии; прежний конечный assertion сохранён. Это прямое локальное доказательство дефекта последовательности, а не заявление о воспроизведении Linux timing.
+
+В AssessmentApplication добавлен preventDefault только для повторного mousedown после успешного автоперехода. Первый pointer click и клавиатурная активация не перехватываются. Существующий effect фокусирует h2 с tabIndex=-1, второй click по-прежнему игнорируется, fallback восстановления focus сохранён. Таймеров, HTTP, глобальных обработчиков или изменений AppShell нет. Последний Answer не делает submit; прежний отдельный Finish, выбор/подтверждения, RU/EN, Back/Forward и ошибки остаются прежними.
+
+Unit расширен на оба исходных языка. E2E сохраняет все прежние assertions и проверяет двойной Answer на заранее заполненном следующем вопросе, отсутствие возврата focus на кнопку, Enter/Space, radio/checkbox, Back/изменение, RU↔EN/Back/Forward, последний Answer без POST и один явный Finish. Все восемь комбинаций начального языка, клавиши и desktop 1280×900/mobile 390×844 помечены cross_browser; критические HTTP-ответы не подменяются. Диагностический listener сохраняет только метки heading/answer в памяти страницы, без логов, текстов, ответов или credentials.
+
+Локально подтверждены 259 frontend unit, type-check/build, 24 focused E2E (8 на движок) и полный Playwright: по 141 PASS в Chromium/Firefox/WebKit. Используются production frontend и реальный Django/HTTP с собственной временной PostgreSQL. Прежние assertions не удалены и не ослаблены.
+
+Первый полный backend-прогон завершился exit=1; pytest cache указал `tests/api/test_practice.py::test_absent_configuration_missing_ids_and_draft_content_return_404`. Подробности первоначального сбоя runner не сохранил, поэтому его причина не объявляется установленной. Отдельный повтор этого теста на новой временной БД завершился exit=0. После browser suite полный последовательный backend-прогон подтвердил 460 PASS и 46 успешных подтестов, ноль failures/errors/skips. Исходники backend/harness не менялись; первый FAIL не подменяется одиночным повтором.
+
+Django checks, makemigrations --check --dry-run, migrate --check и pip check — PASS на отдельной временной PostgreSQL. Все browser contexts и собственные frontend/backend процессы прошли teardown; итоговые read-only counts test_qil006_* и unused_* равны нулю. Dev-БД не сбрасывалась. YAML/matrix/35 Bash-проверок, неизменность sanitizer/JUnit, Markdown/ссылки, diff и secret scan прошли; финальные staged blobs отдельно проверяются перед commit. CI нового SHA подтверждается после единственного разрешённого push; локальный PASS не заменяет CI. Новая ручная пользовательская приёмка — NOT_RUN. Backend/API, миграции, зависимости, .env и семь пользовательских helpers сохранены.
+
+Файлы QIL-040: `frontend/src/assessment/AssessmentApplication.tsx`, `frontend/tests/assessment.test.ts`, `tests/e2e/test_answer_advance.py`, этот отчёт и `docs/BACKLOG.md`. Новых проектных файлов и зависимостей нет; локальная служебная диагностика остаётся вне Git.
+
+Новый термин для изучения: default action mousedown — штатное действие браузера, которое может переместить focus ещё до click; preventDefault отменяет именно его для повторного нажатия. Изменение не отменяет сам Answer и не подменяет доступность кнопки.
+
 ## Что проверить пользователю
 
 На desktop/mobile открыть тест, пропустить вопрос, вернуться и подтвердить radio/checkbox. Проверить, что пустой Answer показывает ошибку, выбранный Answer открывает ровно следующий вопрос с focus, двойной клик не пропускает экран. RU/EN и Back/Forward сохраняют выбор/подтверждения, изменение снимает только одно. Последний Answer не отправляет HTTP; после всех подтверждений отдельный Finish даёт один результат без ключей, snapshot и Practice. Ручная приёмка автоперехода — отдельный следующий шаг; sections автоматически не начинаются.

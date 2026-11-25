@@ -407,35 +407,37 @@ test('reload creates no invented choices or confirmations; translation retry pre
   assert.deepEqual(store.getSnapshot(), { kind: 'authentication' })
 })
 
-test('stale Answer cannot skip a prefilled next question, including after Back and edits', async () => {
-  const { api, calls } = mock()
-  api.get = async (_id, language = 'ru') => ({ ...pending(language), questions: [...pending(language).questions, {
-    question_id: '3', position: 30, question_type: 'single_choice', text: language + ' third',
-    choices: [{ choice_id: '31', position: 10, text: 'first' }, { choice_id: '32', position: 20, text: 'second' }],
-  }] })
-  const store = new AttemptStore(api, '51')
-  await store.load('ru')
-  store.choose('2', '21', true); store.choose('1', '11', true); store.choose('3', '31', true)
-  assert.equal(store.confirm('2'), true)
-  assert.equal(store.confirm('2'), false)
-  let state = store.getSnapshot()
-  if (state.kind === 'pending') { assert.equal(state.index, 1); assert.deepEqual([...state.confirmed], ['2']) }
-  store.move(0)
-  store.choose('2', '22', true)
-  assert.equal(store.confirm('2'), true)
-  await store.load('en')
-  state = store.getSnapshot()
-  if (state.kind === 'pending') {
-    assert.equal(state.index, 1); assert.deepEqual(state.selected.get('2'), ['21', '22'])
-    assert.deepEqual(state.selected.get('1'), ['11']); assert.equal(state.canFinish, false)
-  }
-  assert.equal(store.confirm('1'), true)
-  assert.equal(store.confirm('1'), false)
-  assert.equal(store.confirm('3'), false)
-  state = store.getSnapshot()
-  if (state.kind === 'pending') { assert.equal(state.index, 2); assert.equal(state.canFinish, true) }
-  assert.equal(calls.filter(call => call.method === 'submit').length, 0)
-})
+for (const initialLanguage of ['ru', 'en'] as const) {
+  test(`stale Answer cannot skip a prefilled next question after Back and edits from ${initialLanguage}`, async () => {
+    const { api, calls } = mock()
+    api.get = async (_id, language = 'ru') => ({ ...pending(language), questions: [...pending(language).questions, {
+      question_id: '3', position: 30, question_type: 'single_choice', text: language + ' third',
+      choices: [{ choice_id: '31', position: 10, text: 'first' }, { choice_id: '32', position: 20, text: 'second' }],
+    }] })
+    const store = new AttemptStore(api, '51')
+    await store.load(initialLanguage)
+    store.choose('2', '21', true); store.choose('1', '11', true); store.choose('3', '31', true)
+    assert.equal(store.confirm('2'), true)
+    assert.equal(store.confirm('2'), false)
+    let state = store.getSnapshot()
+    if (state.kind === 'pending') { assert.equal(state.index, 1); assert.deepEqual([...state.confirmed], ['2']) }
+    store.move(0)
+    store.choose('2', '22', true)
+    assert.equal(store.confirm('2'), true)
+    await store.load(initialLanguage === 'ru' ? 'en' : 'ru')
+    state = store.getSnapshot()
+    if (state.kind === 'pending') {
+      assert.equal(state.index, 1); assert.deepEqual(state.selected.get('2'), ['21', '22'])
+      assert.deepEqual(state.selected.get('1'), ['11']); assert.equal(state.canFinish, false)
+    }
+    assert.equal(store.confirm('1'), true)
+    assert.equal(store.confirm('1'), false)
+    assert.equal(store.confirm('3'), false)
+    state = store.getSnapshot()
+    if (state.kind === 'pending') { assert.equal(state.index, 2); assert.equal(state.canFinish, true) }
+    assert.equal(calls.filter(call => call.method === 'submit').length, 0)
+  })
+}
 
 test('the final Answer stays local and never substitutes for explicit Finish', async () => {
   const { api, calls } = mock()
