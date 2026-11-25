@@ -45,9 +45,14 @@ def test_answer_double_click_back_edit_language_focus_and_explicit_finish(auth_p
             if (event.target === heading) sequence.push('heading');
             if (event.target === answer) sequence.push('answer');
         };
+        const leaving = event => {
+            if (event.target === heading) sequence.push('left-heading');
+        };
         document.addEventListener('focusin', record);
+        document.addEventListener('focusout', leaving);
         window.answerFocusSequence = () => {
             document.removeEventListener('focusin', record);
+            document.removeEventListener('focusout', leaving);
             return sequence;
         };
     }""")
@@ -57,6 +62,8 @@ def test_answer_double_click_back_edit_language_focus_and_explicit_finish(auth_p
     focus_sequence = page.evaluate("window.answerFocusSequence()")
     check("heading" in focus_sequence and "answer" not in focus_sequence[focus_sequence.index("heading") + 1:],
           "Repeated Answer mousedown must not take focus back from the new heading")
+    check("left-heading" not in focus_sequence[focus_sequence.index("heading") + 1:],
+          "Repeated Answer must not blur the new heading, including to the document body")
     expect(options.nth(0)).to_be_checked()
     expect(page.locator("#answer-confirmation")).to_have_text("Ответ ещё не подтверждён.")
     expect(finish).to_have_count(0)

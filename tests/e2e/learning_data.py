@@ -70,6 +70,11 @@ def main():
                 raise RuntimeError("Third question requires owned two-question topics")
             with edit_topics({topic.pk: topic.revision for topic in topics}, using="default") as locked:
                 for topic in locked.values():
+                    # A real content-height change moves the second click off Answer.
+                    first = topic.questions.order_by("position", "id").first()
+                    for translation in first.translations.all():
+                        translation.text = (translation.language + " question 10 — ") + ("Context for the question. " * 20)
+                        translation.save(update_fields=("text",))
                     question = Question.objects.create(topic=topic, question_type="single_choice", position=30)
                     for language in Language.values:
                         QuestionTranslation.objects.create(question=question, language=language, text=language + " question 30")

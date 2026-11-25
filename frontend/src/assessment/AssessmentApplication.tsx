@@ -7,6 +7,7 @@ import { SessionStore } from '../auth/session.ts'
 import { ru } from '../auth/texts.ts'
 import { formatPercentage } from './answers.ts'
 import { AttemptStore, StartStore } from './model.ts'
+import { AnswerPointerGuard } from './answerPointer.ts'
 import { assessmentDestination } from './routing.ts'
 import type { AssessmentLocation } from './routing.ts'
 import { assessmentRu as text } from './texts.ts'
@@ -76,6 +77,15 @@ function AttemptScreen({ location, navigate, articleLink, articleLanguage, expir
   const resultHeading = usePageHeadingFocus(focusPage !== null, focusPage)
   const movedQuestion = useRef(false)
   const answerAdvanced = useRef(false)
+  const answerPointer = useRef(new AnswerPointerGuard())
+  useEffect(() => {
+    const cancelRepeated = (event: MouseEvent) => {
+      if (answerPointer.current.cancelRepeated(event)) questionHeading.current?.focus()
+    }
+    const events = ['mousedown', 'click', 'dblclick'] as const
+    for (const name of events) document.addEventListener(name, cancelRepeated, true)
+    return () => { for (const name of events) document.removeEventListener(name, cancelRepeated, true) }
+  }, [])
   useEffect(() => { void store.load(location.language) }, [store, location.language])
   useEffect(() => () => store.invalidate(), [store])
   useEffect(() => { if (state.kind === 'authentication') expired() }, [state.kind, expired])
@@ -129,16 +139,14 @@ function AttemptScreen({ location, navigate, articleLink, articleLanguage, expir
       <p className="help-text">{text.confirmedCount} {pending.confirmed.size} {text.of} {pending.attempt.questions.length}</p>
       <div className="assessment-actions question-navigation">
         <Button variant="secondary" aria-label={text.previousLabel} disabled={pending.index === 0} onClick={() => { movedQuestion.current = true; store.move(pending.index - 1) }}>{text.previous}</Button>
-        <Button aria-describedby="answer-confirmation" onMouseDown={event => {
-          // The repeated press must not take native focus back from the new heading.
-          if (event.detail > 1 && answerAdvanced.current) event.preventDefault()
-        }} onClick={event => {
+        <Button aria-describedby="answer-confirmation" onClick={event => {
           if (event.detail > 1) {
             if (answerAdvanced.current) questionHeading.current?.focus()
             return
           }
           movedQuestion.current = true
           answerAdvanced.current = store.confirm(question.question_id)
+          answerPointer.current.afterAnswer(answerAdvanced.current, event.detail)
           if (!answerAdvanced.current) movedQuestion.current = false
         }}>{text.answer}</Button>
         <Button variant="secondary" aria-label={text.nextLabel} disabled={pending.index === pending.attempt.questions.length - 1} onClick={() => { movedQuestion.current = true; store.move(pending.index + 1) }}>{text.next}</Button>
