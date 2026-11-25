@@ -246,16 +246,18 @@ jobs:
         run: |
           export POSTGRES_PASSWORD="ci-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           echo "::add-mask::$POSTGRES_PASSWORD"
-          python -m pytest -c tests/e2e/pytest.ini tests/e2e/test_auth_ui.py::test_direct_routes_guest_restore_and_home --qil-browser "${{ matrix.browser }}" --setup-only -q --tb=no --show-capture=no --no-summary > "$RUNNER_TEMP/qil-e2e-startup.log" 2>&1
+          python tools/playwright_ci.py run "${{ matrix.browser }}" startup
       - name: Run Playwright tests
         run: |
           export POSTGRES_PASSWORD="ci-e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           echo "::add-mask::$POSTGRES_PASSWORD"
           python frontend/tools/check_password_policy.py
-          selection=()
-          if [ "${{ matrix.browser }}" != chromium ]; then
-            selection=(-m cross_browser)
-          fi
-          python -m pytest -c tests/e2e/pytest.ini tests/e2e --qil-browser "${{ matrix.browser }}" "${selection[@]}" -q --tb=no --show-capture=no --no-summary -o junit_logging=no -o junit_log_passing_tests=false --junitxml="$RUNNER_TEMP/qil-raw-junit.xml" > "$RUNNER_TEMP/qil-raw-test.log" 2>&1
+          python tools/playwright_ci.py run "${{ matrix.browser }}"
+      - name: Publish safe Playwright failure summary
+        if: ${{ failure() }}
+        run: python3 tools/playwright_ci.py report "${{ matrix.browser }}"
       - *safe-junit
       - *upload-junit
+      - name: Remove private Playwright temporary files
+        if: ${{ always() }}
+        run: python3 tools/playwright_ci.py cleanup

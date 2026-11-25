@@ -261,6 +261,8 @@ Formatter/upload выполняются после успеха или ошиб�
 
 Ошибка обязательного теста должна давать ненулевой exit code и неуспешный job. Публикация JUnit сама по себе не меняет статус job. Автоматические повторы не должны скрывать первоначальное падение; flaky-тест разбирается, а не отключается без объяснения.
 
+QIL-039 дополняет обезличенный JUnit [failure-only summary](CI_REPORTS.md#qil-039--безопасный-playwright-failure-summary): browser, существующий стабильный nodeid без параметров, allowlisted exception class, repo-relative tests file:line и failed/errors. Synthetic-тесты обязаны доказать отсутствие message/traceback/locals/URL/cookies/headers/CSRF/password/token/env/absolute paths, сохранение exit code, корректность timeout/multiple/setup/collection и ограниченного cleanup. Summary выводится через отдельный sanitizer в Step Summary/job log, не в artifact; при success шаг skipped. Общий JUnit policy/retention=7, fixtures и browser matrix сохраняются. Реальная browser failure допустима как доказательство работы диагностики, но итог самого CI остаётся FAIL.
+
 ## 9. Definition of Done задачи
 
 - Выполнены критерии приёмки конкретной задачи и относящиеся требования PRD.

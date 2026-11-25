@@ -281,6 +281,13 @@ QIL-033 фиксирует утверждённые 23 ноября 2026 год�
 - Приёмка: FR-05/FR-06, TFL-01–TFL-05; unit, PostgreSQL/HTTPX, real E2E на desktop/mobile в трёх движках, frozen submit/CSRF/ownership/reset и regression. Отдельное QuestionAttempt/autosave не добавляется.
 - Затрагиваемые области базовой версии: assessments initial-submit validation и tests, frontend assessment store/answers/UI/texts, фокус LanguageSelector и необходимые совместимые fixtures. Текущее уточнение меняет только frontend assessment, связанные unit/E2E/тестовый fixture и документацию; backend/API, scoring, Practice, progress/reset, LanguageSelector, миграции и зависимости сохранены.
 
+### QIL-039 — Безопасная диагностика Playwright failures
+
+- Статус: LOCAL_PASS; 25 synthetic-проверок, YAML/Bash/Markdown/diff/secret scan — PASS. CI нового SHA фиксируется после проверки публикации. [Формат, файлы и приёмка](CI_REPORTS.md#qil-039--безопасный-playwright-failure-summary). Зависимости: QIL-023/QIL-031/QIL-036 и фактические failures run 45438460755 для QIL-038.
+- Объём: приватный pytest recorder/runner, отдельный sanitizer, failure-only Step Summary/job message; стабильный nodeid без параметров, browser, exception class, tests source:line и counts. Raw stdout/XML и произвольные сообщения не публикуются; временные файлы удаляются после JUnit.
+- Инварианты: исходный failure/exit code, пять safe JUnit artifacts с retention=7, matrix/fail-fast=false и прежнее full/critical покрытие сохранены. Продукт/API, миграции, зависимости, .env и семь исходных untracked helpers не меняются. Существующий assertion failure не исправляется и не маскируется.
+- Приёмка: synthetic secret/URL/cookie/password/traceback injection, реальные вложенные ожидаемые failures, timeout/multiple/errors, cleanup/success/exit codes, YAML/Markdown/diff/secret scan; один commit/push и фактический итог всех шести executions. Если browser тест падает, необходимы FAIL и доступный безопасный summary; CI не называется PASS.
+
 ### QIL-036 — Устойчивый CI для WebKit
 
 - Статус: DONE; commit 97382e5, [run 45377421807](https://github.com/rkcz00/qa-interview-lab/actions/runs/45377421807), все шесть executions и Check Runs completed/success, пять безопасных JUnit artifacts. Локально: 251 frontend unit, 404 backend-теста + 22 подтеста, Chromium 127 / Firefox 42 / WebKit 42, startup/cleanup и статические проверки — PASS. Зависимости: QIL-031, QIL-035 и подтверждённая read-only диагностика run 45347762983. [Отчёт CI](CROSS_BROWSER_ACCEPTANCE.md#qil-036--раздельная-установка-и-бюджет-webkit).

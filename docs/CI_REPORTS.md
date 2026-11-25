@@ -38,7 +38,45 @@ QIL-036 сохраняет эти artifacts при раздельных Python/s
 
 Текущие fixtures не записывают trace/HAR/video/auth state. Необязательные локальные screenshots используют отдельные opt-in переменные, которые CI не задаёт. Эти файлы, браузерные HTML-отчёты и сырой вывод не публикуются ни при успехе, ни при сбое: универсальная проверенная очистка содержащихся в них cookies/запросов не реализована.
 
-Поэтому дополнительного media-upload с `if: failure()` сейчас нет. Безопасная диагностика при сбое — структурный JUnit. Если media-диагностика будет добавлена, для неё нужны отдельная очистка, точный список файлов и `if: failure()`; сырой trace запрещён текущей стратегией.
+Поэтому дополнительного media-upload с `if: failure()` сейчас нет. Безопасная диагностика при сбое — структурный JUnit и разрешённый QIL-039 summary ниже. Если media-диагностика будет добавлена, для неё нужны отдельная очистка, точный список файлов и `if: failure()`; сырой trace запрещён текущей стратегией.
+
+## QIL-039 — Безопасный Playwright failure summary
+
+Причина изменения: [run 45438460755](https://github.com/rkcz00/qa-interview-lab/actions/runs/45438460755), SHA `db272cc0688eceb96840c22ea7a2bb44d2e7cdeb`, завершился failure трёх browser executions. Raw job log WebKit подтвердил 53 cases и один failure, но исходная политика скрыла имя теста и исключение. Это не доказательство исправления продуктового дефекта; QIL-039 меняет только CI-диагностику.
+
+`tools/playwright_ci.py` сохраняет прежние pytest flags/selection и запускает pytest дочерним процессом с приватными stdout/stderr. Штатный `pytest_runtest_makereport` извлекает только тип исключения и repo-relative координаты, не вызывая форматирование сообщения/traceback. Startup и E2E пишут отдельные временные structured event logs. Отдельный sanitizer затем строит новый summary по allowlist, а не копирует raw log или JUnit failure text.
+
+Формат (synthetic-пример, не результат текущего CI):
+
+```text
+Browser: webkit
+Failed: 1; Errors: 0
+tests/e2e/test_probe.py::test_answer | AssertionError | tests/e2e/test_probe.py:3
+```
+
+Публичные поля ограничены:
+
+- browser из chromium/firefox/webkit;
+- стабильный nodeid существующей module-level test-функции из AST проверенного checkout; `[parameters]` всегда удаляются;
+- exception class из фиксированного списка; неизвестный класс заменяется на `Exception`;
+- существующий относительный `tests/.../*.py` и реальный номер строки; приоритет имеет frame самой test-функции;
+- counts failed/errors: call failures отдельно от setup/teardown/collection/internal errors. Одинаковые строки параметризованных cases группируются, counts сохраняются.
+
+Неизвестные test IDs, абсолютные/несуществующие пути, неверные номера строк и управляющий текст не отражаются. Sanitizer игнорирует message/traceback/locals/stdout/stderr/env и любые дополнительные поля. Structured input ограничен 1 MB/10 000 events; незавершённый, повреждённый, oversized или symlink input не публикуется. Если подробности недоступны, выводится фиксированный текст и диагностический `Errors: 1`, без выдуманного теста; это не утверждение, что тесты были запущены.
+
+`Publish safe Playwright failure summary` выполняется только с `if: failure()`. Он пишет разрешённую Markdown-таблицу в GitHub Step Summary и короткий job log. При успехе этот шаг skipped; новых diagnostic artifacts нет. Прежние пять обезличенных JUnit artifacts, их formatter/ready-gate и retention 7 дней не меняются. Trace/video/screenshots/HTML, raw logs/XML, cookies, headers, CSRF, passwords, tokens, URLs, environment values и абсолютные пути в новую диагностику не включаются.
+
+Дочерний exit code возвращается без преобразования в success, KeyboardInterrupt остаётся 130; `continue-on-error` и retries не добавлены. Chromium full, Firefox/WebKit critical, fail-fast=false и budgets 30/30/45 сохранены. После formatter/upload шаг `Remove private Playwright temporary files` с `always()` удаляет только пять фиксированных файлов текущего runner: startup/test stdout, raw JUnit и два event logs. Safe JUnit не удаляется. Symlinks/посторонние файлы не удаляются. При принудительной остановке runner выполнение cleanup не гарантируется; приватные файлы не публикуются.
+
+### Проверки QIL-039 и границы
+
+25 локальных synthetic unit/integration tests — PASS: failure, TimeoutError, несколько failures/phase errors, параметр с fake secret/URL/cookie/password, невалидные пути/строки/CLI, malformed/oversized/symlink events, безопасный fallback при внутреннем сбое reporter, неизменный exit code, success без summary, ограниченный cleanup и реальный вложенный pytest с двумя ожидаемыми failures. Вложенные ошибки ожидаемы только внутри зелёного unit-теста; намеренный failing push не создаётся.
+
+YAML/aliases, сохранение остальных jobs и JUnit policy, Bash/Python syntax, Markdown/links, diff/secret scan и точный staged-состав проверяются перед единственным commit/push. CI проверяется для нового SHA: при failure теста job остаётся FAIL, но summary должен присутствовать. Диагностический PASS не означает CI PASS. Продуктовый код/API, миграции, зависимости, .env и семь пользовательских helpers сохраняются.
+
+Изменяемые файлы: workflow, `tools/playwright_ci.py`, `tests/ci/test_safe_playwright.py`, README, CI_REPORTS, CROSS_BROWSER_ACCEPTANCE, QA_STRATEGY, BACKLOG. Новые зависимости не нужны: parser использует stdlib, recorder — уже locked pytest. Локальная команда из корня: `.venv\Scripts\python.exe -B -m unittest discover -s tests/ci -p "test_*.py"`. Новый полезный термин — allowlist: публикуется только заранее разрешённая структура, произвольный текст отбрасывается.
+
+После публикации пользователь может открыть Step Summary failed browser job и сопоставить Test/Exception/Source с исходником. Дополнительные продуктовые исправления не входят в QIL-039. Следующий отдельный шаг — разобрать конкретный failure QIL-038 по новой безопасной диагностике.
 
 ## Проверки и предел доказательств
 
