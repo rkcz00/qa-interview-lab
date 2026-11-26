@@ -11,13 +11,13 @@ def main():
     database, action, *ids = sys.argv[1:]
     if not re.fullmatch(r"test_qil006_[0-9a-f]{32}", database) or os.environ.get("POSTGRES_DB") != database:
         raise RuntimeError("Expected the owning disposable database")
-    if action not in {"create", "cleanup", "draft", "revise_draft", "long_article", "three_questions", "info"} or any(not value.isascii() or not value.isdigit() for value in ids):
+    if action not in {"create", "cleanup", "draft", "revise_draft", "long_article", "three_questions", "sections", "info"} or any(not value.isascii() or not value.isdigit() for value in ids):
         raise RuntimeError("Invalid fixture action")
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
     import django
     django.setup()
-    from django.db import connection, transaction
-    from apps.learning.models import Language, Term, TermTranslation, Topic, TopicStatus, TopicTranslation
+    from django.db import connection, models, transaction
+    from apps.learning.models import Language, Term, TermTranslation, Topic, TopicStatus, TopicTranslation, TopicSection, TopicSectionTranslation
     from apps.learning.changes import edit_topics
     from apps.learning.tests.test_content import create_bilingual_topic
     from apps.assessments.models import Attempt, AttemptStatus, Choice, ChoiceTranslation, Question, QuestionTranslation, TopicProgress
@@ -35,9 +35,11 @@ def main():
                     TopicTranslation.objects.filter(topic=topic, language=language).update(
                         title=("Основы тестирования" if index == 0 else "Автоматизация") if language == "ru" else
                               ("Testing foundations" if index == 0 else "Automation"),
-                        article_body=("Проверяйте требования и риски.\n\n" if language == "ru" else "Check requirements and risks.\n\n") +
-                                     '<script>window.qilInjected=true</script>\n<img src="missing" onerror="window.qilInjected=true">',
                     )
+                    translation = topic.sections.get().translations.get(language=language)
+                    translation.article_body = ("Проверяйте требования и риски.\n\n" if language == "ru" else "Check requirements and risks.\n\n") + '<script>window.qilInjected=true</script>\n<img src="missing" onerror="window.qilInjected=true">'
+                    translation.save(expected_revision=topic.revision)
+                    topic.refresh_from_db()
                 extra = Term.objects.create(topic=topic, position=10)
                 for language in Language.values:
                     TermTranslation.objects.create(term=extra, language=language,
@@ -83,6 +85,30 @@ def main():
                         for language in Language.values:
                             ChoiceTranslation.objects.create(choice=choice, language=language, text=language + " choice " + str(position))
             result = {"three_questions": "PASS"}
+        elif action == "sections":
+            topics = list(Topic.objects.filter(pk__in=ids))
+            if not ids or len(topics) != len(set(ids)) or any(topic.sections.count() != 1 for topic in topics):
+                raise RuntimeError("Sections require owned single-section topics")
+            with edit_topics({topic.pk: topic.revision for topic in topics}, using="default") as locked:
+                for topic in locked.values():
+                    first = topic.sections.get()
+                    second = TopicSection(topic=topic, position=20, status="published")
+                    models.Model.save(second)
+                    draft = TopicSection(topic=topic, position=30)
+                    models.Model.save(draft)
+                    for index, section in enumerate((first, second), 1):
+                        for language in Language.values:
+                            title = ("Раздел " if language == "ru" else "Section ") + str(index)
+                            paragraph = "Исследуйте требования и риски. Проверяйте границы и фиксируйте наблюдения." if language == "ru" else "Explore requirements and risks. Check boundaries and record observations."
+                            body = "\n\n".join([paragraph] * 20)
+                            if section.pk == first.pk:
+                                translation = section.translations.get(language=language)
+                                translation.title, translation.article_body = title, body
+                            else:
+                                translation = TopicSectionTranslation(section=section, language=language, title=title, article_body=body)
+                            models.Model.save(translation)
+                    models.Model.save(TopicSectionTranslation(section=draft, language="ru", title="Hidden draft section", article_body="Never public"))
+            result = {"sections": [str(first.pk), str(second.pk)], "draft_section": str(draft.pk)}
         elif action == "long_article":
             topics = list(Topic.objects.filter(pk__in=ids))
             if not ids or len(topics) != len(set(ids)):
@@ -97,7 +123,9 @@ def main():
                                      "while a boundary value tests the transition between valid and invalid data. "
                                      "Record observations and compare actual behavior with the expected result.")
                         body = "\n\n".join([paragraph] * 12) + "\n\nhttps://example.invalid/" + "long-example-" * 24
-                        TopicTranslation.objects.filter(topic=topic, language=language).update(article_body=body)
+                        translation = topic.sections.get().translations.get(language=language)
+                        translation.article_body = body
+                        models.Model.save(translation, update_fields=("article_body",))
             result = {"long_article": "PASS"}
         elif action == "revise_draft":
             topics = list(Topic.objects.filter(pk__in=ids))
@@ -107,7 +135,10 @@ def main():
                 for topic in locked.values():
                     for language in Language.values:
                         revised = "Изменено после начала попытки" if language == "ru" else "Revised after the attempt started"
-                        TopicTranslation.objects.filter(topic=topic, language=language).update(title=revised, article_body=revised)
+                        TopicTranslation.objects.filter(topic=topic, language=language).update(title=revised)
+                        translation = topic.sections.get().translations.get(language=language)
+                        translation.title = translation.article_body = revised
+                        models.Model.save(translation, update_fields=("title", "article_body"))
                         QuestionTranslation.objects.filter(question__topic=topic, language=language).update(text=revised)
                         ChoiceTranslation.objects.filter(choice__question__topic=topic, language=language).update(text=revised)
             result = {"revised": "PASS"}

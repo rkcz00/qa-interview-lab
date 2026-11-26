@@ -8,7 +8,7 @@ import { resolveRoute } from '../src/auth/routing.ts'
 import { LearningStore, learningFailure } from '../src/learning/model.ts'
 import { authDestination, learningDestination, learningLocation } from '../src/learning/routing.ts'
 
-const article = { topic_id: '12', title: 'Тестирование', article_body: '<script>untrusted()</script>', language: 'ru' as const }
+const article = { topic_id: '12', title: 'Тестирование', sections: [{ section_id: '101', position: 10, title: 'Раздел', article_body: '<script>untrusted()</script>' }], language: 'ru' as const }
 const terms = [
   { term_id: '2', position: 10, language: 'ru' as const, name: 'Первый', definition: 'Определение' },
   { term_id: '10', position: 10, language: 'ru' as const, name: 'Второй', definition: 'Определение' },
@@ -20,7 +20,7 @@ function mockApi() {
   const api: LearningApi = {
     learning: {
       catalog: async language => { calls.push('catalog:' + language); return [{ topic_id: '2', title: 'Второй' }, { topic_id: '10', title: 'Десятый' }] },
-      article: async (id, language) => { calls.push(`article:${id}:${language}`); return article },
+      sections: async (id, language) => { calls.push(`article:${id}:${language}`); return article },
       terms: async (id, language) => { calls.push(`terms:${id}:${language}`); return terms },
     },
     progress: {
@@ -82,7 +82,7 @@ test('empty catalog is a successful state', async () => {
 test('one Learning store switches translations, ignores old responses and preserves the shared read mark', async () => {
   const { api, calls } = mockApi()
   let finishOld!: (value: typeof article) => void
-  api.learning.article = async (_id, language) => language === 'ru'
+  api.learning.sections = async (_id, language) => language === 'ru'
     ? new Promise(resolve => { finishOld = resolve }) : { ...article, language: 'en' }
   api.learning.terms = async (_id, language = 'ru') => terms.map(term => ({ ...term, language }))
   api.progress.current = async () => [progress]
@@ -106,7 +106,7 @@ test('one Learning store switches translations, ignores old responses and preser
 for (const [status, code, kind] of [[404, 'not_found', 'not_found'], [403, 'authentication_required', 'authentication'], [0, 'network_error', 'error'], [500, 'internal_error', 'error']] as const) {
   test(`content error ${code} clears public data and uses a safe state`, async () => {
     const { api } = mockApi()
-    api.learning.article = async () => { throw failure(status, code) }
+    api.learning.sections = async () => { throw failure(status, code) }
     const store = new LearningStore(api, { topicId: '12', language: 'ru' })
     await store.load()
     await tick()
@@ -153,7 +153,7 @@ test('only explicit mark writes; double click and an existing mark do not write 
 test('language changes and concurrent read triggers share one pending POST and its first date', async () => {
   const { api, calls } = mockApi()
   let complete!: (value: Progress) => void
-  api.learning.article = async (_id, language = 'ru') => ({ ...article, language })
+  api.learning.sections = async (_id, language = 'ru') => ({ ...article, language })
   api.learning.terms = async (_id, language = 'ru') => terms.map(term => ({ ...term, language }))
   api.progress.markRead = async id => {
     calls.push('read:' + id)
@@ -182,7 +182,7 @@ test('language changes and concurrent read triggers share one pending POST and i
 test('failed read across a language change requires an explicit check before retrying', async () => {
   const { api, calls } = mockApi()
   let reject!: (reason: unknown) => void
-  api.learning.article = async (_id, language = 'ru') => ({ ...article, language })
+  api.learning.sections = async (_id, language = 'ru') => ({ ...article, language })
   api.learning.terms = async (_id, language = 'ru') => terms.map(term => ({ ...term, language }))
   api.progress.markRead = async id => {
     calls.push('read:' + id)
@@ -214,7 +214,7 @@ for (const initialLanguage of ['ru', 'en'] as const) {
         const { api, calls } = mockApi()
         let rejectTranslation = false
         let complete!: (value: Progress) => void
-        api.learning.article = async (_id, language = 'ru') => {
+        api.learning.sections = async (_id, language = 'ru') => {
           if (rejectTranslation && loadOutcome === 'article_network_error') throw failure(0, 'network_error')
           return { ...article, language }
         }
@@ -263,7 +263,7 @@ for (const initialLanguage of ['ru', 'en'] as const) {
     const { api, calls } = mockApi()
     let rejectTranslation = false
     let reject!: (reason: unknown) => void
-    api.learning.article = async (_id, language = 'ru') => {
+    api.learning.sections = async (_id, language = 'ru') => {
       if (rejectTranslation) throw failure(0, 'network_error')
       return { ...article, language }
     }
@@ -302,7 +302,7 @@ test('a lost session during translation loading still invalidates a late read re
   const store = new LearningStore(api, { topicId: '12', language: 'ru' })
   await store.load()
   const writing = store.markRead()
-  api.learning.article = async () => { throw failure(403, 'authentication_required') }
+  api.learning.sections = async () => { throw failure(403, 'authentication_required') }
   await store.load({ topicId: '12', language: 'en' })
   const expired = store.getSnapshot()
   assert.equal(expired.content.kind, 'authentication')
@@ -315,7 +315,7 @@ test('a lost session during translation loading still invalidates a late read re
 test('a shared read mark survives loading the other material language', async () => {
   const { api } = mockApi()
   api.progress.current = async () => [progress]
-  api.learning.article = async () => ({ ...article, language: 'en' })
+  api.learning.sections = async () => ({ ...article, language: 'en' })
   api.learning.terms = async () => terms.map(term => ({ ...term, language: 'en' }))
   const store = new LearningStore(api, { topicId: '12', language: 'en' })
   await store.load()
@@ -348,7 +348,7 @@ test('a topic becoming unavailable on read POST clears its content', async () =>
 test('late content and progress cannot overwrite a lost session', async () => {
   const { api } = mockApi()
   let articleReady!: (value: typeof article) => void
-  api.learning.article = () => new Promise(resolve => { articleReady = resolve })
+  api.learning.sections = () => new Promise(resolve => { articleReady = resolve })
   api.progress.current = async () => { throw failure(403, 'authentication_required') }
   const store = new LearningStore(api, { topicId: '12', language: 'ru' })
   const loading = store.load()
@@ -361,7 +361,7 @@ test('late content and progress cannot overwrite a lost session', async () => {
 test('unmount invalidates pending reads without publishing old content', async () => {
   const { api } = mockApi()
   let finish!: (value: typeof article) => void
-  api.learning.article = () => new Promise(resolve => { finish = resolve })
+  api.learning.sections = () => new Promise(resolve => { finish = resolve })
   const store = new LearningStore(api, { topicId: '12', language: 'ru' })
   const loading = store.load()
   store.invalidate()
@@ -372,7 +372,7 @@ test('unmount invalidates pending reads without publishing old content', async (
 
 test('a response for a different topic or language is never rendered', async () => {
   const { api } = mockApi()
-  api.learning.article = async () => ({ ...article, topic_id: 'other' })
+  api.learning.sections = async () => ({ ...article, topic_id: 'other' })
   const store = new LearningStore(api, { topicId: '12', language: 'ru' })
   await store.load()
   assert.equal(store.getSnapshot().content.kind, 'error')

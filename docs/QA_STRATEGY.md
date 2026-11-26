@@ -4,7 +4,7 @@
 
 Основание: [PRD](PRD.md), [архитектура](ARCHITECTURE.md), [backlog](BACKLOG.md), [Practice: требования и QA-план](PRACTICE_SPEC.md).
 
-QIL-033 задаёт приёмку [progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend QIL-034 проверяет completion/reset/generation; QIL-035 — [Progress/reset UI](COMPLETION_UI.md). Текущий QIL-038 проверяет TFL-01–TFL-05 (Answer/Finish/strict submit); [результаты](ANSWER_FINISH.md). TFL-06/login и SEC остаются NOT_RUN / NOT_IMPLEMENTED. Старый CI не доказывает новое поведение.
+QIL-033 задаёт приёмку [progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend QIL-034 проверяет completion/reset/generation; QIL-035 — [Progress/reset UI](COMPLETION_UI.md). Текущий QIL-038 проверяет TFL-01–TFL-05 (Answer/Finish/strict submit); [результаты](ANSWER_FINISH.md). QIL-041 покрывает SEC; TFL-06/login остаётся NOT_RUN / NOT_IMPLEMENTED. Старый CI не доказывает новое поведение.
 
 ## 1. Цели и приоритеты
 
@@ -54,7 +54,7 @@ QIL-033 задаёт приёмку [progress/reset/test flow](PROGRESS_SPEC.md)
 | QA-12 | FR-09, FR-13 | Content Admin переводит Published в Draft и меняет контент: новые попытки, статья/словарь дают 404; история, прогресс и освоение от перехода не меняются. Начатая попытка завершается по исходному snapshot; наружу выдаются только агрегаты. История доступна после нового входа | Integration, API, E2E |
 | QA-13 | FR-10 | ru/ru, ru/en, en/ru, en/en; смена языка сохраняет topic_id/question_id/choice_id, текущие ответы и прогресс; переключение не создаёт новую попытку | API, E2E |
 | QA-14 | FR-11 | Пропущенный или пустой перевод, ноль вопросов или терминов и неверные ключи блокируют публикацию. Неполная правка Published даёт `400 incomplete_content` с откатом. Два POST из одной ревизии дают одну запись и `409 edit_conflict` для второго запроса | Integration, Admin HTTP |
-| QA-15 | FR-12 | Content Admin: 8 базовых + 3 Practice, после QIL-036 ещё 2 sections =13. Не superuser; нет доступа к User, Attempt, TopicProgress, PracticeSubmission, UserProgressState/permissions по прямым URL. Массовая публикация сохраняет проверки; тема с историей защищена | Integration, ручная |
+| QA-15 | FR-12 | Content Admin: 8 базовых + 3 Practice, после QIL-041 ещё 2 sections =13. Не superuser; нет доступа к User, Attempt, TopicProgress, PracticeSubmission, UserProgressState/permissions по прямым URL. Массовая публикация сохраняет проверки; тема с историей защищена | Integration, ручная |
 | QA-16 | FR-13 | B запрашивает список и ID попытки A, отправляет её ответы или повторяет её submit; чужих данных нет, состояние A неизменно. То же проверяется для staff, Content Admin и superuser в Learner API; ownership не обходится | API |
 | QA-17 | NFR-01 | Session ID отсутствует в JSON; штатные Set-Cookie/CSRF bootstrap разрешены. Пароли, хеши, session/CSRF-секреты не попадают в логи и артефакты. Текст с HTML/JavaScript не исполняется; настройки HTTPS/cookie/debug проверены перед публичным запуском | API, E2E, конфигурация |
 | QA-18 | NFR-02 | Чистая тестовая PostgreSQL и повторный запуск; jobs backend_api, frontend_unit, frontend_check_build, playwright_e2e присутствуют и обязательны для MVP. Провал или пропуск обязательной проверки не считается успешной приёмкой; безопасные отчёты доступны | Integration, CI |
@@ -190,7 +190,7 @@ Browser выбирается собственным Pytest option `--qil-browser
 
 ### 4.15. Многочастная статья — QIL-033
 
-Контракт [TOPIC_SECTIONS_SPEC](TOPIC_SECTIONS_SPEC.md); новые сценарии отложенных sections и QIL-037 пока NOT_RUN. Прежний план sections использовал номер QIL-036; текущий явный QIL-036 относится только к устойчивости CI.
+Контракт [TOPIC_SECTIONS_SPEC](TOPIC_SECTIONS_SPEC.md); QIL-041 реализует SEC-01–SEC-08. Миграция проверяется на исторических PostgreSQL-моделях, API/Admin — через реальный HTTPX/TCP, reader — Playwright desktop/mobile во всех трёх движках. Новая сквозная приёмка QIL-037 остаётся отдельной задачей. Итоги QIL-041 фиксируются в [отчёте](TOPIC_SECTIONS_SPEC.md#7-реализация-и-проверки-qil-041).
 
 | ID | Проверка | Уровень |
 | --- | --- | --- |

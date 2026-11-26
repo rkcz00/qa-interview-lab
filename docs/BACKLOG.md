@@ -2,7 +2,7 @@
 
 Статус: план реализации MVP после QIL-001. Новые задачи не запускаются автоматически. Приоритет — небольшой проверяемый результат в каждой задаче.
 
-QIL-033 фиксирует утверждённые 23 ноября 2026 года [правила progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend QIL-034 и Progress/reset UI QIL-035 реализованы; ручная приёмка QIL-035 подтверждена пользователем 24 ноября. QIL-036 стабилизирует CI. Пользователь назначил текущему Answer/Finish номер QIL-038 и уточнил скрытый Finish до всех подтверждений. Прежний план sections (ранее QIL-036) и TFL-06/login остаются отложенными; QIL-037 — TODO. Исторические статусы не переписываются как доказательство нового поведения.
+QIL-033 фиксирует утверждённые 23 ноября 2026 года [правила progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend QIL-034 и Progress/reset UI QIL-035 реализованы; ручная приёмка QIL-035 подтверждена пользователем 24 ноября. QIL-036 стабилизирует CI. Пользователь назначил текущему Answer/Finish номер QIL-038 и уточнил скрытый Finish до всех подтверждений. Пользователь назначил sections свободный QIL-041. TFL-06/login остаётся отложенным; QIL-037 — TODO. Исторические статусы не переписываются как доказательство нового поведения.
 
 Основание: [PRD](PRD.md), [архитектура](ARCHITECTURE.md), [QA-стратегия](QA_STRATEGY.md), [правила Codex](../AGENTS.md).
 
@@ -302,9 +302,9 @@ QIL-033 фиксирует утверждённые 23 ноября 2026 год�
 - Инварианты: реальный TCP и временная PostgreSQL, прежнее полное/критическое покрытие, прежние пять безопасных JUnit artifacts; приложение, API, миграции, fixtures и dependencies не меняются. Startup setup-only не заменяет E2E.
 - Приёмка: YAML/matrix/Bash/Markdown/diff/secret scan, unit/backend/type-check/build, startup и доступная browser matrix, cleanup; после одного commit/push все шесть CI executions completed/success, WebKit с реально выполненными E2E/JUnit.
 
-### Отложенные sections — Разделы Topic и единый reader
+### QIL-041 — Разделы Topic и единый reader
 
-- Статус: TODO / NOT_IMPLEMENTED. Ранее планировалось как QIL-036; пользователь назначил этот номер CI-задаче. Новый номер sections требует отдельного решения. Зависимости: QIL-033/QIL-034, существующие QIL-010–QIL-012/QIL-027. QIL-038 не является технической зависимостью; циклов нет.
+- Статус: LOCAL_PASS. Номер QIL-041 назначен пользователем после QIL-040; QIL-036 остаётся CI-задачей. Модели/API/reader и безопасная миграция реализованы: две локальные прежние темы перенесены в два раздела/четыре перевода, хеши 21 прежней таблицы сохранены. Backend 488 + 46 подтестов и sections HTTPX 17, frontend 278 unit/type-check/build, три browser suites по 148 PASS с одним устаревшим ожиданием URL; после его исправления по 10 релевантных E2E PASS. Первоначальные падения не скрываются, точные новые CI/SHA подтверждаются отдельно после публикации. Зависимости: QIL-033/QIL-034, существующие QIL-010–QIL-012/QIL-027. [Фактические проверки](TOPIC_SECTIONS_SPEC.md#7-реализация-и-проверки-qil-041).
 - Объём: TopicSection/Translation, additive/data migration старого тела в один раздел, транзакционная публикация/порядок/revision, Content Admin 13 моделей, sections GET и сборка legacy Article, typed reader/оглавление/якоря/end-marker.
 - Инварианты: полный Published RU/EN, Draft скрыт, прежний один раздел выдаётся дословно, старые ID/Read-даты/snapshots/mastery сохранены. Новые редакции Read не сбрасывают. Отдельные SectionRead/страницы, тесты по разделам, новый контент/демо-loader не добавляются.
 - Приёмка: FR-03/FR-07/FR-11/FR-12/FR-16, SEC-01–SEC-08; migration/constraints/Admin concurrency, HTTPX/legacy compatibility, real Playwright, три движка и regression.
@@ -312,7 +312,7 @@ QIL-033 фиксирует утверждённые 23 ноября 2026 год�
 
 ### QIL-037 — Сквозная приёмка нового учебного сценария
 
-- Статус: TODO / NOT_IMPLEMENTED. Зависимости: QIL-034, текущий UI QIL-035, отложенные sections, QIL-038 и существующий QIL-031. DAG: 033 →034; 034 →035/sections/038; 034/035/sections/038 →037. Текущий CI QIL-036 не реализует sections.
+- Статус: TODO / NOT_IMPLEMENTED. Зависимости: QIL-034, текущий UI QIL-035, QIL-041 sections, QIL-038 и существующий QIL-031. DAG: 033 →034; 034 →035/041/038; 034/035/041/038 →037. QIL-036 относится к CI, sections реализует QIL-041.
 - Объём: объединить PGR/TFL/SEC с существующими Auth/Learning/Practice сценариями; проверить целый путь sections→Read→полный test→Practice→completion→подтверждённый reset, две вкладки, ownership и исторические snapshot. Новых продуктовых функций нет.
 - Приёмка: полный backend/HTTPX, frontend unit/type-check/build, full Chromium + Firefox/WebKit critical, временная PostgreSQL/cleanup и фактические шесть CI executions после отдельно разрешённой публикации. Secret-safe artifacts сохраняются.
 
@@ -338,14 +338,14 @@ QIL-033 фиксирует утверждённые 23 ноября 2026 год�
 | FR-12 | QIL-011, QIL-014, QIL-015 |
 | FR-13 | QIL-008, QIL-012, QIL-014, QIL-015, QIL-021 |
 | Уточнения FR-02/FR-05/FR-06 QIL-033 | QIL-038 (FR-05/06), отложенный TFL-06 (FR-02), QIL-037 |
-| Уточнения FR-03/FR-07/FR-11/FR-12 QIL-033 | QIL-034, QIL-036, QIL-037 |
+| Уточнения FR-03/FR-07/FR-11/FR-12 QIL-033 | QIL-034, QIL-041, QIL-037 |
 | FR-14 | QIL-034, QIL-035, QIL-037 |
 | FR-15 | QIL-034, QIL-035, QIL-037 |
-| FR-16 | QIL-036, QIL-037 |
+| FR-16 | QIL-041, QIL-037 |
 | NFR-01 | QIL-003, QIL-007, QIL-008, QIL-014, QIL-019, QIL-022 |
 | NFR-02 | QIL-002, QIL-004, QIL-005, QIL-006, QIL-009, QIL-017, QIL-023 |
 | NFR-03 | QIL-016, QIL-018, QIL-019, QIL-020, QIL-022 |
 
 Тесты соответствующих требований предусмотрены в QA-стратегии; QIL-022 и QIL-024 проверяют сквозную готовность, а не откладывают тестирование отдельных функций до конца проекта.
 
-После QIL-038 рекомендуемая отдельная задача — согласовать реализацию отложенных sections и её свободный ID. TFL-06/login остаётся отдельной небольшой правкой. Никакая следующая задача не начинается автоматически.
+После QIL-041 рекомендуемая отдельная задача — QIL-037, сквозная приёмка sections → test → Practice → completion → reset. TFL-06/login остаётся отдельной небольшой правкой. Никакая следующая задача не начинается автоматически.

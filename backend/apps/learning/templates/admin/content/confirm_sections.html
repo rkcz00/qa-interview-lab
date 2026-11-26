@@ -1,0 +1,15 @@
+{% extends "admin/base_site.html" %}
+{% block content %}
+<p>Статус разделов: {{ target_status }}. Проверяется полнота всего дерева каждой темы.</p>
+<form method="post">{% csrf_token %}
+  <input type="hidden" name="action" value="{{ action }}">
+  <input type="hidden" name="confirm" value="yes">
+  {% for section in sections %}
+    <input type="hidden" name="{{ checkbox_name }}" value="{{ section.pk }}">
+  {% endfor %}
+  {% for topic_id, revision in revisions %}
+    <input type="hidden" name="expected_revision" value="{{ topic_id }}:{{ revision }}">
+  {% endfor %}
+  <input type="submit" value="Подтвердить">
+</form>
+{% endblock %}

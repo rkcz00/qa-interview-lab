@@ -16,7 +16,7 @@ from tests.e2e.test_mvp_acceptance import public_attempt
 from tests.e2e.test_progress_ui import overall
 
 
-CONTENT = {"topic": "learning", "topictranslation": "learning", "term": "learning", "termtranslation": "learning",
+CONTENT = {"topic": "learning", "topictranslation": "learning", "topicsection": "learning", "topicsectiontranslation": "learning", "term": "learning", "termtranslation": "learning",
     "question": "assessments", "questiontranslation": "assessments", "choice": "assessments", "choicetranslation": "assessments"}
 DEMO = Path(__file__).resolve().parents[1] / "fixtures/qa_interview_demo.json"
 
@@ -99,7 +99,8 @@ def test_content_admin_demo_publication_and_learner_snapshot(auth_app, auth_brow
     data = json.loads(DEMO.read_text(encoding="utf-8"))
     for model in CONTENT:
         expect(admin.locator('#content-main a[href="' + admin_path(model) + '"]').first).to_be_visible()
-    forbidden = {"accounts/user": 403, "auth/group": 403, "assessments/attempt": 404, "assessments/topicprogress": 404}
+    forbidden = {"accounts/user": 403, "auth/group": 403, "assessments/attempt": 404, "assessments/topicprogress": 404,
+                 "assessments/userprogressstate": 404, "practice/practicesubmission": 404}
     for model, status in forbidden.items():
         path = "/admin/" + model + "/"
         expect(admin.locator('a[href="' + path + '"]')).to_have_count(0)
@@ -134,7 +135,19 @@ def test_content_admin_demo_publication_and_learner_snapshot(auth_app, auth_brow
 
         articles = {}
         for language, fields in data["translations"].items():
-            articles[language] = add("topictranslation", parent_field="topic", parent_id=topic_id, fields={"language": language, **fields})
+            add("topictranslation", parent_field="topic", parent_id=topic_id, fields={"language": language, "title": fields["title"]})
+        section_id = add("topicsection", parent_field="topic", parent_id=topic_id, fields={"position": 10})
+        for language, fields in data["translations"].items():
+            articles[language] = add("topicsectiontranslation", parent_field="section", parent_id=section_id, fields={"language": language, **fields})
+        admin.goto(admin_path("topicsection"))
+        admin.locator('input[name="_selected_action"][value="' + section_id + '"]').check()
+        admin.locator('select[name="action"]').first.select_option("publish_selected")
+        admin.locator('button[name="index"]').first.click()
+        check(admin.locator('input[name="expected_revision"]').input_value() == topic_id + ":" + str(revision), "Section publication must check the root revision")
+        with admin.expect_response(lambda response: urlsplit(response.url).path == admin_path("topicsection") and response.request.method == "POST") as published_section:
+            admin.locator('input[type="submit"][value="Подтвердить"]').click()
+        check(published_section.value.status == 302, "Complete section must publish atomically")
+        revision += 1
         for term in data["terms"]:
             term_id = add("term", parent_field="topic", parent_id=topic_id, fields={"position": term["position"]})
             for language, fields in term["translations"].items():
@@ -161,7 +174,7 @@ def test_content_admin_demo_publication_and_learner_snapshot(auth_app, auth_brow
         check(auth_app.content_admin_data("inspect", topic_id=topic_id) == before, "Rejected publication must roll back revision, content and audit log")
         add("choicetranslation", parent_field="choice", parent_id=extra_choice, fields=missing)
         before = auth_app.content_admin_data("inspect", topic_id=topic_id)
-        check(before["model_counts"] == [1, 2, 3, 6, 2, 4, 8, 16], "Demo must contain the complete eight-model bilingual tree")
+        check(before["model_counts"] == [1, 2, 3, 6, 2, 4, 8, 16, 1, 2], "Demo must contain the complete bilingual tree including sections")
         change_status(admin, topic_id, revision)
         revision += 1
         published = auth_app.content_admin_data("inspect", topic_id=topic_id)
@@ -197,7 +210,7 @@ def test_content_admin_demo_publication_and_learner_snapshot(auth_app, auth_brow
         history = learner.context.request.get("/api/v1/attempts/").json()
 
         # Two real Admin forms preserve the first successful Published edit.
-        edit_path = admin_path("topictranslation", articles["en"], "change")
+        edit_path = admin_path("topicsectiontranslation", articles["en"], "change")
         admin.goto(edit_path)
         second = admin.context.new_page()
         try:

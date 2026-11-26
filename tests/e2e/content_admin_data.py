@@ -22,7 +22,7 @@ def main():
     from django.db import connection, transaction
     from apps.accounts.models import User
     from apps.assessments.models import Attempt, Choice, ChoiceTranslation, Question, QuestionTranslation, TopicProgress
-    from apps.learning.models import Term, TermTranslation, Topic, TopicTranslation
+    from apps.learning.models import Term, TermTranslation, Topic, TopicTranslation, TopicSection, TopicSectionTranslation
     from apps.practice.models import TopicPractice, PracticeTask, PracticeTaskTranslation
 
     payload = json.load(sys.stdin)
@@ -31,7 +31,7 @@ def main():
         if cursor.fetchone()[0] != database:
             raise RuntimeError("Wrong fixture database")
     content = (Topic, TopicTranslation, Term, TermTranslation, Question, QuestionTranslation, Choice, ChoiceTranslation,
-        TopicPractice, PracticeTask, PracticeTaskTranslation)
+        TopicPractice, PracticeTask, PracticeTaskTranslation, TopicSection, TopicSectionTranslation)
     if action == "editor":
         if set(payload) != {"password"} or not isinstance(payload["password"], str) or not payload["password"]:
             raise RuntimeError("Invalid private setup")
@@ -58,7 +58,8 @@ def main():
                 "model_counts": [Topic.objects.filter(pk=topic.pk).count(), topic.translations.count(),
                     topic.terms.count(), TermTranslation.objects.filter(term__topic=topic).count(), topic.questions.count(),
                     QuestionTranslation.objects.filter(question__topic=topic).count(), Choice.objects.filter(question__topic=topic).count(),
-                    ChoiceTranslation.objects.filter(choice__question__topic=topic).count()]}
+                    ChoiceTranslation.objects.filter(choice__question__topic=topic).count(), topic.sections.count(),
+                    TopicSectionTranslation.objects.filter(section__topic=topic).count()]}
     connection.close()
     print(json.dumps(result))
 

@@ -16,7 +16,7 @@ def main():
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
     import django
     django.setup()
-    from django.db import connection, transaction
+    from django.db import connection, models, transaction
     from apps.learning.models import Topic, TopicStatus, TopicTranslation
     from apps.learning.changes import edit_topics
     from apps.learning.tests.test_content import create_bilingual_topic
@@ -39,8 +39,10 @@ def main():
                     for language in ("ru", "en"):
                         TopicTranslation.objects.filter(topic=topic, language=language).update(
                             title=("Python: практика " if language == "ru" else "Python: practice ") + str(index + 1),
-                            article_body="Изучите выражение и определите его вывод." if language == "ru" else "Study the expression and determine its output.",
                         )
+                        translation = topic.sections.get().translations.get(language=language)
+                        translation.article_body = "Изучите выражение и определите его вывод." if language == "ru" else "Study the expression and determine its output."
+                        models.Model.save(translation, update_fields=("article_body",))
                 topic.refresh_from_db()
                 if index != 1:
                     task = create_practice(topic, publish=index == 0, expected_answer="2")

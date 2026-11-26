@@ -166,12 +166,16 @@ def test_saved_progress_survives_edits_draft_and_old_snapshot_submission(learner
     before = data(client.get(PROGRESS_URL))
     assert before[0]["mastered"] is False
     with edit_topics({topic.pk: topic.revision}, using="default"):
-        topic.translations.update(article_body="Edited published article")
+        for translation in topic.sections.get().translations.all():
+            translation.article_body = "Edited published article"
+            translation.save_base(update_fields=("article_body",))
     assert data(client.get(PROGRESS_URL)) == before
     topic.refresh_from_db()
     with edit_topics({topic.pk: topic.revision}, using="default") as topics:
         topics[topic.pk].status = TopicStatus.DRAFT
-        topic.translations.update(article_body="Private Draft article")
+        for translation in topic.sections.get().translations.all():
+            translation.article_body = "Private Draft article"
+            translation.save_base(update_fields=("article_body",))
         topic.questions.all().delete()
     assert data(client.get(PROGRESS_URL)) == before
     for url in (article_url(topic.pk), terms_url(topic.pk)):

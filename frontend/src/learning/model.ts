@@ -1,6 +1,6 @@
 import { ApiError } from '../api/client.ts'
 import type { ApiClient } from '../api/client.ts'
-import type { Article, Term, TopicSummary } from '../api/types.ts'
+import type { SectionsArticle, Term, TopicSummary } from '../api/types.ts'
 import type { LearningLocation } from './routing.ts'
 import { learningRu as text } from './texts.ts'
 
@@ -15,12 +15,12 @@ export function learningFailure(error: unknown): Failure {
 }
 
 type Content = { kind: 'loading' } | { kind: 'catalog'; topics: TopicSummary[] } |
-  { kind: 'topic'; article: Article; terms: Term[] } | { kind: 'not_found' } |
+  { kind: 'topic'; article: SectionsArticle; terms: Term[] } | { kind: 'not_found' } |
   { kind: 'authentication' } | { kind: 'error'; message: string }
 type Read = { kind: 'loading' } | { kind: 'ready'; at: string | null; pending: boolean } |
   { kind: 'error'; message: string }
 export interface LearningState { content: Content; read: Read }
-export type LearningApi = { learning: ApiClient['learning']; progress: Pick<ApiClient['progress'], 'current' | 'markRead'> }
+export type LearningApi = { learning: Pick<ApiClient['learning'], 'catalog' | 'sections' | 'terms'>; progress: Pick<ApiClient['progress'], 'current' | 'markRead'> }
 
 export class LearningStore {
   #state: LearningState = { content: { kind: 'loading' }, read: { kind: 'loading' } }
@@ -69,7 +69,7 @@ export class LearningStore {
       } else {
         if (!keepRead) void this.#loadRead()
         const [article, terms] = await Promise.all([
-          this.#api.learning.article(topicId, language), this.#api.learning.terms(topicId, language),
+          this.#api.learning.sections(topicId, language), this.#api.learning.terms(topicId, language),
         ])
         if (generation !== this.#generation) return
         if (article.topic_id !== topicId || article.language !== language || terms.some(term => term.language !== language)) {

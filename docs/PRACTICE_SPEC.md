@@ -1,6 +1,6 @@
 # Объективная практика — QIL-028
 
-Уточнение QIL-033 от 23 ноября 2026 года: утверждены [completion_progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend QIL-034 реализует generation/reset и участие Practice в отдельном completion_progress; текущий QIL-035 добавляет [Progress/reset UI](COMPLETION_UI.md) без изменения checker/API. Answer/Finish остаётся отложенным TFL-scope, QIL-036 ещё NOT_IMPLEMENTED и расширит контентную роль до 13 моделей. Immutable snapshot, отдельная PracticeSubmission и независимость от mastery сохраняются. [Границы серверного этапа](COMPLETION_BACKEND.md).
+Уточнение QIL-033 от 23 ноября 2026 года: утверждены [completion_progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend QIL-034 реализует generation/reset и участие Practice в отдельном completion_progress; текущий QIL-035 добавляет [Progress/reset UI](COMPLETION_UI.md) без изменения checker/API. Answer/Finish реализован отдельно; QIL-041 добавляет sections и расширяет контентную роль до 13 моделей без изменения Practice API/checker. Immutable snapshot, отдельная PracticeSubmission и независимость от mastery сохраняются. [Границы серверного этапа](COMPLETION_BACKEND.md).
 
 Статус: требования и API согласованы пользователем 19 ноября 2026 года в QIL-028. Backend принят в QIL-029; Practice UI реализован в QIL-030, полный ручной PostgreSQL/Playwright-прогон — PASS. [Backend](PRACTICE_BACKEND.md), [UI и runner](PRACTICE_UI.md). На исходном commit `60a01aa` моделей и endpoints Practice нет. Успешный CI документации не является приёмкой функциональности.
 
@@ -23,7 +23,7 @@
 | PRA-07 | Атомарный submit: идентичный нормализованный payload → 200, изменённый завершённый → 409 |
 | PRA-08 | Публичный результат — только verdict; эталон, внутренний snapshot и сохранённый ответ не выдаются |
 | PRA-09 | Practice не меняет mastery и Read; Published Task участвует в отдельном completion_progress по QIL-033 |
-| PRA-10 | Content Admin управляет 11 моделями после QIL-029, 13 после sections QIL-036; PracticeSubmission/UserProgressState недоступны |
+| PRA-10 | Content Admin управляет 11 моделями после QIL-029, 13 после sections QIL-041; PracticeSubmission/UserProgressState недоступны |
 | PRA-11 | Ответ хранится до удаления работы владельцем, полного reset или удаления аккаунта; фонового retention нет |
 | PRA-12 | Доступные UI-состояния, независимый RU/EN, безопасные повторы и проверки полного сценария |
 
@@ -317,7 +317,7 @@ Start не повторяется автоматически. При потер�
 
 ## 9. Content Admin
 
-После QIL-029 группа получает view/add/change/delete на 11 моделях; QIL-036 добавляет ещё две, итого целевые 13:
+После QIL-029 группа получает view/add/change/delete на 11 моделях; QIL-041 добавляет ещё две, итого 13:
 - существующие Topic, TopicTranslation, Term, TermTranslation, Question, QuestionTranslation, Choice, ChoiceTranslation;
 - новые TopicPractice, PracticeTask, PracticeTaskTranslation.
 - TopicSection, TopicSectionTranslation после реализации sections по [TOPIC_SECTIONS_SPEC](TOPIC_SECTIONS_SPEC.md).
@@ -352,7 +352,7 @@ FK PROTECT не даёт удалить TopicPractice с задачей или P
 | PQA-16 | PRA-08 | Положительные списки всех JSON; нет эталона/его производных/ответа/snapshot в GET/POST/error/bundle; результат ровно verdict | API, frontend unit |
 | PQA-17 | PRA-02, PRA-08 | Строки с Python/SQL/HTML/JS не исполняются; нет eval/exec/shell/SQL-исполнителя или сетевых вызовов проверки; безопасное отображение | Unit, HTTPX, E2E |
 | PQA-18 | PRA-09 | Mastery/Read неизменны при Practice; целевой completion учитывает лучший сохранённый correct Published Task, delete/unpublish меняют веса/статус по PROGRESS_SPEC. Без kind тема остаётся в среднем | Unit, PostgreSQL |
-| PQA-19 | PRA-10 | Content Admin управляет ровно 11 моделями до QIL-036, 13 после sections; запрещённые пользовательские/технические модели и прямые URL закрыты | Admin HTTP, E2E |
+| PQA-19 | PRA-10 | Content Admin управляет ровно 11 моделями до QIL-041, 13 после sections; запрещённые пользовательские/технические модели и прямые URL закрыты | Admin HTTP, E2E |
 | PQA-20 | PRA-11 | Отдельный owner delete → 204; повтор/GET/submit → 404; B не удаляет; Read/Test прежние. Полный reset атомарно удаляет всю собственную историю/работы; late writes отвергнуты; account CASCADE сохранён | PostgreSQL, HTTPX |
 | PQA-21 | PRA-12 | Полный путь статья → тест → практика, preview locked/404, RU/EN, правильный и неправильный ответ, пустой ответ, повтор/409, reload | Playwright |
 | PQA-22 | PRA-12 | Desktop/mobile, Tab/Enter/focus, языковая смена без потери ввода/POST, loading/disabled/errors, raw length, пустой submit доступен | Frontend unit, Playwright |

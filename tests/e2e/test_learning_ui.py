@@ -122,9 +122,11 @@ def test_draft_and_missing_topics_have_the_same_safe_not_found(auth_page, learni
     page = auth_page
     signed_in(page)
     for topic_id in (learning_topics["draft"], "0"):
-        with page.expect_response(lambda response: "/api/v1/topics/" + topic_id + "/?" in response.url) as response:
+        with page.expect_response(lambda response: "/api/v1/topics/" + topic_id + "/sections/?" in response.url) as response:
             page.goto("/topics/" + topic_id)
         check(response.value.status == 404, "Draft and missing must use backend 404")
+        legacy = page.context.request.get("/api/v1/topics/" + topic_id + "/")
+        check(legacy.status == 404 and legacy.json() == response.value.json(), "Legacy Article must preserve the same safe 404")
         expect(page.get_by_role("heading", name="Тема не найдена", exact=True)).to_be_visible()
         expect(page.locator(".article-body")).to_have_count(0)
         expect(page.get_by_text("Невидимый черновик", exact=True)).to_have_count(0)

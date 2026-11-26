@@ -5,7 +5,7 @@ import { ProtectedGate } from './auth/ProtectedGate.tsx'
 import { resolveRoute } from './auth/routing.ts'
 import type { Destination } from './auth/routing.ts'
 import { ru } from './auth/texts.ts'
-import { authDestination, isLearningRoute, learningDestination, learningLocation } from './learning/routing.ts'
+import { authDestination, isLearningRoute, learningDestination, learningLocation, sectionFromHash } from './learning/routing.ts'
 import { learningRu } from './learning/texts.ts'
 import { assessmentLocation, isAssessmentRoute } from './assessment/routing.ts'
 import { assessmentRu } from './assessment/texts.ts'
@@ -25,10 +25,13 @@ const ProgressApplication = lazy(() => import('./progress/ProgressApplication.ts
 const PracticeApplication = lazy(() => import('./practice/PracticeApplication.tsx'))
 
 export default function App() {
-  const [address, setAddress] = useState(window.location.pathname + window.location.search)
+  const [address, setAddress] = useState(window.location.pathname + window.location.search + window.location.hash)
   const [registeredEmail, setRegisteredEmail] = useState<string>()
   const articleLanguages = useRef(new Map<string, Language>())
-  const [pathname, search = ''] = address.split('?')
+  const hashAt = address.indexOf('#')
+  const pageAddress = hashAt < 0 ? address : address.slice(0, hashAt)
+  const hash = hashAt < 0 ? '' : address.slice(hashAt)
+  const [pathname, search = ''] = pageAddress.split('?')
   const route = resolveRoute(pathname)
   const learning = route === '/' ? learningLocation('/topics', search) : isLearningRoute(route) ? learningLocation(route, search) : null
   const assessment = route && isAssessmentRoute(route) ? assessmentLocation(route, search) : null
@@ -49,11 +52,12 @@ export default function App() {
   useEffect(() => {
     const changed = () => {
       if (!allowHistoryNavigation()) return
-      setAddress(window.location.pathname + window.location.search)
+      setAddress(window.location.pathname + window.location.search + window.location.hash)
       setRegisteredEmail(undefined)
     }
     window.addEventListener('popstate', changed)
-    return () => window.removeEventListener('popstate', changed)
+    window.addEventListener('hashchange', changed)
+    return () => { window.removeEventListener('popstate', changed); window.removeEventListener('hashchange', changed) }
   }, [])
   useEffect(() => {
     document.title = `${route === '/register' ? ru.register : route === '/login' ? ru.login : route === '/session' ? ru.session : route === '/progress' ? progressRu.title : isPracticeRoute(route) ? practiceRu.title : isAssessmentRoute(route) ? assessmentRu.title : route === '/' || isLearningRoute(route) ? learningRu.catalog : ru.notFound} — ${ru.brand}`
@@ -72,7 +76,7 @@ export default function App() {
       <AssessmentApplication key={pathname} location={assessment} navigate={navigate} requireLogin={requireLogin} articleLink={articleLink} articleLanguage={articleLanguage} /> :
       <AppShell navigate={navigate} canLogout><h1 ref={staticHeading} tabIndex={-1}>{assessmentRu.title}</h1><Notice>{assessmentRu.invalidRoute}</Notice></AppShell> :
     route === '/' || isLearningRoute(route) ? learning ?
-      <LearningApplication key={pathname} location={learning} navigate={navigate} requireLogin={requireLogin} /> :
+      <LearningApplication key={pathname} location={learning} sectionId={sectionFromHash(hash)} navigate={navigate} requireLogin={requireLogin} /> :
       <AppShell navigate={navigate} canLogout><h1 ref={staticHeading} tabIndex={-1}>{learningRu.topic}</h1><Notice>{learningRu.invalidLanguage}</Notice></AppShell> :
       <AppShell navigate={navigate} canLogout><h1 ref={staticHeading} tabIndex={-1}>{ru.notFound}</h1><NavigationLink to="/" navigate={navigate}>{ru.home}</NavigationLink></AppShell>
   return <ProtectedGate requireLogin={requireLogin}><Suspense fallback={fallback}>{page}</Suspense></ProtectedGate>

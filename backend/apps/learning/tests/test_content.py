@@ -1,7 +1,7 @@
 import pytest
 from django.contrib import admin
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, connection, transaction
+from django.db import IntegrityError, connection, models, transaction
 
 from apps.assessments.models import Choice, ChoiceTranslation, Question, QuestionTranslation, QuestionType
 from apps.learning.models import (
@@ -11,6 +11,8 @@ from apps.learning.models import (
     Topic,
     TopicStatus,
     TopicTranslation,
+    TopicSection,
+    TopicSectionTranslation,
     require_translations,
 )
 
@@ -21,6 +23,15 @@ def create_bilingual_topic():
         TopicTranslation.objects.create(
             topic=topic, language=language, title=f"{language} title", article_body=f"{language} article"
         )
+    from apps.learning.changes import edit_topics
+    with edit_topics({topic.pk: topic.revision}, using="default"):
+        section = TopicSection(topic=topic, position=10, status=TopicStatus.PUBLISHED)
+        models.Model.save(section)
+        for language in Language.values:
+            models.Model.save(TopicSectionTranslation(
+                section=section, language=language, title=f"{language} title", article_body=f"{language} article",
+            ))
+    topic.refresh_from_db()
 
     for position in (20, 10):
         term = Term.objects.create(topic=topic, position=position)
@@ -140,7 +151,6 @@ def test_missing_translation_prevents_publication(bilingual_topic, translation_s
     ("source", "field"),
     [
         ("article", "title"),
-        ("article", "article_body"),
         ("term", "name"),
         ("term", "definition"),
         ("question", "text"),
@@ -187,8 +197,8 @@ def test_saved_status_uses_current_translations(bilingual_topic):
 @pytest.mark.parametrize("article_language", Language.values)
 @pytest.mark.parametrize("test_language", Language.values)
 def test_article_and_test_languages_resolve_independently(bilingual_topic, article_language, test_language):
-    article = bilingual_topic.translations.get(language=article_language)
-    assert article.topic_id == bilingual_topic.pk
+    article = bilingual_topic.sections.get().translations.get(language=article_language)
+    assert article.section.topic_id == bilingual_topic.pk
     assert article.article_body == f"{article_language} article"
     assert list(bilingual_topic.terms.values_list("position", flat=True)) == [10, 20]
     for term in bilingual_topic.terms.all():

@@ -15,6 +15,18 @@ export interface Article extends TopicSummary {
   article_body: string
 }
 
+export interface TopicSection {
+  section_id: string
+  position: number
+  title: string
+  article_body: string
+}
+
+export interface SectionsArticle extends TopicSummary {
+  language: Language
+  sections: TopicSection[]
+}
+
 export interface Term {
   term_id: string
   position: number

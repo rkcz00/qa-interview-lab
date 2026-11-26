@@ -132,7 +132,7 @@ def test_translation_failure_and_retry_keep_the_original_read_post(auth_page, au
     topic_page(page, topic_id, initial_language)
     page.locator('.article-end').scroll_into_view_if_needed()
     expect(page.locator('.reading-card .ui-loading')).to_have_text('Сохраняем отметку…')
-    translation_pattern = '**/api/v1/topics/' + topic_id + '/?*'
+    translation_pattern = '**/api/v1/topics/' + topic_id + '/sections/?*'
     page.route(translation_pattern, lambda route: route.abort('failed'))
     next_language = 'en' if initial_language == 'ru' else 'ru'
     page.get_by_role('radio', name='English' if next_language == 'en' else 'Русский', exact=True).check()

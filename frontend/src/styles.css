@@ -165,6 +165,11 @@ input[type="radio"], input[type="checkbox"] { accent-color: var(--color-accent);
 .learning-card { margin: var(--space-6) 0; }
 .article-body, .glossary dd { white-space: pre-wrap; overflow-wrap: anywhere; word-break: normal; }
 .article-body { max-width: var(--measure-reading); line-height: var(--line-reading); }
+.section-navigation { margin-block-end: var(--space-6); overflow-wrap: anywhere; }
+.section-navigation a[aria-current="location"] { font-weight: 700; text-decoration-thickness: 0.15em; }
+.section-controls { display: flex; flex-wrap: wrap; gap: 1rem; }
+.reader-section + .reader-section { margin-block-start: 2rem; }
+.reader-section h2 { scroll-margin-block-start: 1.5rem; overflow-wrap: anywhere; }
 .reading-card { padding: var(--space-6) 0; }
 .glossary dl { margin-bottom: 0; }
 .glossary dl > div + div { border-top: var(--border-width) solid var(--color-border); margin-top: var(--space-5); padding-top: var(--space-5); }

@@ -2,7 +2,7 @@
 
 Статус: архитектура MVP; пользовательский сценарий уточнён в QIL-027. Контракт Practice согласован в QIL-028, backend принят в QIL-029; UI реализован в QIL-030, полный ручной PostgreSQL/Playwright-прогон — PASS. Существующие API и архитектурные решения сохранены. [Backend](PRACTICE_BACKEND.md), [UI и runner](PRACTICE_UI.md).
 
-QIL-033 фиксирует [архитектуру progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend completion/reset и UserProgressState реализованы в QIL-034, UI — в QIL-035 с [отдельной приёмкой](COMPLETION_UI.md). QIL-038 добавляет локальные подтверждения и проверку полноты первого submit; [реализация и приёмка](ANSWER_FINISH.md). Одиночное article_body сохранено, sections и TFL-06/login пока NOT_IMPLEMENTED. QIL-036 относится только к CI. [Границы backend](COMPLETION_BACKEND.md).
+QIL-033 фиксирует [архитектуру progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend completion/reset и UserProgressState реализованы в QIL-034, UI — в QIL-035 с [отдельной приёмкой](COMPLETION_UI.md). QIL-038 добавляет локальные подтверждения и проверку полноты первого submit; [реализация и приёмка](ANSWER_FINISH.md). QIL-041 добавляет единый reader разделов и сохраняет форму legacy Article GET; TFL-06/login остаётся NOT_IMPLEMENTED. QIL-036 относится только к CI. [Границы backend](COMPLETION_BACKEND.md).
 
 Связанные документы: [PRD](PRD.md), [QA-стратегия](QA_STRATEGY.md), [backlog](BACKLOG.md), [правила Codex](../AGENTS.md), [точный контракт Practice](PRACTICE_SPEC.md).
 
@@ -91,7 +91,9 @@ QA Interview Lab/
 | --- | --- | --- |
 | User / accounts | `id`, `email`, `password`, `is_active`, `is_staff`, `is_superuser`, служебные поля Django | Email уникален без учёта регистра; `password` содержит только хеш Django |
 | Topic / learning | `id`, `status`, `revision`, `created_at`, `updated_at` | `status` принимает `draft` или `published`. `revision` начинается с 1 |
-| TopicTranslation / learning | `id`, `topic_id`, `language`, `title`, legacy `article_body` | Уникальна пара `(topic_id, language)`; после QIL-036 тело собирается из sections, legacy-поле read-only |
+| TopicTranslation / learning | `id`, `topic_id`, `language`, `title`, legacy `article_body` | Уникальна пара `(topic_id, language)`; после QIL-041 тело собирается из sections, legacy-поле read-only |
+| TopicSection / learning | `id`, `topic_id`, `position`, `status`, `created_at`, `updated_at` | position >=1; порядок position/id; отложенная UNIQUE(topic, position); родитель неизменяем |
+| TopicSectionTranslation / learning | `id`, `section_id`, `language`, `title`, `article_body` | UNIQUE(section, language); ru/en; Published требует полный RU/EN; родитель неизменяем |
 | Term / learning | `id`, `topic_id`, `position` | Термин относится к одной теме |
 | TermTranslation / learning | `id`, `term_id`, `language`, `name`, `definition` | Уникальна пара `(term_id, language)` |
 | Question / assessments | `id`, `topic_id`, `question_type`, `position` | Тип `single_choice` или `multiple_choice`; ID общий для переводов |
@@ -101,7 +103,7 @@ QA Interview Lab/
 | Attempt / assessments | `id`, `user_id`, `topic_id`, `status`, `created_at`, `submitted_at`, `submitted_language`, `content_snapshot`, `submitted_answers`, `correct_count`, `total_count` | `in_progress` или `submitted`; ответы и результат фиксируются при отправке; владелец неизменяем |
 | TopicProgress / assessments | `id`, `user_id`, `topic_id`, `article_read_at` | Уникальна пара `(user_id, topic_id)`; язык не входит в ключ |
 
-QIL-033 задаёт будущие TopicSection/TopicSectionTranslation с FK/UNIQUE/CHECK и сохранением legacy article_body по [TOPIC_SECTIONS_SPEC](TOPIC_SECTIONS_SPEC.md#1-состав-темы). Техническое UserProgressState содержит поколение и квитанцию последнего reset по [PROGRESS_SPEC](PROGRESS_SPEC.md#4-поколение-прогресса-и-порядок-блокировок); оно не содержит проценты/баллы и не является доступным редактору прогрессом. Этих моделей пока нет в коде.
+QIL-041 реализует TopicSection/TopicSectionTranslation с FK/UNIQUE/CHECK и сохранением legacy article_body по [TOPIC_SECTIONS_SPEC](TOPIC_SECTIONS_SPEC.md#1-состав-темы). Техническое UserProgressState содержит поколение и квитанцию последнего reset по [PROGRESS_SPEC](PROGRESS_SPEC.md#4-поколение-прогресса-и-порядок-блокировок); оно не содержит проценты/баллы и недоступно редактору.
 
 Хранилище sessions — штатная таблица Django. Модель User задаётся через `AUTH_USER_MODEL` до первых миграций: основа `AbstractUser`, email вместо username, минимальный manager и совместимая конфигурация Admin.
 
@@ -148,13 +150,13 @@ Content Admin — отдельная Django-группа. У обычной уч
 | --- | --- |
 | `Topic`, `TopicTranslation`, `Question`, `QuestionTranslation`, `Choice`, `ChoiceTranslation`, `Term`, `TermTranslation` | Только стандартные `view`, `add`, `change`, `delete` для этих моделей |
 | `TopicPractice`, `PracticeTask`, `PracticeTaskTranslation` | Контентные permissions QIL-029; без PracticeSubmission |
-| `TopicSection`, `TopicSectionTranslation` | Контентные permissions после QIL-036; пока NOT_IMPLEMENTED |
+| `TopicSection`, `TopicSectionTranslation` | Стандартные контентные permissions в QIL-041, всего 13 моделей |
 | `User`, `Attempt`, `TopicProgress`, `PracticeSubmission`, `UserProgressState` | Нет permissions; запрещены списки, отдельные записи, изменение и административные actions |
 | Группы, permissions, sessions и прочие модели | Нет permissions; роль не может расширить собственные права |
 
 Доступ к Admin по is_staff сам по себе не даёт модельных permissions. Запреты проверяются и по прямому URL. Публикация требует change и общей проверки полноты; delete не обходит защиту темы с историей. Тело статьи переносится из TopicTranslation в переводы sections; TopicProgress по-прежнему хранит только Read. UserProgressState — отдельный технический mutex/generation, а не редактируемые проценты.
 
-После QIL-029 allowlist содержит 11 контентных моделей, после QIL-036 — 13. PracticeSubmission/UserProgressState не регистрируются для Content Admin. Полные ограничения — в [Practice](PRACTICE_SPEC.md#9-content-admin) и спецификации sections; документация сама permissions не меняет.
+После QIL-029 allowlist содержит 11 контентных моделей, после QIL-041 — 13. PracticeSubmission/UserProgressState не регистрируются для Content Admin. Полные ограничения — в [Practice](PRACTICE_SPEC.md#9-content-admin) и спецификации sections; документация сама permissions не меняет.
 
 ## 7. Языки и публикация
 
@@ -162,7 +164,7 @@ Content Admin — отдельная Django-группа. У обычной уч
 
 Языковые переключатели frontend держат два отдельных состояния: язык статьи и язык тестирования. Словарь следует языку статьи. Выбранные варианты хранятся по ID, а не по переведённому тексту. Смена языка текущей попытки запрашивает другой перевод того же снимка и сохраняет ответы.
 
-После QIL-036 публикация проверяет название темы RU/EN, минимум один Published-раздел и оба его перевода, все вопросы/варианты и полный словарь с хотя бы одним термином. Draft-разделы скрыты и могут быть неполными. FR-11 и прежняя атомарная операция записи сохраняют проверки структуры вопросов и пробельных строк. Published-раздел parent Draft не выдаётся learner API.
+В QIL-041 публикация проверяет название темы RU/EN, минимум один Published-раздел и оба его перевода, все вопросы/варианты и полный словарь с хотя бы одним термином. Draft-разделы скрыты и могут быть неполными. FR-11 и прежняя атомарная операция записи сохраняют проверки структуры вопросов и пробельных строк. Published-раздел parent Draft не выдаётся learner API.
 
 Запись в Admin передаёт `expected_revision` темы из формы или подтверждения. Операция блокирует строку Topic в PostgreSQL и сверяет ревизию перед записью. Успешное изменение статуса или дочернего контента увеличивает ревизию темы. При устаревшей ревизии Admin возвращает `409 edit_conflict`, сохраняя уже записанную версию. Родитель дочерней записи выбирается при создании.
 
@@ -324,7 +326,7 @@ TopicPractice имеет OneToOne-связь с Topic и единственны�
 
 Практика не участвует в is_mastered и старом Progress; QIL-033 включает её в отдельный completion_progress, не меняя правило 80% или Result. Reset становится явным owner-only исключением из сохранности работ. Account deletion остаётся отдельной возможностью; FK User CASCADE сохраняется, автоматического retention нет. POST Practice также участвуют в новом generation/mutex-протоколе.
 
-QIL-033 не добавляет сервисы или dependencies. UserProgressState реализована additive-миграцией assessments 0004 в QIL-034. Общий User-lock охватывает все learner-записи и reset; completion GET получает согласованный снимок одной PostgreSQL-командой. Отсутствующая строка состояния означает generation=1 без записи из GET. Две контентные модели sections и их миграции остаются задачей QIL-036.
+QIL-033 не добавляет сервисы или dependencies. UserProgressState реализована additive-миграцией assessments 0004 в QIL-034. Общий User-lock охватывает все learner-записи и reset; completion GET получает согласованный снимок одной PostgreSQL-командой. Отсутствующая строка состояния означает generation=1 без записи из GET. QIL-041 добавляет две контентные модели sections и additive/data migration learning 0003. Sections/legacy Article GET блокирует Topic на время согласованного чтения; writers используют ту же блокировку с expected_revision.
 
 ## 13. Первичные источники
 

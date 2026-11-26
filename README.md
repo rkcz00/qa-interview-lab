@@ -1,5 +1,7 @@
 # QA Interview Lab
 
+QIL-041 добавляет многочастные темы: TopicSection/Translation, безопасный перенос прежней статьи в первый раздел, sections GET и совместимую сборку legacy Article. Reader показывает все Published-разделы с оглавлением, RU/EN-якорями и автопрочтением после последнего раздела. Content Admin получает 13 контентных моделей; learner data остаётся закрытой. Новые темы/демо JSON не добавляются и dev-БД автоматически не меняется. [Контракт и фактические проверки](docs/TOPIC_SECTIONS_SPEC.md#7-реализация-и-проверки-qil-041).
+
 QA Interview Lab — учебное веб-приложение для подготовки Middle/Senior QA Engineers к техническим собеседованиям на русском и английском языках.
 
 Вторая цель проекта — портфолио с проверяемыми примерами работы с Codex, Python, React, PostgreSQL, Pytest, Playwright, Docker и GitHub Actions.

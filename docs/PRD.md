@@ -2,7 +2,7 @@
 
 Статус: требования MVP с уточнениями ручной приёмки QIL-027 от 18 ноября 2026 года и согласованным инкрементом Practice. Backend принят в QIL-029; UI реализован в QIL-030, полная локальная приёмка подтверждена ручным прогоном. [Backend](PRACTICE_BACKEND.md), [UI и runner](PRACTICE_UI.md). Существующие API и серверное хранение истории сохранены.
 
-QIL-033: 23 ноября 2026 года утверждены [правила progress/reset/test flow](PROGRESS_SPEC.md) и [разделов Topic](TOPIC_SECTIONS_SPEC.md). Backend completion/reset реализован в QIL-034, UI — в QIL-035 с [отдельной приёмкой](COMPLETION_UI.md). Answer/Finish и строгий первый submit реализуются в QIL-038; [проверки](ANSWER_FINISH.md). Пользователь уточнил: Finish показывается только после всех подтверждений. Sections и отдельная правка /login пока NOT_IMPLEMENTED. QIL-036 относится к CI, а не к sections. [Границы backend](COMPLETION_BACKEND.md).
+QIL-033: 23 ноября 2026 года утверждены [правила progress/reset/test flow](PROGRESS_SPEC.md) и [разделов Topic](TOPIC_SECTIONS_SPEC.md). Backend completion/reset реализован в QIL-034, UI — в QIL-035 с [отдельной приёмкой](COMPLETION_UI.md). Answer/Finish и строгий первый submit реализуются в QIL-038; [проверки](ANSWER_FINISH.md). Пользователь уточнил: Finish показывается только после всех подтверждений. Разделы реализуются в QIL-041; отдельная правка /login остаётся NOT_IMPLEMENTED. QIL-036 относится к CI, а не к sections. [Границы backend](COMPLETION_BACKEND.md).
 
 Связанные документы: [README](../README.md), [архитектура](ARCHITECTURE.md), [QA-стратегия](QA_STRATEGY.md), [backlog](BACKLOG.md).
 
@@ -189,7 +189,7 @@ Backend проверяет наличие и структуру данных; к
 
 ### FR-12 — Django Admin
 
-- Content Admin — отдельная Django-группа с permissions view/add/change/delete только на контент: восемь базовых моделей, три Practice и в QIL-036 TopicSection/TopicSectionTranslation, итого 13. Разделы имеют отдельные переводы; отдельная роль редактора не вводится.
+- Content Admin — отдельная Django-группа с permissions view/add/change/delete только на контент: восемь базовых моделей, три Practice и в QIL-041 TopicSection/TopicSectionTranslation, итого 13. Разделы имеют отдельные переводы; отдельная роль редактора не вводится.
 - У группы нет permissions для `User`, `Attempt`, `TopicProgress` или управления группами/permissions. Учётная запись Content Admin имеет `is_staff=True`, `is_superuser=False`; superuser не является моделью обычного Content Admin. Точный перечень моделей и границы доступа определены в архитектуре.
 - Публикация выполняется через общую серверную проверку; операция массового изменения статуса не обходит её.
 - Обычный пользователь не может управлять контентом через Admin или пользовательский API.
@@ -197,7 +197,7 @@ Backend проверяет наличие и структуру данных; к
 
 Приёмка: Content Admin без superuser может подготовить и опубликовать полноценную тему; неполная не публикуется. Списки, отдельные записи и действия над User, Attempt и TopicProgress недоступны этой роли в Admin, включая прямой URL. Обычный аккаунт не получает доступ к редактированию; история сохраняется при снятии темы с публикации.
 
-QIL-029 расширила роль до 11 моделей, QIL-036 запланирована для расширения до 13. PracticeSubmission и техническое UserProgressState недоступны Content Admin. Новые permissions не считаются выданными до реализации и прямых Admin-проверок.
+QIL-029 расширила роль до 11 моделей, QIL-041 добавляет ещё две, итого 13. PracticeSubmission и техническое UserProgressState недоступны Content Admin. Permissions проверяются прямыми Admin HTTP-запросами.
 
 ### FR-13 — Изоляция пользовательских данных
 
@@ -272,4 +272,4 @@ PracticeSubmission не участвует в mastery: Read + одна submitted
 
 TopicSection/Translation имеют порядок, Draft/Published и полные RU/EN для публикации; единый reader сохраняет Read после последнего Published-раздела. Новые редакции не сбрасывают дату. Прежний Article GET собирается из разделов без изменения формы; миграция создаёт первый раздел из существующего текста. Публикация/правки используют Topic.revision, 409 edit_conflict и 400 incomplete_content с rollback. Точный контракт — [TOPIC_SECTIONS_SPEC](TOPIC_SECTIONS_SPEC.md).
 
-Код QIL-034–QIL-036 и приёмка QIL-037 требуют отдельных задач по backlog. QIL-033 фиксирует требования и не запускает миграции, reset или загрузку контента.
+QIL-033 фиксировала требования без реализации. Backend progress/reset реализован в QIL-034, UI — в QIL-035, test flow — в QIL-038/QIL-040; sections реализует QIL-041. Сквозная приёмка QIL-037 остаётся отдельной задачей. Изменение документации само по себе не запускает миграции, reset или загрузку контента.

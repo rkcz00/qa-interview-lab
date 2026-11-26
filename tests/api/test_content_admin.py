@@ -11,7 +11,7 @@ from django.urls import reverse
 
 from apps.accounts.models import User
 from apps.assessments.models import Choice, ChoiceTranslation, Question, QuestionTranslation
-from apps.learning.models import Language, Term, TermTranslation, Topic, TopicStatus, TopicTranslation
+from apps.learning.models import Language, Term, TermTranslation, Topic, TopicStatus, TopicTranslation, TopicSection, TopicSectionTranslation
 from apps.learning.tests.test_content import bilingual_topic
 from apps.practice.models import PracticeTask, PracticeTaskTranslation, TopicPractice
 
@@ -105,7 +105,7 @@ def apply_status(client, topics, action="publish_selected"):
 
 
 def edit_article(client, translation, revision, title, body="Article text"):
-    return post(client, admin_url(TopicTranslation, "change", translation), {
+    return post(client, admin_url(type(translation), "change", translation), {
         "expected_revision": revision, "language": translation.language, "title": title, "article_body": body,
     })
 
@@ -114,7 +114,7 @@ def test_content_admin_has_only_content_permissions_and_admin_access(editor, bil
     group = Group.objects.get(name="Content Admin")
     expected = {
         (model._meta.app_label, model._meta.model_name, f"{action}_{model._meta.model_name}")
-        for model in (*CONTENT_MODELS, TopicPractice, PracticeTask, PracticeTaskTranslation)
+        for model in (*CONTENT_MODELS, TopicPractice, PracticeTask, PracticeTaskTranslation, TopicSection, TopicSectionTranslation)
         for action in ("add", "change", "delete", "view")
     }
     assert set(group.permissions.values_list("content_type__app_label", "content_type__model", "codename")) == expected
@@ -216,16 +216,17 @@ def test_stale_add_and_delete_do_not_change_content(editor):
 
 def test_published_topic_allows_complete_edits_and_rolls_back_incomplete_ones(editor, bilingual_topic):
     topic = bilingual_topic
+    initial = topic.revision
     assert apply_status(editor, [topic]).status_code == 302
     topic.refresh_from_db()
-    assert topic.status == TopicStatus.PUBLISHED and topic.revision == 2
-    article = topic.translations.get(language=Language.EN)
-    url = admin_url(TopicTranslation, "change", article)
-    assert RevisionFields(editor.get(url)).revisions == ["2"]
+    assert topic.status == TopicStatus.PUBLISHED and topic.revision == initial + 1
+    article = topic.sections.get().translations.get(language=Language.EN)
+    url = admin_url(TopicSectionTranslation, "change", article)
+    assert RevisionFields(editor.get(url)).revisions == [str(initial + 1)]
     assert edit_article(editor, article, topic.revision, "Published edit").status_code == 302
     topic.refresh_from_db()
     article.refresh_from_db()
-    assert topic.status == TopicStatus.PUBLISHED and topic.revision == 3
+    assert topic.status == TopicStatus.PUBLISHED and topic.revision == initial + 2
     assert article.title == "Published edit"
 
     audit_count = LogEntry.objects.count()
@@ -233,41 +234,43 @@ def test_published_topic_allows_complete_edits_and_rolls_back_incomplete_ones(ed
     assert_error(response, 400, "incomplete_content")
     topic.refresh_from_db()
     article.refresh_from_db()
-    assert topic.status == TopicStatus.PUBLISHED and topic.revision == 3
+    assert topic.status == TopicStatus.PUBLISHED and topic.revision == initial + 2
     assert (article.title, article.article_body) == ("Published edit", "Article text")
     assert LogEntry.objects.count() == audit_count
 
     term_count = topic.terms.count()
-    response = post(editor, admin_url(Term, "add"), {"topic": f"{topic.pk}:3", "position": 30})
+    response = post(editor, admin_url(Term, "add"), {"topic": f"{topic.pk}:{topic.revision}", "position": 30})
     assert_error(response, 400, "incomplete_content")
     assert topic.terms.count() == term_count
     assert LogEntry.objects.count() == audit_count
 
-    deletion = admin_url(TopicTranslation, "delete", article)
-    assert_error(post(editor, deletion, {"post": "yes", "expected_revision": "3"}), 400, "incomplete_content")
-    assert TopicTranslation.objects.filter(pk=article.pk).exists()
+    deletion = admin_url(TopicSectionTranslation, "delete", article)
+    assert_error(post(editor, deletion, {"post": "yes", "expected_revision": str(topic.revision)}), 400, "incomplete_content")
+    assert TopicSectionTranslation.objects.filter(pk=article.pk).exists()
     assert LogEntry.objects.count() == audit_count
     topic.refresh_from_db()
-    assert topic.revision == 3
+    assert topic.revision == initial + 2
 
     assert apply_status(editor, [topic], "unpublish_selected").status_code == 302
     topic.refresh_from_db()
-    assert topic.status == TopicStatus.DRAFT and topic.revision == 4
+    assert topic.status == TopicStatus.DRAFT and topic.revision == initial + 3
 
 
 def test_incomplete_topic_rolls_back_the_entire_publication(editor, bilingual_topic):
     incomplete = Topic.objects.create()
+    revisions = {topic.pk: topic.revision for topic in (bilingual_topic, incomplete)}
     audit_count = LogEntry.objects.count()
     response = apply_status(editor, [bilingual_topic, incomplete])
     assert_error(response, 400, "incomplete_content")
     for topic in (bilingual_topic, incomplete):
         topic.refresh_from_db()
-        assert topic.status == TopicStatus.DRAFT and topic.revision == 1
+        assert topic.status == TopicStatus.DRAFT and topic.revision == revisions[topic.pk]
     assert LogEntry.objects.count() == audit_count
 
 
 def test_publication_confirmation_rejects_a_stale_revision(editor, bilingual_topic):
     topic = bilingual_topic
+    initial = topic.revision
     confirmation = confirm_status(editor, [topic])
     article = topic.translations.get(language=Language.EN)
     assert edit_article(editor, article, topic.revision, "New title").status_code == 302
@@ -275,12 +278,13 @@ def test_publication_confirmation_rejects_a_stale_revision(editor, bilingual_top
     assert_error(response, 409, "edit_conflict")
     topic.refresh_from_db()
     article.refresh_from_db()
-    assert topic.status == TopicStatus.DRAFT and topic.revision == 2
+    assert topic.status == TopicStatus.DRAFT and topic.revision == initial + 1
     assert article.title == "New title"
 
 
 def test_two_parallel_admin_writes_preserve_the_first_edit(editor, bilingual_topic):
     topic = bilingual_topic
+    initial = topic.revision
     article = topic.translations.get(language=Language.EN)
     url = admin_url(TopicTranslation, "change", article)
     with httpx.Client(base_url=editor.base_url, trust_env=False) as second_editor:
@@ -302,6 +306,7 @@ def test_two_parallel_admin_writes_preserve_the_first_edit(editor, bilingual_top
 
     topic.refresh_from_db()
     article.refresh_from_db()
-    assert topic.revision == 2
-    assert (article.title, article.article_body) == ("First title", "First body")
+    assert topic.revision == initial + 1
+    # The legacy textarea is read-only; title concurrency still uses the root lock.
+    assert (article.title, article.article_body) == ("First title", "en article")
     assert LogEntry.objects.count() == audit_count + 1

@@ -4,7 +4,8 @@ export type LearningRoute = '/topics' | `/topics/${string}`
 export type AssessmentRoute = `/topics/${string}/test` | `/attempts/${string}`
 export type PracticeRoute = `/topics/${string}/practice` | `/practice-submissions/${string}`
 export type Route = typeof routes[number] | LearningRoute | AssessmentRoute | PracticeRoute | '/progress'
-export type Destination = Route | `${LearningRoute | AssessmentRoute | PracticeRoute}?language=ru` | `${LearningRoute | AssessmentRoute | PracticeRoute}?language=en`
+export type Destination = Route | `${LearningRoute | AssessmentRoute | PracticeRoute}?language=ru` | `${LearningRoute | AssessmentRoute | PracticeRoute}?language=en` |
+  `${LearningRoute}#section-${string}` | `${LearningRoute}?language=ru#section-${string}` | `${LearningRoute}?language=en#section-${string}`
 export function resolveRoute(pathname: string): Route | null {
   if (pathname === '/progress') return '/progress'
   if (/^\/topics\/[^/?#]+\/practice$/u.test(pathname) || /^\/practice-submissions\/[^/?#]+$/u.test(pathname)) return pathname as PracticeRoute

@@ -25,6 +25,18 @@ class ArticleSerializer(TopicSummarySerializer):
     article_body = serializers.CharField(read_only=True)
 
 
+class SectionSerializer(serializers.Serializer):
+    section_id = serializers.CharField(read_only=True)
+    position = serializers.IntegerField(read_only=True)
+    title = serializers.CharField(read_only=True)
+    article_body = serializers.CharField(read_only=True)
+
+
+class SectionsArticleSerializer(TopicSummarySerializer):
+    language = serializers.CharField(read_only=True)
+    sections = SectionSerializer(many=True, read_only=True)
+
+
 class TermSerializer(serializers.Serializer):
     term_id = serializers.CharField(read_only=True)
     position = serializers.IntegerField(source="term.position", read_only=True)

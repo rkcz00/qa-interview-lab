@@ -1,5 +1,5 @@
 import type {
-  Account, Article, Attempt, ErrorEnvelope, ErrorFields, Language, PendingAttempt,
+  Account, Article, SectionsArticle, TopicSection, Attempt, ErrorEnvelope, ErrorFields, Language, PendingAttempt,
   Progress, PublicChoice, PublicQuestion, Result, SubmittedAttempt, Term, TopicSummary,
   PracticePreview, PendingPractice, SubmittedPractice, PracticeSubmission, PublicPracticeTask, PracticeNormalization, PracticeBlock,
   ActivityStatus, CompletionProgress, ResetProgress, TopicCompletion,
@@ -77,6 +77,28 @@ export function article(value: unknown): Article {
     topic_id: id(item.topic_id), title: text(item.title),
     language: language(item.language), article_body: text(item.article_body),
   }
+}
+
+export function sectionsArticle(value: unknown): SectionsArticle {
+  const item = object(value, ['topic_id', 'title', 'language', 'sections'])
+  const positiveId = (value: unknown) => {
+    const result = id(value)
+    if (!/^[1-9][0-9]*$/u.test(result)) throw new ContractError()
+    return result
+  }
+  const sections = arrayOf((value): TopicSection => {
+    const section = object(value, ['section_id', 'position', 'title', 'article_body'])
+    const position = integer(section.position)
+    const title = text(section.title)
+    const article_body = text(section.article_body)
+    if (position < 1 || !title.trim() || !article_body.trim()) throw new ContractError()
+    return { section_id: positiveId(section.section_id), position, title, article_body }
+  })(item.sections)
+  if (!sections.length || new Set(sections.map(section => section.section_id)).size !== sections.length ||
+      sections.some((section, index) => index > 0 && section.position <= sections[index - 1].position)) throw new ContractError()
+  const title = text(item.title)
+  if (!title.trim()) throw new ContractError()
+  return { topic_id: positiveId(item.topic_id), title, language: language(item.language), sections }
 }
 
 export function term(value: unknown): Term {

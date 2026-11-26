@@ -219,6 +219,7 @@ export function createApiClient(options: ApiClientOptions) {
     learning: {
       catalog: (language?: Language) => request(localized('topics/', language), 200, decode.arrayOf(decode.topicSummary)),
       article: (topicId: string, language?: Language) => request(localized(`topics/${pathId(topicId)}/`, language), 200, decode.article),
+      sections: (topicId: string, language?: Language) => request(localized(`topics/${pathId(topicId)}/sections/`, language), 200, decode.sectionsArticle),
       terms: (topicId: string, language?: Language) => request(localized(`topics/${pathId(topicId)}/terms/`, language), 200, decode.arrayOf(decode.term)),
     },
     assessment: {

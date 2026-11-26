@@ -22,9 +22,15 @@ export function learningLocation(route: LearningRoute, search: string): Learning
   } catch { return null }
 }
 
-export function learningDestination(location: LearningLocation): Destination {
+export function sectionFromHash(hash: string): string | null {
+  return /^#section-[1-9][0-9]*$/u.test(hash) ? hash.slice('#section-'.length) : null
+}
+
+export function learningDestination(location: LearningLocation, sectionId: string | null = null): Destination {
   const path: LearningRoute = location.topicId === null ? '/topics' : `/topics/${encodeURIComponent(location.topicId)}`
-  return location.language === 'ru' ? path : `${path}?language=en`
+  const destination = location.language === 'ru' ? path : `${path}?language=en` as const
+  return location.topicId !== null && sectionId !== null && /^[1-9][0-9]*$/u.test(sectionId)
+    ? `${destination}#section-${sectionId}` : destination
 }
 
 // Login always opens the home catalog; arbitrary return targets are never accepted.

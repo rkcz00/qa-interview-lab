@@ -6,7 +6,7 @@ from django.db.models import Q
 
 CONTENT_ADMIN_GROUP = "Content Admin"
 CONTENT_MODELS = {
-    "learning": ("topic", "topictranslation", "term", "termtranslation"),
+    "learning": ("topic", "topictranslation", "term", "termtranslation", "topicsection", "topicsectiontranslation"),
     "assessments": ("question", "questiontranslation", "choice", "choicetranslation"),
     "practice": ("topicpractice", "practicetask", "practicetasktranslation"),
 }

@@ -1,4 +1,5 @@
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models, router
 
 
@@ -63,7 +64,12 @@ class Topic(models.Model):
 
     def validate_for_publication(self):
         self._require_saved_topic()
-        require_translations(self.translations.all(), fields=("title", "article_body"), label="Статья")
+        require_translations(self.translations.all(), fields=("title",), label="Тема")
+        sections = list(self.sections.filter(status=TopicStatus.PUBLISHED).prefetch_related("translations"))
+        if not sections:
+            raise ValidationError("В теме нужен хотя бы один Published-раздел.", code="missing_sections")
+        for section in sections:
+            section.validate_for_publication()
 
         terms = list(self.terms.prefetch_related("translations"))
         if not terms:
@@ -111,6 +117,8 @@ class Topic(models.Model):
         self.updated_at = stored.updated_at
 
     def _save_content_revision(self, using):
+        for section in self.sections.filter(status=TopicStatus.PUBLISHED).prefetch_related("translations"):
+            section.validate_for_publication()
         if self.status == TopicStatus.PUBLISHED:
             self.validate_for_publication()
         # Practice may remain Draft independently. Published practice must stay complete
@@ -125,11 +133,38 @@ class Topic(models.Model):
         super().save(using=using, update_fields=("status", "revision", "updated_at"))
 
 
+class TopicTranslationQuerySet(models.QuerySet):
+    def bulk_create(self, objs, **kwargs):
+        if "article_body" in (kwargs.get("update_fields") or ()):
+            raise ValidationError("Legacy-тело статьи доступно только для чтения.", code="legacy_read_only")
+        return super().bulk_create(objs, **kwargs)
+
+    def update(self, **kwargs):
+        if "article_body" in kwargs:
+            raise ValidationError("Legacy-тело статьи доступно только для чтения.", code="legacy_read_only")
+        return super().update(**kwargs)
+
+    def bulk_update(self, objs, fields, **kwargs):
+        if "article_body" in fields:
+            raise ValidationError("Legacy-тело статьи доступно только для чтения.", code="legacy_read_only")
+        return super().bulk_update(objs, fields, **kwargs)
+
+
 class TopicTranslation(models.Model):
     topic = models.ForeignKey(Topic, on_delete=models.CASCADE, related_name="translations")
     language = models.CharField(max_length=2, choices=Language.choices)
     title = models.TextField(blank=True)
-    article_body = models.TextField(blank=True)
+    article_body = models.TextField(blank=True, editable=False)
+
+    objects = TopicTranslationQuerySet.as_manager()
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding and self.pk is not None:
+            using = kwargs.get("using") or router.db_for_write(type(self), instance=self)
+            original = type(self).objects.using(using).get(pk=self.pk)
+            if self.article_body != original.article_body:
+                raise ValidationError("Legacy-тело статьи доступно только для чтения.", code="legacy_read_only")
+        return super().save(*args, **kwargs)
 
     class Meta:
         constraints = [
@@ -160,4 +195,99 @@ class TermTranslation(models.Model):
             models.CheckConstraint(
                 condition=models.Q(language__in=Language.values), name="learning_term_translation_language_valid"
             ),
+        ]
+
+
+class SectionQuerySet(models.QuerySet):
+    def create(self, *, expected_revision=None, **kwargs):
+        obj = self.model(**kwargs)
+        obj.save(using=self.db, expected_revision=expected_revision)
+        return obj
+
+    def update(self, **kwargs):
+        raise ValidationError("Разделы меняются через запись дерева Topic.", code="revision_required")
+
+    def bulk_create(self, objs, **kwargs):
+        raise ValidationError("Разделы меняются через запись дерева Topic.", code="revision_required")
+
+    def bulk_update(self, objs, fields, **kwargs):
+        raise ValidationError("Разделы меняются через запись дерева Topic.", code="revision_required")
+
+    def delete(self):
+        raise ValidationError("Разделы удаляются через запись дерева Topic.", code="revision_required")
+
+
+class SectionContent(models.Model):
+    """Each public write participates in the existing root optimistic transaction."""
+
+    objects = SectionQuerySet.as_manager()
+    parent_field = ""
+
+    class Meta:
+        abstract = True
+
+    def _topic_id(self, using):
+        return self.topic_id if self.parent_field == "topic" else TopicSection.objects.using(using).get(pk=self.section_id).topic_id
+
+    def _check_parent(self, using):
+        if not self._state.adding:
+            field = self.parent_field + "_id"
+            original = type(self).objects.using(using).get(pk=self.pk)
+            if getattr(original, field) != getattr(self, field):
+                raise ValidationError("Родителя раздела/перевода менять нельзя.", code="immutable_parent")
+
+    def save(self, *, expected_revision=None, using=None, **kwargs):
+        from .changes import InvalidRevision, edit_topics
+
+        if type(expected_revision) is not int or not 1 <= expected_revision <= 2**63 - 1:
+            raise InvalidRevision()
+        using = using or router.db_for_write(type(self), instance=self)
+        with edit_topics({self._topic_id(using): expected_revision}, using=using):
+            self._check_parent(using)
+            # The deferred position constraint permits swaps inside one root transaction.
+            self.full_clean(validate_unique=False, validate_constraints=False)
+            return super().save(using=using, **kwargs)
+
+    def delete(self, *, expected_revision=None, using=None, keep_parents=False):
+        from .changes import InvalidRevision, edit_topics
+
+        if type(expected_revision) is not int or not 1 <= expected_revision <= 2**63 - 1:
+            raise InvalidRevision()
+        using = using or router.db_for_write(type(self), instance=self)
+        with edit_topics({self._topic_id(using): expected_revision}, using=using):
+            self._check_parent(using)
+            return super().delete(using=using, keep_parents=keep_parents)
+
+
+class TopicSection(SectionContent):
+    topic = models.ForeignKey(Topic, on_delete=models.CASCADE, related_name="sections")
+    position = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    status = models.CharField(max_length=9, choices=TopicStatus.choices, default=TopicStatus.DRAFT)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    parent_field = "topic"
+
+    class Meta:
+        ordering = ("position", "id")
+        constraints = [
+            models.UniqueConstraint(fields=("topic", "position"), name="learning_section_position_unique", deferrable=models.Deferrable.DEFERRED),
+            models.CheckConstraint(condition=models.Q(position__gte=1), name="learning_section_position_positive"),
+            models.CheckConstraint(condition=models.Q(status__in=TopicStatus.values), name="learning_section_status_valid"),
+        ]
+
+    def validate_for_publication(self):
+        require_translations(self.translations.all(), fields=("title", "article_body"), label=f"Раздел {self.pk}")
+
+
+class TopicSectionTranslation(SectionContent):
+    section = models.ForeignKey(TopicSection, on_delete=models.CASCADE, related_name="translations")
+    language = models.CharField(max_length=2, choices=Language.choices)
+    title = models.TextField(blank=True)
+    article_body = models.TextField(blank=True)
+    parent_field = "section"
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("section", "language"), name="learning_section_translation_unique"),
+            models.CheckConstraint(condition=models.Q(language__in=Language.values), name="learning_section_translation_language_valid"),
         ]

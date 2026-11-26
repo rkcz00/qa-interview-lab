@@ -25,6 +25,7 @@ urlpatterns = [
     path("api/v1/auth/me/", accounts_views.current_session, name="auth-me"),
     path("api/v1/topics/", learning_views.topic_catalog, name="topic-catalog"),
     path("api/v1/topics/<str:topic_id>/", learning_views.topic_article, name="topic-article"),
+    path("api/v1/topics/<str:topic_id>/sections/", learning_views.topic_sections, name="topic-sections"),
     path("api/v1/topics/<str:topic_id>/terms/", learning_views.topic_terms, name="topic-terms"),
     path("api/v1/topics/<str:topic_id>/read/", assessments_views.mark_article_read, name="topic-read"),
     path("api/v1/topics/<str:topic_id>/attempts/", assessments_views.start_attempt, name="attempt-start"),

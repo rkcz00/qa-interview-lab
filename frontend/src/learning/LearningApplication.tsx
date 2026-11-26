@@ -24,18 +24,20 @@ import { PracticeEntry } from '../practice/PracticeEntry.tsx'
 
 interface Props {
   location: LearningLocation
+  sectionId: string | null
   navigate: Navigate
   requireLogin: (destination: Destination) => void
 }
 
-export default function LearningApplication({ location, navigate, requireLogin }: Props) {
+export default function LearningApplication({ location, sectionId, navigate, requireLogin }: Props) {
   const [session] = useState(() => new SessionStore(api.auth))
   const authentication = useSyncExternalStore(session.subscribe, session.getSnapshot)
   const [store] = useState(() => new LearningStore(api, location))
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
   const errorBox = useRef<HTMLDivElement>(null)
   const { content, read } = state
-  const heading = usePageHeadingFocus(authentication.kind === 'authenticated' && !['loading', 'authentication'].includes(content.kind))
+  const focusedSection = useRef<string | null>(null)
+  const heading = usePageHeadingFocus(sectionId === null && authentication.kind === 'authenticated' && !['loading', 'authentication'].includes(content.kind))
   const destination = learningDestination(location)
   const saveRead = useCallback(() => { void store.markRead() }, [store])
   const expired = useCallback(() => requireLogin(destination), [requireLogin, destination])
@@ -58,8 +60,20 @@ export default function LearningApplication({ location, navigate, requireLogin }
     }
   }, [authentication.kind, content, location.topicId])
   useEffect(() => { if (read.kind === 'ready' && read.at !== null) notifyProgressChanged() }, [read])
+  useEffect(() => {
+    if (content.kind !== 'topic') return
+    const key = `${content.article.topic_id}/${sectionId ?? ''}`
+    if (focusedSection.current === key) return
+    focusedSection.current = key
+    if (!sectionId || !content.article.sections.some(section => section.section_id === sectionId)) return
+    const target = document.getElementById(`section-${sectionId}`)
+    target?.focus({ preventScroll: true })
+    target?.scrollIntoView({ block: 'start' })
+  }, [content, sectionId])
 
   const authorized = authentication.kind === 'authenticated' && content.kind !== 'authentication'
+  const sections = content.kind === 'topic' ? content.article.sections : []
+  const currentIndex = Math.max(0, sections.findIndex(section => section.section_id === sectionId))
   return <AppShell navigate={navigate} canLogout={authentication.kind === 'authenticated'} topicId={location.topicId}>
     {location.topicId !== null && <p><NavigationLink to={learningDestination({ topicId: null, language: location.language })} navigate={navigate}>{text.back}</NavigationLink></p>}
     {!authorized && authentication.kind !== 'error' && <LoadingState message={ru.checking} />}
@@ -73,7 +87,7 @@ export default function LearningApplication({ location, navigate, requireLogin }
         <h1 ref={heading} tabIndex={-1} lang={content.kind === 'topic' ? location.language : undefined}>{content.kind === 'topic' ? content.article.title : content.kind === 'not_found' ? text.notFound : location.topicId === null ? text.catalog : text.topic}</h1>
         {content.kind === 'catalog' && <p>{text.intro}</p>}
         {content.kind !== 'not_found' && <LanguageSelector name="material-language" legend={text.language} language={location.language}
-          choose={language => navigate(learningDestination({ ...location, language }))} />}
+          choose={language => navigate(learningDestination({ ...location, language }, sectionId))} />}
         {content.kind === 'topic' && <p className="help-text">{text.languageHelp}</p>}
       </header>
       {content.kind === 'loading' && <LoadingState message={text.loading} />}
@@ -86,7 +100,23 @@ export default function LearningApplication({ location, navigate, requireLogin }
       {content.kind === 'topic' && <>
         <article className="learning-card" aria-labelledby="article-heading">
           <h2 id="article-heading">{text.article}</h2>
-          <div className="article-body" lang={location.language}>{content.article.article_body}</div>
+          <nav className="section-navigation" aria-label={text.contents}>
+            <ol>{sections.map(section => <li key={section.section_id}>
+              <NavigationLink to={learningDestination(location, section.section_id)} navigate={navigate}
+                current={section.section_id === sections[currentIndex]?.section_id ? 'location' : undefined}>
+                <span lang={location.language}>{section.title}</span>
+              </NavigationLink>
+            </li>)}</ol>
+            <p>{text.currentSection}: <span lang={location.language}>{sections[currentIndex]?.title}</span></p>
+            <div className="section-controls">
+              {currentIndex > 0 && <NavigationLink to={learningDestination(location, sections[currentIndex - 1].section_id)} navigate={navigate}>{text.previousSection}</NavigationLink>}
+              {currentIndex < sections.length - 1 && <NavigationLink to={learningDestination(location, sections[currentIndex + 1].section_id)} navigate={navigate}>{text.nextSection}</NavigationLink>}
+            </div>
+          </nav>
+          {sections.map(section => <section className="reader-section" key={section.section_id} aria-labelledby={`section-${section.section_id}`} lang={location.language}>
+            <h2 id={`section-${section.section_id}`} tabIndex={-1}>{section.title}</h2>
+            <div className="article-body" lang={location.language}>{section.article_body}</div>
+          </section>)}
           <span ref={articleEnd} className="article-end" aria-hidden="true" />
         </article>
         <p className="assessment-entry"><NavigationLink to={assessmentDestination({ kind: 'start', id: content.article.topic_id, language: 'ru' })} navigate={navigate} className="ui-button ui-button--primary">{assessmentRu.entry}</NavigationLink></p>

@@ -21,9 +21,10 @@ def demo_data():
 
 def create_demo_content(database, *, confirmed=False):
     from django.db import connection, transaction
+    from django.db.models import Model
     from apps.assessments.models import Choice, ChoiceTranslation, Question, QuestionTranslation
     from apps.learning.changes import edit_topics
-    from apps.learning.models import Term, TermTranslation, Topic, TopicTranslation
+    from apps.learning.models import Term, TermTranslation, Topic, TopicTranslation, TopicSection, TopicSectionTranslation
 
     config = connection.settings_dict
     if not confirmed or not database or database == "postgres" or config["NAME"] != database:
@@ -44,8 +45,11 @@ def create_demo_content(database, *, confirmed=False):
             raise DemoContentError("Demo title already exists; no data was changed")
         topic = Topic.objects.create()
         with edit_topics({topic.pk: topic.revision}, using=connection.alias):
+            section = TopicSection(topic=topic, position=10, status="published")
+            Model.save(section)
             for language, fields in data["translations"].items():
                 TopicTranslation.objects.create(topic=topic, language=language, **fields).full_clean()
+                Model.save(TopicSectionTranslation(section=section, language=language, **fields))
             for item in data["terms"]:
                 term = Term.objects.create(topic=topic, position=item["position"])
                 term.full_clean()

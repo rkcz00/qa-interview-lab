@@ -2,14 +2,14 @@ import logging
 from functools import wraps
 
 from django.http import Http404, JsonResponse
-from django.shortcuts import get_object_or_404
 from django.views.decorators.cache import never_cache
 from rest_framework.exceptions import ValidationError
 
 from config.api import authentication_required, error_response, method_not_allowed, pk_from_path
 
+from .articles import legacy_article_body, read_sections
 from .models import TermTranslation, Topic, TopicStatus, TopicTranslation
-from .serializers import ArticleSerializer, TermSerializer, TopicSummarySerializer, language_from_query
+from .serializers import ArticleSerializer, SectionsArticleSerializer, TermSerializer, TopicSummarySerializer, language_from_query
 
 
 logger = logging.getLogger(__name__)
@@ -55,9 +55,14 @@ def topic_catalog(request):
 
 @_learner_read
 def topic_article(request, topic_id):
-    pk = _published_topic_id(topic_id)
-    translation = get_object_or_404(_topic_translations(language_from_query(request.GET)), topic_id=pk)
-    return ArticleSerializer(translation).data
+    article = read_sections(_published_topic_id(topic_id), language_from_query(request.GET))
+    article["article_body"] = legacy_article_body(article.pop("sections"))
+    return ArticleSerializer(article).data
+
+
+@_learner_read
+def topic_sections(request, topic_id):
+    return SectionsArticleSerializer(read_sections(_published_topic_id(topic_id), language_from_query(request.GET))).data
 
 
 @_learner_read
