@@ -2,7 +2,7 @@
 
 Статус: backend completion/reset QIL-034, UI QIL-035 и Answer/Finish QIL-038/QIL-040 реализованы; [backend](COMPLETION_BACKEND.md), [UI](COMPLETION_UI.md), [test flow](ANSWER_FINISH.md). Reset остаётся 200 + GET; Practice входит в completion, но не mastery.
 
-QIL-042, 27 ноября 2026: пользователь утвердил отдельный reader и section-level progress по [TOPIC_SECTIONS_SPEC](TOPIC_SECTIONS_SPEC.md). Новая модель, дробный вклад статьи, динамические Read/mastery и Read-гейт нового Test/Practice start — целевой контракт QIL-043/QIL-044, пока NOT_IMPLEMENTED. Старые PASS не являются его приёмкой. Прежние JSON Progress/CompletionProgress/Result и Answer/Finish не расширяются.
+QIL-042, 27 ноября 2026: утверждён отдельный reader и section-level progress по [TOPIC_SECTIONS_SPEC](TOPIC_SECTIONS_SPEC.md). QIL-043 реализует новую модель, дробный вклад статьи, динамические Read/mastery и Read-гейт нового Test/Practice start; [переход и provenance](SECTION_PROGRESS_BACKEND.md). Текущий длинный reader минимально адаптирован по отдельному разрешению; отдельные страницы остаются QIL-044. Прежние JSON Progress/CompletionProgress/Result, activity-правила и Answer/Finish не расширяются.
 
 Источники: [PRD](PRD.md), [архитектура](ARCHITECTURE.md), [QA-стратегия](QA_STRATEGY.md), [backlog](BACKLOG.md), [Practice](PRACTICE_SPEC.md), [разделы Topic](TOPIC_SECTIONS_SPEC.md).
 

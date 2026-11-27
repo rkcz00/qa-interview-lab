@@ -27,6 +27,42 @@ export interface SectionsArticle extends TopicSummary {
   sections: TopicSection[]
 }
 
+export interface ReadingState {
+  total_sections: number
+  read_sections: number
+  is_read: boolean
+  completion_contribution: number
+}
+export interface SectionReadSummary {
+  section_id: string
+  position: number
+  title: string
+  read_at: string | null
+}
+export interface TopicReading extends TopicSummary {
+  language: Language
+  progress_generation: string
+  reading: ReadingState
+  sections: SectionReadSummary[]
+}
+export interface SectionArticle {
+  topic_id: string
+  topic_title: string
+  language: Language
+  progress_generation: string
+  section: SectionReadSummary & { article_body: string }
+  previous_section_id: string | null
+  next_section_id: string | null
+  reading: ReadingState
+}
+export interface SectionRead {
+  topic_id: string
+  section_id: string
+  read_at: string
+  progress_generation: string
+  reading: ReadingState
+}
+
 export interface Term {
   term_id: string
   position: number

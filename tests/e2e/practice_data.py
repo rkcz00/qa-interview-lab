@@ -20,7 +20,7 @@ def main():
     from apps.learning.models import Topic, TopicStatus, TopicTranslation
     from apps.learning.changes import edit_topics
     from apps.learning.tests.test_content import create_bilingual_topic
-    from apps.assessments.models import Attempt, TopicProgress
+    from apps.assessments.models import Attempt, TopicProgress, TopicSectionProgress
     from apps.practice.models import PracticeSubmission, PracticeTask, TopicPractice
     from apps.practice.tests.factories import create_practice, write
 
@@ -64,6 +64,7 @@ def main():
             if action == "cleanup":
                 PracticeSubmission.objects.filter(task__topic_practice__topic_id__in=ids).delete()
                 Attempt.objects.filter(topic_id__in=ids).delete()
+                TopicSectionProgress.objects.filter(section__topic_id__in=ids).delete()
                 TopicProgress.objects.filter(topic_id__in=ids).delete()
                 for topic in topics:
                     task = PracticeTask.objects.filter(topic_practice__topic=topic).first()

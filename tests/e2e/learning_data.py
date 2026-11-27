@@ -20,7 +20,7 @@ def main():
     from apps.learning.models import Language, Term, TermTranslation, Topic, TopicStatus, TopicTranslation, TopicSection, TopicSectionTranslation
     from apps.learning.changes import edit_topics
     from apps.learning.tests.test_content import create_bilingual_topic
-    from apps.assessments.models import Attempt, AttemptStatus, Choice, ChoiceTranslation, Question, QuestionTranslation, TopicProgress
+    from apps.assessments.models import Attempt, AttemptStatus, Choice, ChoiceTranslation, Question, QuestionTranslation, TopicProgress, TopicSectionProgress
 
     with connection.cursor() as cursor:
         cursor.execute("SELECT current_database()")
@@ -58,6 +58,7 @@ def main():
             result = {"first": topics[0], "second": topics[1], "draft": str(draft.pk), "ids": [*topics, str(draft.pk)]}
         elif action == "cleanup":
             Attempt.objects.filter(topic_id__in=ids).delete()
+            TopicSectionProgress.objects.filter(section__topic_id__in=ids).delete()
             TopicProgress.objects.filter(topic_id__in=ids).delete()
             Topic.objects.filter(pk__in=ids).delete()
             result = {"cleanup": "PASS"}

@@ -1,5 +1,6 @@
 """Real reader, sections API, owned PostgreSQL and the existing read transaction."""
 import re
+import time
 
 import pytest
 from playwright.sync_api import expect
@@ -17,7 +18,18 @@ def open_sections(page, topic_id, language="ru", section_id=None):
     path = "/topics/" + topic_id + ("?language=en" if language == "en" else "")
     page.goto(path + ("#section-" + section_id if section_id else ""))
     expect(page.locator(".reader-section")).to_have_count(2)
-    expect(page.locator(".article-end")).to_have_count(1)
+    expect(page.locator(".article-end")).to_have_count(2)
+
+
+def read_section(page, topic_id, section_id):
+    page.locator('.article-end[data-section-id="' + section_id + '"]').scroll_into_view_if_needed()
+    deadline = time.monotonic() + 10
+    while True:
+        current = page.context.request.get("/api/v1/topics/" + topic_id + "/reading/").json()["data"]
+        if any(row["section_id"] == section_id and row["read_at"] is not None for row in current["sections"]):
+            return current
+        check(time.monotonic() < deadline, "A visible section end must create its own read mark")
+        page.wait_for_timeout(25)
 
 
 @pytest.mark.parametrize("size", SIZES, ids=["desktop", "mobile"])
@@ -29,7 +41,7 @@ def test_sections_anchors_ru_en_reload_history_and_keyboard(auth_page, auth_app,
     signed_in(page)
     reads, gets = [], []
     def record(request):
-        if request.method == "POST" and request.url.endswith("/topics/" + topic_id + "/read/"):
+        if request.method == "POST" and "/topics/" + topic_id + "/sections/" in request.url and request.url.endswith("/read/"):
             reads.append(1)
         if request.method == "GET" and "/topics/" + topic_id + "/sections/" in request.url:
             gets.append(1)
@@ -38,16 +50,23 @@ def test_sections_anchors_ru_en_reload_history_and_keyboard(auth_page, auth_app,
     expect(page.locator(".reader-section h2")).to_have_text(["Раздел 1", "Раздел 2"])
     expect(page.locator("#section-" + ids[0])).to_be_focused()
     expect(page.get_by_text("Hidden draft section", exact=True)).to_have_count(0)
-    page.locator(".reader-section .article-body").first.evaluate("node => node.scrollIntoView({block: 'end'})")
-    check(page.context.request.get("/api/v1/progress/").json() == {"data": []}, "Intermediate section must not mark the Topic read")
-    check(not reads, "No Read request is allowed at an intermediate end")
+    read_section(page, topic_id, ids[0])
+    current = page.context.request.get("/api/v1/topics/" + topic_id + "/reading/").json()["data"]
+    check(current["reading"]["read_sections"] == 1 and not current["reading"]["is_read"],
+          "One of two sections gives partial reading without aggregate Read")
+    check(page.context.request.get("/api/v1/progress/").json()["data"][0]["article_read_at"] is None,
+          "The intermediate section must not mark the Topic read")
+    refused = request_post(page.context, "/api/v1/topics/" + topic_id + "/attempts/", {"language": "ru"})
+    check(refused.status == 403 and refused.json()["error"]["code"] == "section_read_required",
+          "A test cannot bypass the unread second section")
+    check(len(reads) == 1, "Reading an intermediate section sends only its own POST")
     next_link = page.get_by_role("link", name="Следующий раздел", exact=True)
     next_link.focus()
     next_link.press("Enter")
     expect(page).to_have_url(re.compile(r"#section-" + ids[1] + "$"))
     expect(page.locator("#section-" + ids[1])).to_be_focused()
     expect(page.locator('.section-navigation a[aria-current="location"]')).to_have_text("Раздел 2")
-    check(len(gets) == 1 and not reads, "Anchor navigation must not reload content or write Read")
+    check(len(gets) == 1 and len(reads) == 1, "Anchor navigation must not reload content or duplicate the section mark")
     page.get_by_role("radio", name="English", exact=True).check()
     expect(page.locator(".reader-section h2")).to_have_text(["Section 1", "Section 2"])
     expect(page.get_by_role("radio", name="English", exact=True)).to_be_focused()
@@ -61,7 +80,7 @@ def test_sections_anchors_ru_en_reload_history_and_keyboard(auth_page, auth_app,
     page.go_forward()
     expect(page.locator("#section-" + ids[0])).to_be_focused()
     check(page.evaluate("document.documentElement.scrollWidth <= innerWidth"), "Sections must fit the mobile viewport")
-    check(not reads, "Heading/anchor navigation must not imply reaching the final end")
+    check(len(reads) == 1, "Heading/anchor navigation must not imply reading the second section")
 
 
 @pytest.mark.parametrize("size", SIZES, ids=["desktop", "mobile"])
@@ -70,14 +89,14 @@ def test_last_section_read_survives_translation_failure_and_one_pending_post(aut
     page = auth_page
     page.set_viewport_size(size)
     topic_id = learning_topics["first"]
-    auth_app.learning_data("sections", [topic_id])
+    ids = auth_app.learning_data("sections", [topic_id])["sections"]
     signed_in(page)
     held = []
-    page.route("**/api/v1/topics/" + topic_id + "/read/", lambda route: held.append(route))
+    page.route("**/api/v1/topics/" + topic_id + "/sections/" + ids[1] + "/read/", lambda route: held.append(route))
     open_sections(page, topic_id, language)
-    page.locator(".reader-section .article-body").first.evaluate("node => node.scrollIntoView({block: 'end'})")
-    check(not held, "Intermediate section must not send Read")
-    page.locator(".article-end").scroll_into_view_if_needed()
+    first = read_section(page, topic_id, ids[0])
+    check(not held and first["reading"]["read_sections"] == 1, "First section has an independent mark")
+    page.locator(".article-end").last.scroll_into_view_if_needed()
     expect(page.locator(".reading-card .ui-loading")).to_have_text("Сохраняем отметку…")
     pattern = "**/api/v1/topics/" + topic_id + "/sections/?*"
     page.route(pattern, lambda route: route.abort("failed"))
@@ -88,7 +107,7 @@ def test_last_section_read_survives_translation_failure_and_one_pending_post(aut
     page.unroute(pattern)
     page.get_by_role("button", name="Повторить загрузку", exact=True).click()
     expect(page.locator(".reader-section")).to_have_count(2)
-    page.locator(".article-end").scroll_into_view_if_needed()
+    page.locator(".article-end").last.scroll_into_view_if_needed()
     page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
     check(len(held) == 1, "Reloading a translation must preserve the sole pending POST")
     held[0].continue_()
@@ -96,7 +115,7 @@ def test_last_section_read_survives_translation_failure_and_one_pending_post(aut
     before = page.context.request.get("/api/v1/progress/").json()
     page.get_by_role("radio", name="Русский" if other == "en" else "English", exact=True).check()
     expect(page.locator(".article-body").first).to_have_attribute("lang", language)
-    page.locator(".article-end").scroll_into_view_if_needed()
+    page.locator(".article-end").last.scroll_into_view_if_needed()
     expect(page.locator(".reading-card .ui-notice--success")).to_be_visible()
     check(len(held) == 1 and page.context.request.get("/api/v1/progress/").json() == before, "RU/EN must preserve the first saved Read date")
 
@@ -106,10 +125,11 @@ def test_sections_unpublish_hides_new_reader_but_keeps_attempt_and_progress(auth
     page = auth_page
     page.set_viewport_size(size)
     topic_id = learning_topics["first"]
-    auth_app.learning_data("sections", [topic_id])
+    ids = auth_app.learning_data("sections", [topic_id])["sections"]
     signed_in(page)
     open_sections(page, topic_id)
-    page.locator(".article-end").scroll_into_view_if_needed()
+    for section_id in ids:
+        read_section(page, topic_id, section_id)
     expect(page.locator(".reading-card .ui-notice--success")).to_be_visible()
     started = request_post(page.context, "/api/v1/topics/" + topic_id + "/attempts/", {"language": "en"})
     check(started.status == 201, "Published topic must allow an independent English test")

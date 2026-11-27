@@ -8,7 +8,7 @@ from playwright.sync_api import expect
 
 from tests.e2e.test_auth_ui import check, form
 from tests.e2e.test_learning_ui import signed_in, topic_page
-from tests.e2e.test_assessment_ui import choose_correct, result, confirm_answers
+from tests.e2e.test_assessment_ui import choose_correct, result, confirm_answers, ensure_read
 
 
 SIZES = [{"width": 1280, "height": 900}, {"width": 390, "height": 844}]
@@ -72,6 +72,7 @@ def test_shared_styles_on_all_auth_learning_assessment_progress_routes(auth_page
     expect(page.locator(".topic-list a")).to_have_count(2)
     visual(page, "catalog", size)
     topic_id = learning_topics["first"]
+    ensure_read(page, topic_id)
     topic_page(page, topic_id)
     visual(page, "article", size)
     page.get_by_role("link", name="Пройти тест", exact=True).click()
@@ -141,7 +142,7 @@ def test_busy_success_disabled_and_reduced_motion_states(auth_page, auth_app, le
     auth_app.learning_data("long_article", [topic_id])
     topic_page(page, topic_id)
     held = []
-    page.route("**/api/v1/topics/" + topic_id + "/read/", lambda route: held.append(route))
+    page.route("**/api/v1/topics/" + topic_id + "/sections/*/read/", lambda route: held.append(route))
     page.locator(".article-end").scroll_into_view_if_needed()
     expect(page.locator(".reading-card .ui-loading")).to_have_text("Сохраняем отметку…")
     check(page.locator(".reading-card .ui-spinner").evaluate("element => getComputedStyle(element).animationName === 'none'"), "Reduced motion disables the spinner")

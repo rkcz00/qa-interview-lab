@@ -9,7 +9,7 @@ from django.db import transaction
 from django.http import Http404
 from rest_framework.exceptions import ValidationError
 
-from .models import Attempt, TopicProgress, UserProgressState
+from .models import Attempt, TopicProgress, TopicSectionProgress, UserProgressState
 
 
 MAX_GENERATION = 2**63 - 1
@@ -74,6 +74,7 @@ def reset_progress(state, generation, request_id):
 
     from apps.practice.models import PracticeSubmission
 
+    TopicSectionProgress.objects.filter(user_id=state.user_id).delete()
     TopicProgress.objects.filter(user_id=state.user_id).delete()
     Attempt.objects.filter(user_id=state.user_id).delete()
     PracticeSubmission.objects.filter(user_id=state.user_id).delete()

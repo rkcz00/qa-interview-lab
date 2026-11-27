@@ -6,7 +6,7 @@ from playwright.sync_api import expect
 
 from tests.e2e.test_auth_ui import check, fill, seed
 from tests.e2e.test_learning_ui import signed_in, topic_page
-from tests.e2e.test_assessment_ui import begin, choose_correct, request_post, result, confirm_answers
+from tests.e2e.test_assessment_ui import begin, choose_correct, request_post, result, confirm_answers, read_all_sections
 from tests.e2e.test_progress_ui import complete
 
 
@@ -60,7 +60,7 @@ def test_end_visibility_automatically_saves_once_with_csrf_and_persists_language
     auth_app.learning_data('long_article', [topic_id])
     signed_in(page)
     held = []
-    page.route('**/api/v1/topics/' + topic_id + '/read/', lambda route: held.append(route))
+    page.route('**/api/v1/topics/' + topic_id + '/sections/*/read/', lambda route: held.append(route))
     topic_page(page, topic_id)
     check(page.context.request.get('/api/v1/progress/').json() == {'data': []}, 'Opening a long article must not record reading')
     # Keyboard focus is portable; WebKit intentionally blurs radios on mouse clicks.
@@ -98,7 +98,7 @@ def test_language_changes_while_read_post_is_pending_do_not_send_another_post(au
     auth_app.learning_data('long_article', [topic_id])
     signed_in(page)
     held = []
-    page.route('**/api/v1/topics/' + topic_id + '/read/', lambda route: held.append(route))
+    page.route('**/api/v1/topics/' + topic_id + '/sections/*/read/', lambda route: held.append(route))
     topic_page(page, topic_id)
     page.locator('.article-end').scroll_into_view_if_needed()
     expect(page.locator('.reading-card .ui-loading')).to_have_text('Сохраняем отметку…')
@@ -128,7 +128,7 @@ def test_translation_failure_and_retry_keep_the_original_read_post(auth_page, au
     auth_app.learning_data('long_article', [topic_id])
     signed_in(page)
     held = []
-    page.route('**/api/v1/topics/' + topic_id + '/read/', lambda route: held.append(route))
+    page.route('**/api/v1/topics/' + topic_id + '/sections/*/read/', lambda route: held.append(route))
     topic_page(page, topic_id, initial_language)
     page.locator('.article-end').scroll_into_view_if_needed()
     expect(page.locator('.reading-card .ui-loading')).to_have_text('Сохраняем отметку…')
@@ -164,7 +164,7 @@ def test_visibility_return_with_hidden_marker_waits_for_a_real_visible_end(auth_
     auth_app.learning_data('long_article', [topic_id])
     signed_in(page)
     posts = []
-    page.on('request', lambda request: posts.append(1) if request.method == 'POST' and request.url.endswith('/topics/' + topic_id + '/read/') else None)
+    page.on('request', lambda request: posts.append(1) if request.method == 'POST' and '/topics/' + topic_id + '/sections/' in request.url and request.url.endswith('/read/') else None)
     topic_page(page, topic_id)
     # Control visibility events rather than OS window focus, which is unreliable in headless CI.
     # Geometry, IntersectionObserver, CSRF, HTTP and PostgreSQL remain real.
@@ -197,18 +197,21 @@ def test_only_published_mastery_counts_without_history_requests_or_pending_attem
     topic_id = learning_topics['first']
     check(request_post(page.context, '/api/v1/topics/' + topic_id + '/read/', {}).status == 200, 'Read prerequisite failed')
     attempt_id = complete(page.context, topic_id)
+    read_all_sections(page.context, learning_topics['second'])
+    before = page.context.request.get('/api/v1/completion-progress/').json()
     pending = request_post(page.context, '/api/v1/topics/' + learning_topics['second'] + '/attempts/', {'language': 'ru'})
     check(pending.status == 201, 'Pending attempt setup failed')
+    check(page.context.request.get('/api/v1/completion-progress/').json() == before, 'An unsubmitted attempt must not add completion')
     history_requests = []
     page.on('request', lambda request: history_requests.append(1) if re.search(r'/api/v1/attempts/\??$', request.url) else None)
     page.goto('/progress')
-    overall(page, '50%', 'Освоено 1 из 2 тем')
+    overall(page, '65%', 'Освоено 1 из 2 тем')
     check(not history_requests, 'Progress UI must not fetch attempt history')
     page.reload()
-    overall(page, '50%', 'Освоено 1 из 2 тем')
+    overall(page, '65%', 'Освоено 1 из 2 тем')
     auth_app.learning_data('draft', [topic_id])
     page.reload()
-    overall(page, '0%', 'Освоено 0 из 1 тем')
+    overall(page, '30%', 'Освоено 0 из 1 тем')
     saved = page.context.request.get('/api/v1/progress/').json()['data']
     check(any(row['topic_id'] == topic_id and row['mastered'] for row in saved), 'Unpublication must preserve stored mastery')
     check(page.context.request.get('/api/v1/attempts/' + attempt_id + '/').status == 200, 'Saved result must remain available by owned URL')
@@ -219,17 +222,15 @@ def test_sidebar_updates_after_automatic_read_and_submit_without_reload_or_focus
     signed_in(page)
     first, second = learning_topics['first'], learning_topics['second']
     complete(page.context, first)
-    auth_app.learning_data('long_article', [first])
-    topic_page(page, first)
-    expect(page.locator('aside .overall-percentage')).to_have_text('35%')
+    auth_app.learning_data('long_article', [second])
+    page.goto('/topics/' + second)
+    expect(page.locator('.article-body')).to_be_visible()
+    expect(page.locator('aside .overall-percentage')).to_have_text('50%')
     selector = page.get_by_role('radio', name='Русский', exact=True)
     selector.focus()
     read_article(page)
-    expect(page.locator('aside .overall-percentage')).to_have_text('50%')
+    expect(page.locator('aside .overall-percentage')).to_have_text('65%')
     expect(selector).to_be_focused()
-    page.goto('/topics/' + second)
-    expect(page.locator('.article-body')).to_be_visible()
-    read_article(page)
     begin(page, second)
     choose_correct(page)
     confirm_answers(page)

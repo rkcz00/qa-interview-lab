@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { ApiError } from '../src/api/client.ts'
 import type { LearningApi } from '../src/learning/model.ts'
-import type { Progress } from '../src/api/types.ts'
+import type { SectionRead, TopicReading } from '../src/api/types.ts'
 import type { Destination } from '../src/auth/routing.ts'
 import { resolveRoute } from '../src/auth/routing.ts'
 import { LearningStore, learningFailure } from '../src/learning/model.ts'
@@ -13,7 +13,16 @@ const terms = [
   { term_id: '2', position: 10, language: 'ru' as const, name: 'Первый', definition: 'Определение' },
   { term_id: '10', position: 10, language: 'ru' as const, name: 'Второй', definition: 'Определение' },
 ]
-const progress: Progress = { topic_id: '12', article_read_at: '2026-11-12T10:00:00Z', best_result: null, mastered: false }
+const progress: SectionRead = { topic_id: '12', section_id: '101', read_at: '2026-11-12T10:00:00Z', progress_generation: '1',
+  reading: { total_sections: 1, read_sections: 1, is_read: true, completion_contribution: 30 } }
+function reading(at: string | null = null): TopicReading {
+  return { topic_id: '12', title: article.title, language: 'ru', progress_generation: '1',
+    reading: { total_sections: 1, read_sections: at ? 1 : 0, is_read: at !== null, completion_contribution: at ? 30 : 0 },
+    sections: [{ section_id: '101', position: 10, title: 'Раздел', read_at: at }] }
+}
+function ready(at: string | null, pending: boolean) {
+  return { kind: 'ready', complete: at !== null, pending, sections: { '101': at } }
+}
 const failure = (status: number, code: string) => new ApiError({ status, code, kind: status ? 'http' : 'network', message: 'Untrusted details' })
 function mockApi() {
   const calls: string[] = []
@@ -22,10 +31,10 @@ function mockApi() {
       catalog: async language => { calls.push('catalog:' + language); return [{ topic_id: '2', title: 'Второй' }, { topic_id: '10', title: 'Десятый' }] },
       sections: async (id, language) => { calls.push(`article:${id}:${language}`); return article },
       terms: async (id, language) => { calls.push(`terms:${id}:${language}`); return terms },
+      reading: async () => { calls.push('reading'); return reading() },
     },
     progress: {
-      current: async () => { calls.push('progress'); return [] },
-      markRead: async id => { calls.push('read:' + id); return progress },
+      markSectionRead: async id => { calls.push('read:' + id); return progress },
     },
   }
   return { api, calls }
@@ -67,8 +76,8 @@ test('article, glossary and read state load without changing progress or interpr
   await store.load()
   await tick()
   assert.deepEqual(store.getSnapshot().content, { kind: 'topic', article, terms })
-  assert.deepEqual(store.getSnapshot().read, { kind: 'ready', at: null, pending: false })
-  assert.deepEqual(new Set(calls), new Set(['progress', 'article:12:ru', 'terms:12:ru']))
+  assert.deepEqual(store.getSnapshot().read, ready(null, false))
+  assert.deepEqual(new Set(calls), new Set(['reading', 'article:12:ru', 'terms:12:ru']))
 })
 
 test('empty catalog is a successful state', async () => {
@@ -85,7 +94,7 @@ test('one Learning store switches translations, ignores old responses and preser
   api.learning.sections = async (_id, language) => language === 'ru'
     ? new Promise(resolve => { finishOld = resolve }) : { ...article, language: 'en' }
   api.learning.terms = async (_id, language = 'ru') => terms.map(term => ({ ...term, language }))
-  api.progress.current = async () => [progress]
+  api.learning.reading = async () => reading(progress.read_at)
   const store = new LearningStore(api, { topicId: '12', language: 'ru' })
   const old = store.load()
   await store.load({ topicId: '12', language: 'en' })
@@ -98,7 +107,7 @@ test('one Learning store switches translations, ignores old responses and preser
     assert.equal(state.content.article.language, 'en')
     assert.equal(state.content.terms[0].language, 'en')
   }
-  assert.deepEqual(state.read, { kind: 'ready', at: progress.article_read_at, pending: false })
+  assert.deepEqual(state.read, ready(progress.read_at, false))
   await store.markRead()
   assert.equal(calls.some(call => call.startsWith('read:')), false)
 })
@@ -118,7 +127,7 @@ for (const [status, code, kind] of [[404, 'not_found', 'not_found'], [403, 'auth
 
 test('progress failure remains unknown and disables writes until a successful GET', async () => {
   const { api, calls } = mockApi()
-  api.progress.current = async () => { throw failure(500, 'internal_error') }
+  api.learning.reading = async () => { throw failure(500, 'internal_error') }
   const store = new LearningStore(api, { topicId: '12', language: 'ru' })
   await store.load()
   await tick()
@@ -126,38 +135,38 @@ test('progress failure remains unknown and disables writes until a successful GE
   assert.equal(store.getSnapshot().read.kind, 'error')
   await store.markRead()
   assert.equal(calls.includes('read:12'), false)
-  api.progress.current = async () => []
+  api.learning.reading = async () => reading()
   await store.refreshRead()
-  assert.deepEqual(store.getSnapshot().read, { kind: 'ready', at: null, pending: false })
+  assert.deepEqual(store.getSnapshot().read, ready(null, false))
 })
 
 test('only explicit mark writes; double click and an existing mark do not write again', async () => {
   const { api, calls } = mockApi()
-  let complete!: (value: Progress) => void
-  api.progress.markRead = async id => {
+  let complete!: (value: SectionRead) => void
+  api.progress.markSectionRead = async id => {
     calls.push('read:' + id)
-    return new Promise<Progress>(resolve => { complete = resolve })
+    return new Promise<SectionRead>(resolve => { complete = resolve })
   }
   const store = new LearningStore(api, { topicId: '12', language: 'ru' })
   await store.load()
   const writing = store.markRead()
   await store.markRead()
-  assert.deepEqual(store.getSnapshot().read, { kind: 'ready', at: null, pending: true })
+  assert.deepEqual(store.getSnapshot().read, ready(null, true))
   complete(progress)
   await writing
   await store.markRead()
   assert.equal(calls.filter(call => call === 'read:12').length, 1)
-  assert.deepEqual(store.getSnapshot().read, { kind: 'ready', at: progress.article_read_at, pending: false })
+  assert.deepEqual(store.getSnapshot().read, ready(progress.read_at, false))
 })
 
 test('language changes and concurrent read triggers share one pending POST and its first date', async () => {
   const { api, calls } = mockApi()
-  let complete!: (value: Progress) => void
+  let complete!: (value: SectionRead) => void
   api.learning.sections = async (_id, language = 'ru') => ({ ...article, language })
   api.learning.terms = async (_id, language = 'ru') => terms.map(term => ({ ...term, language }))
-  api.progress.markRead = async id => {
+  api.progress.markSectionRead = async id => {
     calls.push('read:' + id)
-    return new Promise<Progress>(resolve => { complete = resolve })
+    return new Promise<SectionRead>(resolve => { complete = resolve })
   }
   const store = new LearningStore(api, { topicId: '12', language: 'ru' })
   await store.load()
@@ -165,7 +174,7 @@ test('language changes and concurrent read triggers share one pending POST and i
   for (const language of ['en', 'ru', 'en'] as const) {
     await store.load({ topicId: '12', language })
     await store.refreshRead()
-    assert.deepEqual(store.getSnapshot().read, { kind: 'ready', at: null, pending: true })
+    assert.deepEqual(store.getSnapshot().read, ready(null, true))
     await Promise.all([store.markRead(), store.markRead(), store.markRead()])
   }
   assert.equal(calls.filter(call => call === 'read:12').length, 1)
@@ -174,7 +183,7 @@ test('language changes and concurrent read triggers share one pending POST and i
   for (const language of ['ru', 'en'] as const) {
     await store.load({ topicId: '12', language })
     await store.markRead()
-    assert.deepEqual(store.getSnapshot().read, { kind: 'ready', at: progress.article_read_at, pending: false })
+    assert.deepEqual(store.getSnapshot().read, ready(progress.read_at, false))
   }
   assert.equal(calls.filter(call => call === 'read:12').length, 1)
 })
@@ -184,9 +193,9 @@ test('failed read across a language change requires an explicit check before ret
   let reject!: (reason: unknown) => void
   api.learning.sections = async (_id, language = 'ru') => ({ ...article, language })
   api.learning.terms = async (_id, language = 'ru') => terms.map(term => ({ ...term, language }))
-  api.progress.markRead = async id => {
+  api.progress.markSectionRead = async id => {
     calls.push('read:' + id)
-    return new Promise<Progress>((_resolve, fail) => { reject = fail })
+    return new Promise<SectionRead>((_resolve, fail) => { reject = fail })
   }
   const store = new LearningStore(api, { topicId: '12', language: 'ru' })
   await store.load()
@@ -200,10 +209,10 @@ test('failed read across a language change requires an explicit check before ret
   assert.equal(store.getSnapshot().read.kind, 'error')
   assert.equal(calls.filter(call => call === 'read:12').length, 1)
   await store.refreshRead()
-  assert.deepEqual(store.getSnapshot().read, { kind: 'ready', at: null, pending: false })
-  api.progress.markRead = async id => { calls.push('read:' + id); return progress }
+  assert.deepEqual(store.getSnapshot().read, ready(null, false))
+  api.progress.markSectionRead = async id => { calls.push('read:' + id); return progress }
   await store.markRead()
-  assert.deepEqual(store.getSnapshot().read, { kind: 'ready', at: progress.article_read_at, pending: false })
+  assert.deepEqual(store.getSnapshot().read, ready(progress.read_at, false))
   assert.equal(calls.filter(call => call === 'read:12').length, 2)
 })
 
@@ -213,7 +222,7 @@ for (const initialLanguage of ['ru', 'en'] as const) {
       test(`${initialLanguage}: pending read survives ${loadOutcome}; response ${completeBeforeRetry ? 'before' : 'after'} content retry`, async () => {
         const { api, calls } = mockApi()
         let rejectTranslation = false
-        let complete!: (value: Progress) => void
+        let complete!: (value: SectionRead) => void
         api.learning.sections = async (_id, language = 'ru') => {
           if (rejectTranslation && loadOutcome === 'article_network_error') throw failure(0, 'network_error')
           return { ...article, language }
@@ -222,9 +231,9 @@ for (const initialLanguage of ['ru', 'en'] as const) {
           if (rejectTranslation && loadOutcome === 'terms_server_error') throw failure(500, 'internal_error')
           return terms.map(term => ({ ...term, language }))
         }
-        api.progress.markRead = async id => {
+        api.progress.markSectionRead = async id => {
           calls.push('read:' + id)
-          return new Promise<Progress>(resolve => { complete = resolve })
+          return new Promise<SectionRead>(resolve => { complete = resolve })
         }
         const store = new LearningStore(api, { topicId: '12', language: initialLanguage })
         await store.load()
@@ -232,17 +241,17 @@ for (const initialLanguage of ['ru', 'en'] as const) {
         rejectTranslation = true
         await store.load({ topicId: '12', language: initialLanguage === 'ru' ? 'en' : 'ru' })
         assert.equal(store.getSnapshot().content.kind, loadOutcome === 'success' ? 'topic' : 'error')
-        assert.deepEqual(store.getSnapshot().read, { kind: 'ready', at: null, pending: true })
+        assert.deepEqual(store.getSnapshot().read, ready(null, true))
         await store.refreshRead()
-        assert.equal(calls.filter(call => call === 'progress').length, 1)
+        assert.equal(calls.filter(call => call === 'reading').length, 1)
         if (completeBeforeRetry) {
           complete(progress)
           await writing
-          assert.deepEqual(store.getSnapshot().read, { kind: 'ready', at: progress.article_read_at, pending: false })
+          assert.deepEqual(store.getSnapshot().read, ready(progress.read_at, false))
         }
         rejectTranslation = false
         await store.load()
-        if (!completeBeforeRetry) assert.deepEqual(store.getSnapshot().read, { kind: 'ready', at: null, pending: true })
+        if (!completeBeforeRetry) assert.deepEqual(store.getSnapshot().read, ready(null, true))
         await Promise.all([store.markRead(), store.markRead()])
         assert.equal(calls.filter(call => call === 'read:12').length, 1)
         if (!completeBeforeRetry) {
@@ -252,7 +261,7 @@ for (const initialLanguage of ['ru', 'en'] as const) {
         for (const language of ['ru', 'en'] as const) {
           await store.load({ topicId: '12', language })
           await store.markRead()
-          assert.deepEqual(store.getSnapshot().read, { kind: 'ready', at: progress.article_read_at, pending: false })
+          assert.deepEqual(store.getSnapshot().read, ready(progress.read_at, false))
         }
         assert.equal(calls.filter(call => call === 'read:12').length, 1)
       })
@@ -268,9 +277,9 @@ for (const initialLanguage of ['ru', 'en'] as const) {
       return { ...article, language }
     }
     api.learning.terms = async (_id, language = 'ru') => terms.map(term => ({ ...term, language }))
-    api.progress.markRead = async id => {
+    api.progress.markSectionRead = async id => {
       calls.push('read:' + id)
-      return new Promise<Progress>((_resolve, fail) => { reject = fail })
+      return new Promise<SectionRead>((_resolve, fail) => { reject = fail })
     }
     const store = new LearningStore(api, { topicId: '12', language: initialLanguage })
     await store.load()
@@ -285,20 +294,20 @@ for (const initialLanguage of ['ru', 'en'] as const) {
     await store.markRead()
     assert.equal(store.getSnapshot().read.kind, 'error')
     assert.equal(calls.filter(call => call === 'read:12').length, 1)
-    assert.equal(calls.filter(call => call === 'progress').length, 1)
+    assert.equal(calls.filter(call => call === 'reading').length, 1)
     await store.refreshRead()
-    api.progress.markRead = async id => { calls.push('read:' + id); return progress }
+    api.progress.markSectionRead = async id => { calls.push('read:' + id); return progress }
     await store.markRead()
-    assert.equal(calls.filter(call => call === 'progress').length, 2)
+    assert.equal(calls.filter(call => call === 'reading').length, 2)
     assert.equal(calls.filter(call => call === 'read:12').length, 2)
-    assert.deepEqual(store.getSnapshot().read, { kind: 'ready', at: progress.article_read_at, pending: false })
+    assert.deepEqual(store.getSnapshot().read, ready(progress.read_at, false))
   })
 }
 
 test('a lost session during translation loading still invalidates a late read response', async () => {
   const { api } = mockApi()
-  let complete!: (value: Progress) => void
-  api.progress.markRead = () => new Promise<Progress>(resolve => { complete = resolve })
+  let complete!: (value: SectionRead) => void
+  api.progress.markSectionRead = () => new Promise<SectionRead>(resolve => { complete = resolve })
   const store = new LearningStore(api, { topicId: '12', language: 'ru' })
   await store.load()
   const writing = store.markRead()
@@ -314,31 +323,31 @@ test('a lost session during translation loading still invalidates a late read re
 
 test('a shared read mark survives loading the other material language', async () => {
   const { api } = mockApi()
-  api.progress.current = async () => [progress]
+  api.learning.reading = async () => reading(progress.read_at)
   api.learning.sections = async () => ({ ...article, language: 'en' })
   api.learning.terms = async () => terms.map(term => ({ ...term, language: 'en' }))
   const store = new LearningStore(api, { topicId: '12', language: 'en' })
   await store.load()
-  assert.deepEqual(store.getSnapshot().read, { kind: 'ready', at: progress.article_read_at, pending: false })
+  assert.deepEqual(store.getSnapshot().read, ready(progress.read_at, false))
 })
 
 test('interrupted read POST is not replayed and a GET can confirm the saved mark', async () => {
   const { api, calls } = mockApi()
-  api.progress.markRead = async () => { calls.push('write'); throw failure(0, 'network_error') }
+  api.progress.markSectionRead = async () => { calls.push('write'); throw failure(0, 'network_error') }
   const store = new LearningStore(api, { topicId: '12', language: 'ru' })
   await store.load()
   await store.markRead()
   await store.markRead()
   assert.equal(store.getSnapshot().read.kind, 'error')
   assert.deepEqual(calls.filter(call => call === 'write'), ['write'])
-  api.progress.current = async () => [progress]
+  api.learning.reading = async () => reading(progress.read_at)
   await store.refreshRead()
-  assert.deepEqual(store.getSnapshot().read, { kind: 'ready', at: progress.article_read_at, pending: false })
+  assert.deepEqual(store.getSnapshot().read, ready(progress.read_at, false))
 })
 
 test('a topic becoming unavailable on read POST clears its content', async () => {
   const { api } = mockApi()
-  api.progress.markRead = async () => { throw failure(404, 'not_found') }
+  api.progress.markSectionRead = async () => { throw failure(404, 'not_found') }
   const store = new LearningStore(api, { topicId: '12', language: 'ru' })
   await store.load()
   await store.markRead()
@@ -349,7 +358,7 @@ test('late content and progress cannot overwrite a lost session', async () => {
   const { api } = mockApi()
   let articleReady!: (value: typeof article) => void
   api.learning.sections = () => new Promise(resolve => { articleReady = resolve })
-  api.progress.current = async () => { throw failure(403, 'authentication_required') }
+  api.learning.reading = async () => { throw failure(403, 'authentication_required') }
   const store = new LearningStore(api, { topicId: '12', language: 'ru' })
   const loading = store.load()
   await tick()

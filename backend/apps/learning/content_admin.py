@@ -137,6 +137,13 @@ class RevisionedContentAdmin(admin.ModelAdmin):
         context["expected_revision"] = get_topic(context["object"], self.topic_path).revision
         return super().render_delete_form(request, context)
 
+    def get_deleted_objects(self, objs, request):
+        deleted, counts, permissions, protected = super().get_deleted_objects(objs, request)
+        if protected:
+            # NestedObjects must not expose learner IDs or owners through PROTECT.
+            return [], {}, set(), ["Объект используется. Вместо удаления снимите его с публикации."]
+        return deleted, counts, permissions, protected
+
     def delete_model(self, request, obj):
         expected = read_revision(request.POST.get("expected_revision"))
         topic_id = get_topic(obj, self.topic_path).pk

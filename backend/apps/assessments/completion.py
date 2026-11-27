@@ -11,25 +11,24 @@ from django.utils.dateparse import parse_datetime
 from apps.learning.models import Topic, TopicStatus
 from apps.practice.models import PracticeKind, PracticeSubmission, PracticeTask, SubmissionStatus
 
-from .models import Attempt, AttemptStatus, Question, TopicProgress, UserProgressState
+from .models import Attempt, AttemptStatus, Question, UserProgressState
 from .progress import summarize_progress
+from .reading import aggregate_read_at, article_contribution, rounded_percentage, with_reading
 
 
 ACTIVITY_STATUSES = frozenset(("unattempted", "failed", "passed"))
 
 
-def completion_value(read, statuses):
+def completion_value(read, statuses, *, total_sections=1, read_sections=None):
     """Return an exact percentage before display rounding, including M=0."""
     statuses = tuple(statuses)
     if type(read) is not bool or any(status not in ACTIVITY_STATUSES for status in statuses):
         raise ValueError("Invalid completion input")
-    return Fraction(30 * read) + (Fraction(70 * statuses.count("passed"), len(statuses)) if statuses else 0)
-
-
-def rounded_percentage(value):
-    # Exact ROUND_HALF_UP on a nonnegative rational; no rounded topic average.
-    cents, remainder = divmod(value.numerator * 100, value.denominator)
-    return (cents + int(2 * remainder >= value.denominator)) / 100
+    read_sections = int(read) if read_sections is None else read_sections
+    contribution = article_contribution(total_sections, read_sections)
+    if read is not (total_sections > 0 and read_sections == total_sections):
+        raise ValueError("Inconsistent aggregate Read")
+    return contribution + (Fraction(70 * statuses.count("passed"), len(statuses)) if statuses else 0)
 
 
 def _completion_snapshot(user_id):
@@ -37,7 +36,6 @@ def _completion_snapshot(user_id):
     counts = Attempt.objects.filter(
         user_id=user_id, topic_id=OuterRef("pk"), status=AttemptStatus.SUBMITTED,
     ).order_by("pk").values(value=JSONObject(correct_count="correct_count", total_count="total_count"))
-    marks = TopicProgress.objects.filter(user_id=user_id, topic_id=OuterRef("pk"))
     submissions = PracticeSubmission.objects.filter(user_id=user_id, task_id=OuterRef("pk"), status=SubmissionStatus.SUBMITTED)
     tasks = PracticeTask.objects.filter(
         topic_practice__topic_id=OuterRef("pk"), status=TopicStatus.PUBLISHED,
@@ -47,13 +45,13 @@ def _completion_snapshot(user_id):
         When(Exists(submissions), then=Value("failed")),
         default=Value("unattempted"), output_field=CharField(),
     )).values(value=JSONObject(task_id=Cast("pk", CharField()), status="activity_status"))
-    topics = Topic.objects.filter(status=TopicStatus.PUBLISHED).order_by("pk").annotate(
-        read_at=Subquery(marks.values("article_read_at")[:1]),
+    topics = with_reading(Topic.objects.filter(status=TopicStatus.PUBLISHED), user_id).order_by("pk").annotate(
         counts=ArraySubquery(counts),
         completion_practice=Subquery(tasks[:1]),
         has_test=Exists(Question.objects.filter(topic_id=OuterRef("pk"))),
     ).values(value=JSONObject(
-        topic_id=Cast("pk", CharField()), article_read_at="read_at", counts="counts",
+        topic_id=Cast("pk", CharField()), legacy_read_at="legacy_read_at", latest_read_at="latest_section_read_at",
+        sections_total="sections_total", sections_read="sections_read", counts="counts",
         practice="completion_practice", has_test="has_test",
     ))
     state = UserProgressState.objects.filter(user_id=OuterRef("pk"))
@@ -68,7 +66,13 @@ def completion_progress(user_id):
     topics = []
     exact_values = []
     for item in snapshot["topic_values"]:
-        at = parse_datetime(item["article_read_at"]) if item["article_read_at"] else None
+        if not item["sections_total"]:
+            raise RuntimeError("Published topic has no sections")
+        at = aggregate_read_at(
+            item["sections_total"], item["sections_read"],
+            parse_datetime(item["legacy_read_at"]) if item["legacy_read_at"] else None,
+            parse_datetime(item["latest_read_at"]) if item["latest_read_at"] else None,
+        )
         legacy = summarize_progress(item["topic_id"], at, (
             (row["correct_count"], row["total_count"]) for row in item["counts"]
         ))
@@ -79,7 +83,7 @@ def completion_progress(user_id):
         statuses = [test_status] if item["has_test"] else []
         if item["practice"] is not None:
             statuses.append(item["practice"]["status"])
-        value = completion_value(at is not None, statuses)
+        value = completion_value(at is not None, statuses, total_sections=item["sections_total"], read_sections=item["sections_read"])
         exact_values.append(value)
         topics.append({
             "topic_id": item["topic_id"], "article_read_at": at,

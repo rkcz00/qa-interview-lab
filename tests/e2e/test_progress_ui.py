@@ -5,7 +5,7 @@ import pytest
 
 from tests.e2e.test_auth_ui import check, fill, post, seed
 from tests.e2e.test_learning_ui import signed_in
-from tests.e2e.test_assessment_ui import request_post, result, incorrect_answers
+from tests.e2e.test_assessment_ui import request_post, result, incorrect_answers, read_all_sections
 
 
 def open_progress(page):
@@ -20,6 +20,7 @@ def overall(page, percentage, count):
 
 
 def complete(context, topic_id, language='ru', correct=True):
+    read_all_sections(context, topic_id)
     response = request_post(context, '/api/v1/topics/' + topic_id + '/attempts/', {'language': language})
     check(response.status == 201, 'Real attempt start failed')
     attempt = response.json()['data']
@@ -79,14 +80,15 @@ def test_overall_mastery_uses_saved_results_without_ui_history(auth_page, auth_a
     check(auth_app.learning_data('info', [topic_id])['submitted_count'] == 2, 'Viewing progress must not create attempts')
 
 
-def test_read_only_and_completed_without_read_are_not_mastered(auth_page, learning_topics):
+def test_read_only_and_new_unread_section_after_completion_are_not_mastered(auth_page, auth_app, learning_topics):
     page = auth_page
     signed_in(page)
     first, second = learning_topics['first'], learning_topics['second']
     check(request_post(page.context, '/api/v1/topics/' + first + '/read/', {}).status == 200, 'Read mark failed')
     complete(page.context, second)
+    auth_app.learning_data('sections', [second])
     open_progress(page)
-    overall(page, '50%', 'Освоено 0 из 2 тем')
+    overall(page, '57,5%', 'Освоено 0 из 2 тем')
 
 
 def test_unpublished_topics_leave_totals_but_keep_stored_progress_and_results(auth_page, auth_app, learning_topics):

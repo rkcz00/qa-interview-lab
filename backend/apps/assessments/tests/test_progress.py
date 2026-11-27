@@ -95,9 +95,10 @@ def test_progress_read_does_not_create_marks_and_uses_bounded_queries(django_ass
     for topic in topics:
         TopicProgress.objects.create(user=user, topic=topic, article_read_at=READ_AT)
     TopicProgress.objects.create(user=other, topic=topics[0])
-    with django_assert_num_queries(2):
+    with django_assert_num_queries(1):
         progress = user_progress(user.pk)
-    assert progress == [summarize_progress(topic.pk, READ_AT, []) for topic in topics]
+    # N=0 is never Read, even when a historical topic-level date exists.
+    assert progress == [summarize_progress(topic.pk, None, []) for topic in topics]
     assert TopicProgress.objects.count() == 4
 
 
@@ -160,4 +161,5 @@ def test_migration_preserves_existing_users_topics_and_attempts(bilingual_topic)
         assert saved.status == "in_progress"
         assert not current.get_model("assessments", "TopicProgress").objects.exists()
     finally:
-        MigrationExecutor(connection).migrate([after])
+        executor = MigrationExecutor(connection)
+        executor.migrate(executor.loader.graph.leaf_nodes())

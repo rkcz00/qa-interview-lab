@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { api } from '../api/index.ts'
+import type { TopicSection } from '../api/types.ts'
 import { NavigationLink } from '../auth/NavigationLink.tsx'
 import type { Navigate } from '../auth/NavigationLink.tsx'
 import type { Destination } from '../auth/routing.ts'
@@ -39,9 +40,8 @@ export default function LearningApplication({ location, sectionId, navigate, req
   const focusedSection = useRef<string | null>(null)
   const heading = usePageHeadingFocus(sectionId === null && authentication.kind === 'authenticated' && !['loading', 'authentication'].includes(content.kind))
   const destination = learningDestination(location)
-  const saveRead = useCallback(() => { void store.markRead() }, [store])
+  const saveRead = useCallback((sectionId: string) => { void store.markRead(sectionId) }, [store])
   const expired = useCallback(() => requireLogin(destination), [requireLogin, destination])
-  const articleEnd = useAutomaticRead(content.kind === 'topic' && read.kind === 'ready' && !read.pending && read.at === null, saveRead)
 
   useEffect(() => {
     void session.restore()
@@ -59,7 +59,9 @@ export default function LearningApplication({ location, sectionId, navigate, req
       document.title = `${content.kind === 'topic' ? content.article.title : location.topicId === null ? text.catalog : text.topic} — ${ru.brand}`
     }
   }, [authentication.kind, content, location.topicId])
-  useEffect(() => { if (read.kind === 'ready' && read.at !== null) notifyProgressChanged() }, [read])
+  useEffect(() => {
+    if (read.kind === 'ready' && !read.pending && Object.values(read.sections).some(at => at !== null)) notifyProgressChanged()
+  }, [read])
   useEffect(() => {
     if (content.kind !== 'topic') return
     const key = `${content.article.topic_id}/${sectionId ?? ''}`
@@ -113,15 +115,13 @@ export default function LearningApplication({ location, sectionId, navigate, req
               {currentIndex < sections.length - 1 && <NavigationLink to={learningDestination(location, sections[currentIndex + 1].section_id)} navigate={navigate}>{text.nextSection}</NavigationLink>}
             </div>
           </nav>
-          {sections.map(section => <section className="reader-section" key={section.section_id} aria-labelledby={`section-${section.section_id}`} lang={location.language}>
-            <h2 id={`section-${section.section_id}`} tabIndex={-1}>{section.title}</h2>
-            <div className="article-body" lang={location.language}>{section.article_body}</div>
-          </section>)}
-          <span ref={articleEnd} className="article-end" aria-hidden="true" />
+          {sections.map(section => <ReadableSection key={section.section_id} section={section} language={location.language}
+            enabled={read.kind === 'ready' && !read.pending && !read.complete && read.sections[section.section_id] === null}
+            markRead={saveRead} />)}
         </article>
         <p className="assessment-entry"><NavigationLink to={assessmentDestination({ kind: 'start', id: content.article.topic_id, language: 'ru' })} navigate={navigate} className="ui-button ui-button--primary">{assessmentRu.entry}</NavigationLink></p>
         <PracticeEntry key={content.article.topic_id} topicId={content.article.topic_id} language={location.language} navigate={navigate} expired={expired}
-          refreshKey={read.kind === 'ready' ? String(read.at) : read.kind} />
+          refreshKey={read.kind === 'ready' ? String(read.complete) : read.kind} />
         <section className="reading-card" aria-labelledby="reading-heading">
           <h2 id="reading-heading">{text.readHeading}</h2>
           <p className="help-text">{text.readHelp}</p>
@@ -131,7 +131,7 @@ export default function LearningApplication({ location, sectionId, navigate, req
             <Button variant="secondary" onClick={() => { void store.refreshRead() }}>{text.readRetry}</Button>
           </>}
           {read.kind === 'ready' && <>
-            {read.pending ? <LoadingState message={text.marking} /> : <Notice tone={read.at ? 'success' : 'info'}>{read.at ? text.read : text.unread}</Notice>}
+            {read.pending ? <LoadingState message={text.marking} /> : <Notice tone={read.complete ? 'success' : 'info'}>{read.complete ? text.read : text.unread}</Notice>}
           </>}
         </section>
         <section className="learning-card glossary" aria-labelledby="terms-heading">
@@ -143,4 +143,16 @@ export default function LearningApplication({ location, sectionId, navigate, req
       </>}
     </>}
   </AppShell>
+}
+
+function ReadableSection({ section, language, enabled, markRead }: {
+  section: TopicSection; language: 'ru' | 'en'; enabled: boolean; markRead: (sectionId: string) => void
+}) {
+  const save = useCallback(() => markRead(section.section_id), [markRead, section.section_id])
+  const marker = useAutomaticRead(enabled, save)
+  return <section className="reader-section" aria-labelledby={`section-${section.section_id}`} lang={language}>
+    <h2 id={`section-${section.section_id}`} tabIndex={-1}>{section.title}</h2>
+    <div className="article-body" lang={language}>{section.article_body}</div>
+    <span ref={marker} className="article-end" data-section-id={section.section_id} aria-hidden="true" />
+  </section>
 }

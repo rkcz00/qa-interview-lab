@@ -3,6 +3,7 @@ import type {
   Progress, PublicChoice, PublicQuestion, Result, SubmittedAttempt, Term, TopicSummary,
   PracticePreview, PendingPractice, SubmittedPractice, PracticeSubmission, PublicPracticeTask, PracticeNormalization, PracticeBlock,
   ActivityStatus, CompletionProgress, ResetProgress, TopicCompletion,
+  ReadingState, TopicReading, SectionArticle, SectionRead, SectionReadSummary,
 } from './types.ts'
 
 export type Decoder<T> = (value: unknown) => T
@@ -107,6 +108,59 @@ export function term(value: unknown): Term {
     term_id: id(item.term_id), position: integer(item.position), language: language(item.language),
     name: text(item.name), definition: text(item.definition),
   }
+}
+
+function sectionId(value: unknown) {
+  const result = id(value)
+  if (!/^[1-9][0-9]*$/u.test(result) || BigInt(result) > 9223372036854775807n) throw new ContractError()
+  return result
+}
+function readDate(value: unknown): string | null {
+  if (value === null) return null
+  const result = text(value)
+  if (!result || !Number.isFinite(Date.parse(result))) throw new ContractError()
+  return result
+}
+function readingState(value: unknown): ReadingState {
+  const item = object(value, ['total_sections', 'read_sections', 'is_read', 'completion_contribution'])
+  const total_sections = integer(item.total_sections), read_sections = integer(item.read_sections)
+  if (!total_sections || read_sections > total_sections || item.is_read !== (read_sections === total_sections) ||
+      typeof item.completion_contribution !== 'number' || !Number.isFinite(item.completion_contribution) ||
+      item.completion_contribution < 0 || item.completion_contribution > 30) throw new ContractError()
+  return { total_sections, read_sections, is_read: item.is_read as boolean, completion_contribution: item.completion_contribution }
+}
+function sectionSummary(value: unknown): SectionReadSummary {
+  const item = object(value, ['section_id', 'position', 'title', 'read_at'])
+  const position = integer(item.position), title = text(item.title)
+  if (!position || !title.trim()) throw new ContractError()
+  return { section_id: sectionId(item.section_id), position, title, read_at: readDate(item.read_at) }
+}
+export function topicReading(value: unknown): TopicReading {
+  const item = object(value, ['topic_id', 'title', 'language', 'progress_generation', 'reading', 'sections'])
+  const sections = arrayOf(sectionSummary)(item.sections), reading = readingState(item.reading)
+  if (sections.length !== reading.total_sections || new Set(sections.map(row => row.section_id)).size !== sections.length ||
+      sections.filter(row => row.read_at !== null).length !== reading.read_sections ||
+      sections.some((row, index) => index > 0 && row.position <= sections[index - 1].position)) throw new ContractError()
+  return { topic_id: sectionId(item.topic_id), title: text(item.title), language: language(item.language),
+    progress_generation: progressGeneration(item.progress_generation), reading, sections }
+}
+export function sectionArticle(value: unknown): SectionArticle {
+  const item = object(value, ['topic_id', 'topic_title', 'language', 'progress_generation', 'section', 'previous_section_id', 'next_section_id', 'reading'])
+  const section = object(item.section, ['section_id', 'position', 'title', 'article_body', 'read_at'])
+  const { article_body, ...summary } = section
+  const body = text(article_body)
+  if (!body.trim()) throw new ContractError()
+  return { topic_id: sectionId(item.topic_id), topic_title: text(item.topic_title), language: language(item.language),
+    progress_generation: progressGeneration(item.progress_generation), section: { ...sectionSummary(summary), article_body: body },
+    previous_section_id: item.previous_section_id === null ? null : sectionId(item.previous_section_id),
+    next_section_id: item.next_section_id === null ? null : sectionId(item.next_section_id), reading: readingState(item.reading) }
+}
+export function sectionRead(value: unknown): SectionRead {
+  const item = object(value, ['topic_id', 'section_id', 'read_at', 'progress_generation', 'reading'])
+  const read_at = readDate(item.read_at)
+  if (read_at === null) throw new ContractError()
+  return { topic_id: sectionId(item.topic_id), section_id: sectionId(item.section_id), read_at,
+    progress_generation: progressGeneration(item.progress_generation), reading: readingState(item.reading) }
 }
 
 function choice(value: unknown): PublicChoice {

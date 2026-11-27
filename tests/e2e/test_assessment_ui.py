@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 import re
+import time
 from urllib.parse import urlsplit
 
 from playwright.sync_api import expect
@@ -21,12 +22,44 @@ def request_post(context, path, payload, *, generation="1"):
 
 
 def begin(page, topic_id, language="ru"):
+    ensure_read(page, topic_id)
     page.goto("/topics/" + topic_id + "/test" + ("?language=en" if language == "en" else ""))
     expect(page.get_by_role("button", name="Начать тест", exact=True)).to_be_enabled()
     page.get_by_role("button", name="Начать тест", exact=True).click()
     expect(page).to_have_url(re.compile(r"/attempts/[^/?]+(?:\?language=en)?$"))
     expect(page.locator(".question-card")).to_be_visible()
     return urlsplit(page.url).path.split("/")[-1]
+
+
+def read_all_sections(context, topic_id, *, generation="1"):
+    """Explicit real-HTTP prerequisite for tests whose subject is not the reader."""
+    response = context.request.get("/api/v1/topics/" + topic_id + "/reading/")
+    check(response.status == 200, "Reading prerequisite metadata must be available")
+    for section in response.json()["data"]["sections"]:
+        if section["read_at"] is None:
+            path = "/api/v1/topics/" + topic_id + "/sections/" + section["section_id"] + "/read/"
+            check(request_post(context, path, {}, generation=generation).status == 200, "Section prerequisite failed")
+
+
+def ensure_read(page, topic_id, language="ru"):
+    """Read through the actual UI before positive Assessment start scenarios."""
+    response = page.context.request.get("/api/v1/topics/" + topic_id + "/reading/")
+    check(response.status == 200, "Reading metadata must be available")
+    if response.json()["data"]["reading"]["is_read"]:
+        return
+    page.goto("/topics/" + topic_id + ("?language=en" if language == "en" else ""))
+    expect(page.locator(".article-body").first).to_be_visible()
+    for marker in page.locator(".article-end").all():
+        section_id = marker.get_attribute("data-section-id")
+        marker.scroll_into_view_if_needed()
+        deadline = time.monotonic() + 10
+        while True:
+            current = page.context.request.get("/api/v1/topics/" + topic_id + "/reading/").json()["data"]
+            if any(row["section_id"] == section_id and row["read_at"] is not None for row in current["sections"]):
+                break
+            check(time.monotonic() < deadline, "Visible section end must be saved by the real reader")
+            page.wait_for_timeout(25)
+    expect(page.locator(".reading-card .ui-notice--success")).to_be_visible()
 
 
 def choose_correct(page, language="ru"):
@@ -73,6 +106,7 @@ def test_article_and_test_languages_are_independent(auth_page, auth_app, learnin
     page = auth_page
     signed_in(page)
     topic_id = learning_topics["first"]
+    ensure_read(page, topic_id, article_language)
     topic_page(page, topic_id, article_language)
     page.get_by_role("link", name="Пройти тест", exact=True).click()
     expect(page.get_by_role("radio", name="Русский", exact=True)).to_be_checked()
@@ -92,6 +126,7 @@ def test_start_double_click_and_get_restore_create_only_one_attempt(auth_page, a
     page = auth_page
     signed_in(page)
     topic_id = learning_topics["first"]
+    ensure_read(page, topic_id)
     page.goto("/topics/" + topic_id + "/test")
     held = []
     page.route("**/api/v1/topics/" + topic_id + "/attempts/", lambda route: held.append(route))
@@ -345,6 +380,7 @@ def test_lost_start_response_requires_explicit_new_attempt_and_does_not_create_h
     page = auth_page
     signed_in(page)
     topic_id = learning_topics["first"]
+    ensure_read(page, topic_id)
     page.goto("/topics/" + topic_id + "/test")
     writes = []
 

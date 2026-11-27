@@ -102,7 +102,7 @@ def test_sections_get_waits_for_one_consistent_committed_tree(learner_client, bi
     assert [row["article_body"] for row in article["sections"]] == ["Committed 10", "Committed 20"]
 
 
-def test_section_edit_add_reorder_and_unpublish_preserve_first_read_mastery_and_snapshot(learner_client, bilingual_topic):
+def test_section_edit_keeps_dates_but_new_section_changes_read_mastery_not_snapshot(learner_client, bilingual_topic):
     from apps.assessments.models import Attempt
     from .test_attempts import correct_answers, data, post as api_post, start, submit_url
     topic = bilingual_topic
@@ -123,15 +123,17 @@ def test_section_edit_add_reorder_and_unpublish_preserve_first_read_mastery_and_
         first.position, second.position = second.position, first.position
         models.Model.save(first, update_fields=("position",))
         models.Model.save(second, update_fields=("position",))
-    assert learner_client.get("/api/v1/progress/").json() == before
+    after_add = learner_client.get("/api/v1/progress/").json()
+    assert after_add["data"][0]["article_read_at"] is None and not after_add["data"][0]["mastered"]
+    assert after_add["data"][0]["best_result"] == before["data"][0]["best_result"]
     topic.refresh_from_db()
     topic.status = "draft"
     topic.save()
-    assert learner_client.get("/api/v1/progress/").json() == before
+    assert learner_client.get("/api/v1/progress/").json() == after_add
     assert Attempt.objects.get(pk=pending["attempt_id"]).content_snapshot == snapshot
     submitted = data(api_post(learner_client, submit_url(pending["attempt_id"]), {"language": "en", "answers": correct_answers(pending)}))
     assert submitted["result"] == {"correct_count": 2, "total_count": 2, "percentage": 100}
-    assert learner_client.get("/api/v1/progress/").json() == before
+    assert learner_client.get("/api/v1/progress/").json() == after_add
 
 
 def section_action(client, topic, sections, action):

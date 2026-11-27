@@ -220,6 +220,8 @@ export function createApiClient(options: ApiClientOptions) {
       catalog: (language?: Language) => request(localized('topics/', language), 200, decode.arrayOf(decode.topicSummary)),
       article: (topicId: string, language?: Language) => request(localized(`topics/${pathId(topicId)}/`, language), 200, decode.article),
       sections: (topicId: string, language?: Language) => request(localized(`topics/${pathId(topicId)}/sections/`, language), 200, decode.sectionsArticle),
+      reading: (topicId: string, language?: Language) => request(localized(`topics/${pathId(topicId)}/reading/`, language), 200, decode.topicReading, undefined, undefined, undefined, progressEpoch),
+      section: (topicId: string, sectionId: string, language?: Language) => request(localized(`topics/${pathId(topicId)}/sections/${pathId(sectionId)}/`, language), 200, decode.sectionArticle, undefined, undefined, undefined, progressEpoch),
       terms: (topicId: string, language?: Language) => request(localized(`topics/${pathId(topicId)}/terms/`, language), 200, decode.arrayOf(decode.term)),
     },
     assessment: {
@@ -233,6 +235,7 @@ export function createApiClient(options: ApiClientOptions) {
       history: () => request('attempts/', 200, decode.arrayOf(decode.submittedAttempt), undefined, undefined, undefined, progressEpoch),
     },
     progress: {
+      markSectionRead: (topicId: string, sectionId: string) => post(`topics/${pathId(topicId)}/sections/${pathId(sectionId)}/read/`, {}, 200, decode.sectionRead, true),
       markRead: (topicId: string) => post(`topics/${pathId(topicId)}/read/`, {}, 200, decode.progress, true),
       current: async () => {
         const epoch = progressEpoch

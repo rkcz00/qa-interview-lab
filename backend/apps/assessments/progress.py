@@ -1,6 +1,11 @@
-from collections import defaultdict
+from django.contrib.postgres.expressions import ArraySubquery
+from django.db.models import Exists, OuterRef
+from django.db.models.functions import JSONObject
 
-from .models import Attempt, AttemptStatus, TopicProgress
+from apps.learning.models import Topic
+
+from .models import Attempt, AttemptStatus, TopicProgress, TopicSectionProgress
+from .reading import aggregate_read_at, with_reading
 from .scoring import is_mastered, result_from_counts
 
 
@@ -30,19 +35,20 @@ def _submitted_attempts(user_id):
 
 
 def progress_after_read(mark):
-    counts = _submitted_attempts(mark.user_id).filter(topic_id=mark.topic_id).values_list("correct_count", "total_count")
-    return summarize_progress(mark.topic_id, mark.article_read_at, counts)
+    return next(row for row in user_progress(mark.user_id) if row["topic_id"] == str(mark.topic_id))
 
 
 def user_progress(user_id):
-    """List the owner's read marks and completed attempts, including Draft topics."""
-    read_marks = dict(TopicProgress.objects.filter(user_id=user_id).values_list("topic_id", "article_read_at"))
-    counts = defaultdict(list)
-    for topic_id, correct_count, total_count in _submitted_attempts(user_id).values_list(
-        "topic_id", "correct_count", "total_count",
-    ):
-        counts[topic_id].append((correct_count, total_count))
+    """One coherent projection, including partial reading and historical Draft topics."""
+    submitted = _submitted_attempts(user_id).filter(topic_id=OuterRef("pk"))
+    legacy = TopicProgress.objects.filter(user_id=user_id, topic_id=OuterRef("pk"))
+    marks = TopicSectionProgress.objects.filter(user_id=user_id, section__topic_id=OuterRef("pk"))
+    rows = with_reading(Topic.objects.filter(Exists(submitted) | Exists(legacy) | Exists(marks)), user_id).annotate(
+        counts=ArraySubquery(submitted.values(item=JSONObject(correct_count="correct_count", total_count="total_count"))),
+    ).order_by("pk").values("pk", "sections_total", "sections_read", "legacy_read_at", "latest_section_read_at", "counts")
     return [
-        summarize_progress(topic_id, read_marks.get(topic_id), counts[topic_id])
-        for topic_id in sorted(read_marks.keys() | counts.keys())
+        summarize_progress(
+            row["pk"], aggregate_read_at(row["sections_total"], row["sections_read"], row["legacy_read_at"], row["latest_section_read_at"]),
+            ((item["correct_count"], item["total_count"]) for item in row["counts"]),
+        ) for row in rows
     ]

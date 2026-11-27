@@ -1,6 +1,6 @@
 # Разделы Topic и прогресс чтения — QIL-042
 
-Статус: 27 ноября 2026 года пользователь утвердил отдельный reader и section-level reading progress. QIL-042 фиксирует только контракт; TopicSectionProgress, новые endpoints, ограничения start и новый UI ещё NOT_IMPLEMENTED. Backend запланирован в QIL-043, UI — в QIL-044, сквозная приёмка — в QIL-045. Реализованная версия QIL-041 и её проверки сохранены отдельно в разделе 7; они не доказывают новое поведение.
+Статус: контракт QIL-042 утверждён 27 ноября 2026 года. QIL-043 реализует TopicSectionProgress, новые endpoints, ограничения start, reset и проверку provenance; [границы backend и миграции](SECTION_PROGRESS_BACKEND.md). По отдельному разрешению текущий длинный reader совместим с section POST, но отдельные страницы QIL-044 и их сквозная приёмка QIL-045 ещё NOT_IMPLEMENTED. Реализованная версия QIL-041 и её проверки сохранены отдельно в разделе 7; они не доказывают новое поведение.
 
 Основания: [PRD](PRD.md), [архитектура](ARCHITECTURE.md), [прогресс и test flow](PROGRESS_SPEC.md), [QA](QA_STRATEGY.md), [backlog](BACKLOG.md). Этот контракт заменяет прежние правила единого reader, topic-level Read и неизменности mastery при добавлении раздела. Уточнение допуска к новому Practice start имеет приоритет над прежними `TopicProgress.article_read_at`/`practice_locked` для непрочитанной статьи в [PRACTICE_SPEC](PRACTICE_SPEC.md#5-доступ-snapshot-и-конкурентность): остальные Practice JSON, snapshot, submit/delete и ownership не меняются.
 
@@ -12,7 +12,7 @@
 | --- | --- | --- |
 | TopicSection | id, topic, position, status, created_at, updated_at | BigAutoField; FK Topic CASCADE; position >=1; status draft/published; UNIQUE(topic, position), DEFERRED |
 | TopicSectionTranslation | id, section, language, title, article_body | FK section CASCADE; ru/en; UNIQUE(section, language); пустые строки допустимы только у Draft |
-| TopicSectionProgress / assessments, план | id, user, section, read_at | FK User CASCADE; FK TopicSection PROTECT; UNIQUE(user, section); read_at NOT NULL, UTC, серверная первая дата |
+| TopicSectionProgress / assessments, QIL-043 | id, user, section, read_at | FK User CASCADE; FK TopicSection PROTECT; UNIQUE(user, section); read_at NOT NULL, UTC, серверная первая дата |
 
 Родитель section.topic/translation.section неизменяем. Порядок position, затем id, одинаков для RU/EN; позиции могут иметь промежутки, перестановка не меняет ID. У TopicSectionProgress нет language, topic_id, процента или mastery: Topic определяется через section, владелец — из request.user. Повторная отметка не меняет read_at; reset/удаление аккаунта удаляют только соответствующие пользовательские строки.
 
@@ -159,7 +159,7 @@ Heading фокусируется один раз при смене topic/section
 
 Историческая QIL-041/learning 0003 уже создала по одному section из каждой существовавшей статьи, скопировав title/body RU/EN без изменения символов; Topic IDs/Read/snapshots тогда не менялись. Старая миграция не переписывается.
 
-Будущая additive/data migration QIL-043 добавляет TopicSectionProgress с зависимостью от существующих sections и generation:
+Additive/data migration assessments.0005_topic_section_progress добавляет TopicSectionProgress с зависимостью от существующих sections и generation:
 
 1. Старый TopicProgress.read переносится **только на существующий раздел, созданный из прежней статьи миграцией learning 0003**, с прежним article_read_at. Другие, добавленные позднее разделы остаются непрочитанными. Например, при одной legacy-отметке и двух текущих Published-разделах: r=1, вклад статьи=15, Topic Read=false.
 2. Мигрированный раздел должен быть достоверно сопоставлен topic_id→section_id предварительной проверкой происхождения. Position=10, минимальный ID, одинаковый текст или единственный оставшийся раздел сами по себе не доказательство. Learning 0003 не хранит явный origin marker: QIL-043 обязана подготовить проверяемое сопоставление по истории миграции/данным перехода; при неоднозначности перенос останавливается с полным rollback и конкретным отчётом, без угадывания.
@@ -168,11 +168,11 @@ Heading фокусируется один раз при смене topic/section
 5. Переход выполняется при остановленных learner-записях и редактировании контента: старый backend reset ещё не удаляет новую таблицу. После backfill включается backend, умеющий общий section-level Read/reset; старые end-markers не получают новый generation и не восстанавливают запись.
 6. Сверяются counts/UNIQUE/FK, точное равенство перенесённых дат, отсутствие отметок у поздних разделов и сохранность прежних записей/снимков. Ошибка откатывает всю новую data migration. Возврат к старой версии после новых частичных отметок не считается без потерь и требует отдельного плана.
 
-Данные dev-БД в QIL-042 не читаются и не меняются; запуск миграции/loader относится только к будущей отдельно разрешённой задаче.
+QIL-043 проверяет миграцию только на временных PostgreSQL. Dev-БД не мигрируется автоматически: read-only preflight `check_section_provenance`, проверенный оператором экспорт перехода и его SHA256 описаны в [инструкции](SECTION_PROGRESS_BACKEND.md#происхождение-старого-read). Checksum фиксирует входной файл, но не заменяет доказательство происхождения; неподтверждённое сопоставление блокирует перенос. Learning 0003 не изменена.
 
 ## 6. Приёмка и зависимости
 
-Матрица SRP-01–SRP-12 в [QA-стратегии](QA_STRATEGY.md#416-section-level-reading-progress--qil-042) — целевые проверки, NOT_RUN до реализации. Старые SEC-05–SEC-07 описывают историческую QIL-041; они не разрешают topic-level обход после перехода.
+Матрица SRP-01–SRP-12 в [QA-стратегии](QA_STRATEGY.md#416-section-level-reading-progress--qil-042) — проверки backend QIL-043 и последующих UI QIL-044/приёмки QIL-045; отдельные reader-страницы пока NOT_IMPLEMENTED. Старые SEC-05–SEC-07 описывают историческую QIL-041; они не разрешают topic-level обход после перехода.
 
 DAG нового инкремента: QIL-041/QIL-034 → QIL-042; QIL-042 + QIL-041/QIL-034/QIL-029 → QIL-043 (backend, migration, HTTPX, typed protocol при необходимости); QIL-043 + QIL-035/QIL-041 → QIL-044 (отдельный reader/клиент/UI); QIL-043/QIL-044/QIL-031/QIL-038 → QIL-045 (сквозная приёмка). QIL-037 сохраняет прежний объём приёмки QIL-041, а не заменяет будущие SRP-тесты. Задачи не запускаются автоматически.
 

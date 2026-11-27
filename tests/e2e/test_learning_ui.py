@@ -86,7 +86,7 @@ def test_automatic_read_csrf_duplicate_visibility_reload_and_languages(auth_page
     auth_app.learning_data("long_article", [topic_id])
     topic_page(page, topic_id)
     held = []
-    page.route("**/api/v1/topics/" + topic_id + "/read/", lambda route: held.append(route))
+    page.route("**/api/v1/topics/" + topic_id + "/sections/*/read/", lambda route: held.append(route))
     check(page.context.request.get("/api/v1/progress/").json() == {"data": []}, "Opening a long article is not reading its end")
     page.locator(".article-end").scroll_into_view_if_needed()
     expect(page.locator(".reading-card .ui-loading")).to_have_text("Сохраняем отметку…")
@@ -148,14 +148,15 @@ def test_read_failure_stays_unknown_and_real_csrf_refusal_can_be_rechecked(auth_
     signed_in(page)
     topic_id = learning_topics["first"]
     auth_app.learning_data("long_article", [topic_id])
-    page.route("**/api/v1/progress/", lambda route: route.abort("failed"))
+    reading_pattern = "**/api/v1/topics/" + topic_id + "/reading/**"
+    page.route(reading_pattern, lambda route: route.abort("failed"))
     topic_page(page, topic_id)
     expect(page.locator("main").get_by_role("alert")).to_contain_text("Не удалось подтвердить отметку чтения.")
     def without_csrf(route):
         route.continue_(headers={name: value for name, value in route.request.headers.items() if name.lower() != "x-csrftoken"})
-    pattern = "**/api/v1/topics/" + topic_id + "/read/"
+    pattern = "**/api/v1/topics/" + topic_id + "/sections/*/read/"
     page.route(pattern, without_csrf)
-    page.unroute("**/api/v1/progress/")
+    page.unroute(reading_pattern)
     page.get_by_role("button", name="Проверить отметку ещё раз", exact=True).click()
     page.locator(".article-end").scroll_into_view_if_needed()
     expect(page.locator("main").get_by_role("alert")).to_contain_text("Не удалось подтвердить запрос.")

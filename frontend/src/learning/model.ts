@@ -17,10 +17,10 @@ export function learningFailure(error: unknown): Failure {
 type Content = { kind: 'loading' } | { kind: 'catalog'; topics: TopicSummary[] } |
   { kind: 'topic'; article: SectionsArticle; terms: Term[] } | { kind: 'not_found' } |
   { kind: 'authentication' } | { kind: 'error'; message: string }
-type Read = { kind: 'loading' } | { kind: 'ready'; at: string | null; pending: boolean } |
+export type Read = { kind: 'loading' } | { kind: 'ready'; complete: boolean; sections: Readonly<Record<string, string | null>>; pending: boolean } |
   { kind: 'error'; message: string }
 export interface LearningState { content: Content; read: Read }
-export type LearningApi = { learning: Pick<ApiClient['learning'], 'catalog' | 'sections' | 'terms'>; progress: Pick<ApiClient['progress'], 'current' | 'markRead'> }
+export type LearningApi = { learning: Pick<ApiClient['learning'], 'catalog' | 'sections' | 'terms' | 'reading'>; progress: Pick<ApiClient['progress'], 'markSectionRead'> }
 
 export class LearningStore {
   #state: LearningState = { content: { kind: 'loading' }, read: { kind: 'loading' } }
@@ -77,6 +77,10 @@ export class LearningStore {
           return
         }
         this.#publish({ content: { kind: 'topic', article, terms } })
+        const read = this.#state.read
+        if (read.kind === 'ready' && !read.pending &&
+            (article.sections.length !== Object.keys(read.sections).length ||
+             article.sections.some(section => !Object.hasOwn(read.sections, section.section_id)))) void this.#loadRead()
       }
     } catch (error) { if (generation === this.#generation) this.#fail(learningFailure(error)) }
   }
@@ -87,10 +91,11 @@ export class LearningStore {
     const readGeneration = ++this.#readGeneration
     this.#publish({ read: { kind: 'loading' } })
     try {
-      const progress = await this.#api.progress.current()
+      const progress = await this.#api.learning.reading(topicId)
       if (topicId !== this.#location.topicId || readGeneration !== this.#readGeneration) return
-      const at = progress.find(item => item.topic_id === topicId)?.article_read_at ?? null
-      this.#publish({ read: { kind: 'ready', at, pending: false } })
+      if (progress.topic_id !== topicId) throw new Error('Unexpected reading identity')
+      this.#publish({ read: { kind: 'ready', complete: progress.reading.is_read, pending: false,
+        sections: Object.fromEntries(progress.sections.map(section => [section.section_id, section.read_at])) } })
     } catch (error) {
       if (topicId !== this.#location.topicId || readGeneration !== this.#readGeneration) return
       const failure = learningFailure(error)
@@ -100,20 +105,24 @@ export class LearningStore {
   }
   refreshRead() { return this.#loadRead() }
 
-  async markRead() {
+  async markRead(sectionId?: string) {
     const { content, read } = this.#state
-    if (content.kind !== 'topic' || read.kind !== 'ready' || read.at !== null || read.pending || this.#location.topicId === null) return
+    if (content.kind !== 'topic' || read.kind !== 'ready' || read.complete || read.pending || this.#location.topicId === null) return
+    sectionId ??= content.article.sections.length === 1 ? content.article.sections[0].section_id : undefined
+    if (!sectionId || read.sections[sectionId] !== null || !content.article.sections.some(section => section.section_id === sectionId)) return
     const topicId = this.#location.topicId
     const readGeneration = ++this.#readGeneration
     this.#publish({ read: { ...read, pending: true } })
     try {
-      const progress = await this.#api.progress.markRead(topicId)
+      const progress = await this.#api.progress.markSectionRead(topicId, sectionId)
       if (topicId !== this.#location.topicId || readGeneration !== this.#readGeneration) return
-      if (progress.topic_id !== topicId || !progress.article_read_at) {
+      if (progress.topic_id !== topicId || progress.section_id !== sectionId || !progress.read_at) {
         this.#publish({ read: { kind: 'error', message: text.readError } })
         return
       }
-      this.#publish({ read: { kind: 'ready', at: progress.article_read_at, pending: false } })
+      const sections = { ...read.sections, [sectionId]: progress.read_at }
+      this.#publish({ read: { kind: 'ready', complete: progress.reading.is_read, sections, pending: false } })
+      if (progress.reading.total_sections !== Object.keys(sections).length) void this.#loadRead()
     } catch (error) {
       if (topicId !== this.#location.topicId || readGeneration !== this.#readGeneration) return
       const failure = learningFailure(error)

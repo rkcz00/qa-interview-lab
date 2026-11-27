@@ -145,8 +145,9 @@ def test_entry_hidden_for_disabled_or_draft_task_and_locked_preview_has_no_start
         expect(page.get_by_role("heading", name="Практика недоступна", exact=True)).to_be_visible()
     page.goto(f"/topics/{practice_topics['enabled']}/practice")
     expect(page.get_by_role("button", name="Начать практику", exact=True)).to_be_disabled()
-    expect(page.get_by_text("Сначала дочитайте статью.", exact=True)).to_be_visible()
-    check(request_post(page.context, f"/api/v1/topics/{practice_topics['enabled']}/practice/submissions/", {"language": "ru"}).status == 403, "Server must enforce prerequisites")
+    expect(page.get_by_text("Сначала прочитайте все опубликованные разделы темы.", exact=True)).to_be_visible()
+    refused = request_post(page.context, f"/api/v1/topics/{practice_topics['enabled']}/practice/submissions/", {"language": "ru"})
+    check(refused.status == 403 and refused.json()["error"]["code"] == "section_read_required", "Server must enforce section prerequisites")
 
 
 def test_incorrect_and_empty_answers_are_valid_ui_paths(auth_page, auth_app, practice_topics):

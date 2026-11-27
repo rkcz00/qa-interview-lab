@@ -2,14 +2,17 @@ import pytest
 from django.db import connection
 from django.db.migrations.executor import MigrationExecutor
 from django.utils import timezone
+from apps.assessments.tests.test_section_provenance import install_manifest
 
 
 @pytest.mark.django_db(transaction=True)
-def test_sections_migration_copies_legacy_verbatim_and_preserves_all_learner_records():
+def test_sections_migration_copies_legacy_verbatim_and_preserves_all_learner_records(monkeypatch, tmp_path):
     assert connection.settings_dict["NAME"].startswith("test_qil006_")
     executor = MigrationExecutor(connection)
     latest = executor.loader.graph.leaf_nodes()
-    previous = [node for node in latest if node[0] != "learning"] + [("learning", "0002_topic_revision")]
+    previous = [node for node in latest if node[0] not in {"learning", "assessments"}] + [
+        ("learning", "0002_topic_revision"), ("assessments", "0004_user_progress_state"),
+    ]
     # Earlier legacy migration tests may stop at their own historical target.
     # Restore the complete graph before planning a backwards-only transition.
     executor.migrate(latest)
@@ -41,6 +44,11 @@ def test_sections_migration_copies_legacy_verbatim_and_preserves_all_learner_rec
                    ("assessments", "Attempt"), ("assessments", "TopicProgress"), ("assessments", "UserProgressState"),
                    ("practice", "PracticeTask"), ("practice", "PracticeSubmission")]
         before = {key: list(old.get_model(*key).objects.order_by("pk").values()) for key in tracked}
+        content = [node for node in previous if node[0] != "learning"] + [("learning", "0003_topic_sections")]
+        MigrationExecutor(connection).migrate(content)
+        copied = MigrationExecutor(connection).loader.project_state(content).apps
+        original_id = copied.get_model("learning", "TopicSection").objects.get(topic_id=published.pk).pk
+        install_manifest(monkeypatch, tmp_path, {published.pk: original_id})
         MigrationExecutor(connection).migrate(latest)
         new = MigrationExecutor(connection).loader.project_state(latest).apps
         assert before == {key: list(new.get_model(*key).objects.order_by("pk").values()) for key in tracked}
@@ -61,7 +69,9 @@ def test_migration_refuses_corrupt_published_article_without_partial_copy():
     assert connection.settings_dict["NAME"].startswith("test_qil006_")
     executor = MigrationExecutor(connection)
     latest = executor.loader.graph.leaf_nodes()
-    previous = [node for node in latest if node[0] != "learning"] + [("learning", "0002_topic_revision")]
+    previous = [node for node in latest if node[0] not in {"learning", "assessments"}] + [
+        ("learning", "0002_topic_revision"), ("assessments", "0004_user_progress_state"),
+    ]
     executor.migrate(latest)
     executor = MigrationExecutor(connection)
     executor.migrate(previous)

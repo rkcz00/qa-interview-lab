@@ -4,7 +4,7 @@
 
 QIL-033 фиксирует утверждённые 23 ноября 2026 года [правила progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend QIL-034 и Progress/reset UI QIL-035 реализованы; ручная приёмка QIL-035 подтверждена пользователем 24 ноября. QIL-036 стабилизирует CI. Пользователь назначил текущему Answer/Finish номер QIL-038 и уточнил скрытый Finish до всех подтверждений. Пользователь назначил sections свободный QIL-041. TFL-06/login остаётся отложенным; QIL-037 — TODO. Исторические статусы не переписываются как доказательство нового поведения.
 
-QIL-042, 27 ноября 2026: утверждён [section-level reading progress](TOPIC_SECTIONS_SPEC.md). Этот этап фиксирует только документацию; backend QIL-043, UI QIL-044 и новая приёмка QIL-045 остаются TODO/NOT_IMPLEMENTED. Read/mastery динамические, новый Test/Practice start требует всех Published-разделов, legacy multi-section POST read →403 section_read_required. Исторические проверки QIL-041 не считаются проверками нового контракта.
+QIL-042 утвердила [section-level reading progress](TOPIC_SECTIONS_SPEC.md). Backend и минимальная совместимость текущего reader реализованы в QIL-043; отдельные страницы QIL-044 и приёмка QIL-045 остаются TODO/NOT_IMPLEMENTED. Read/mastery динамические, новый Test/Practice start требует всех Published-разделов, legacy multi-section POST read →403 section_read_required. Исторические проверки QIL-041 не считаются проверками нового контракта.
 
 Основание: [PRD](PRD.md), [архитектура](ARCHITECTURE.md), [QA-стратегия](QA_STRATEGY.md), [правила Codex](../AGENTS.md).
 
@@ -314,7 +314,7 @@ QIL-042, 27 ноября 2026: утверждён [section-level reading progres
 
 ### QIL-042 — Контракт section-level reading progress
 
-- Статус: DONE для фиксации утверждённых пользователем правил; только документация. Реализация новых правил NOT_IMPLEMENTED, SRP-тесты NOT_RUN до QIL-043/QIL-044. CI точного документационного SHA фиксируется в отчёте публикации и проверяет существующий продукт.
+- Статус: DONE для фиксации утверждённых пользователем правил; только документация. На документационном этапе новые правила были NOT_IMPLEMENTED; backend реализуется в отдельном QIL-043, отдельный reader — QIL-044. CI точного документационного SHA фиксируется в отчёте публикации и проверяет существующий продукт.
 - Зависимости: QIL-041 (структура разделов), QIL-034 (generation/reset). Результат: TOPIC_SECTIONS_SPEC/PROGRESS_SPEC и согласованные PRD/ARCHITECTURE/QA/BACKLOG/README.
 - Контракт: TopicSectionProgress(user, section, read_at), UNIQUE и PROTECT; Read=N>0/r=N; статья=30*r/N, activity=70*S/M; dynamic mastery=полный Read+submitted-тест >=80%. Legacy multi-section read всегда 403 section_read_required, тот же гейт у новых Test/Practice start. Старые snapshot-работы продолжаются.
 - Миграция: только доказанный существующий исходный раздел из learning 0003 с прежней датой; не все текущие разделы. Отсутствующий исходный раздел не создаётся; неоднозначное происхождение блокирует backfill с rollback. Старые данные сохраняются; новые таблицы/миграции/DB не создаются в QIL-042.
@@ -322,10 +322,10 @@ QIL-042, 27 ноября 2026: утверждён [section-level reading progres
 
 ### QIL-043 — Backend прогресса чтения разделов
 
-- Статус: TODO / NOT_IMPLEMENTED. Зависимости: QIL-042, QIL-041, QIL-034, QIL-029. Отдельный запуск и Git-разрешения требуются.
+- Статус: LOCAL_PASS для реализации: 545 backend/HTTPX и 46 подтестов, 289 frontend unit/type-check/build, полные Chromium/Firefox/WebKit по 149 PASS, Django/миграции/pip, docs/diff/secret scan и cleanup. CI точного SHA проверяется после разрешённой публикации. Dev-перенос не запускался: read-only preflight BLOCKED без проверенного provenance; старые данные сохранены. Зависимости: QIL-042, QIL-041, QIL-034, QIL-029. [Результат, provenance и переход](SECTION_PROGRESS_BACKEND.md).
 - Объём: TopicSectionProgress/constraints/PROTECT и безопасная additive/data migration; shared aggregate Read, дробные completion/mastery; reading/section-detail/section-read API, guarded legacy read; Read-гейт новых Test/Practice start; reset/late writes/ownership, без изменения scoring/snapshots/Answer/Finish.
 - Блокер до data migration: доказуемое сопоставление исходных мигрированных section IDs. Learning 0003 не хранит origin marker; минимальный ID/position/совпадение текста не считаются доказательством. При отсутствии надёжной истории или проверенного сопоставления backfill не запускается, причина сообщается пользователю.
-- Приёмка: SRP-01–SRP-09, unit/PostgreSQL/реальный HTTPX/TCP; old Article/SectionsArticle/Progress/Completion DTO shapes, первая дата, только один исходный backfill, concurrency/reset, полная backend/frontend regression. Backend/read-гейт включаются вместе с клиентом, понимающим новые ответы/403: нельзя оставить старый reader единственным способом чтения multi-section темы. Последовательность разработки 043→044 не является разрешением включить несовместимый backend отдельно; план совместимого промежуточного клиента/общего переключения уточняется перед QIL-043. Падающие обязательные E2E не помечаются PASS и не отключаются.
+- Приёмка: SRP-01–SRP-09, unit/PostgreSQL/реальный HTTPX/TCP; old Article/SectionsArticle/Progress/Completion DTO shapes, первая дата, только один исходный backfill, concurrency/reset, полная backend/frontend regression. Backend/read-гейт включаются вместе с клиентом, понимающим новые ответы/403: нельзя оставить старый reader единственным способом чтения multi-section темы. Пользователь отдельно разрешил минимально адаптировать текущий длинный reader: section POST/reading GET и безопасный новый 403, без отдельных страниц QIL-044. Падающие обязательные E2E не помечаются PASS и не отключаются.
 - Миграция/переключение планируются при остановленных learner/content writes. Dev-БД не сбрасывается; снимки и пользовательские работы не переписываются. Если для безопасного промежуточного этапа требуется совместимое typed-протокольное расширение, оно входит в согласованный план QIL-043, но отдельный reader реализует QIL-044.
 
 ### QIL-044 — Оглавление и отдельный section reader
@@ -382,4 +382,4 @@ DAG QIL-042: 041/034 →042; 042/041/034/029 →043; 043/035/041 →044; 043/044
 
 Тесты соответствующих требований предусмотрены в QA-стратегии; QIL-022 и QIL-024 проверяют сквозную готовность, а не откладывают тестирование отдельных функций до конца проекта.
 
-После фиксации QIL-042 следующая рекомендуемая отдельная задача — QIL-043: backend section progress с проверкой происхождения мигрированного раздела; затем QIL-044 и приёмка QIL-045. QIL-037 сохраняет прежний scope QIL-041. TFL-06/login остаётся отдельной небольшой правкой. Никакая следующая задача не начинается автоматически.
+После QIL-043 следующая рекомендуемая отдельная задача — QIL-044: оглавление и отдельный section reader; затем приёмка QIL-045. QIL-037 сохраняет прежний scope QIL-041. TFL-06/login остаётся отдельной небольшой правкой. Никакая следующая задача не начинается автоматически.

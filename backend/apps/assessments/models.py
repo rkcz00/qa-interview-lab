@@ -3,7 +3,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 
-from apps.learning.models import Language, Topic, require_translations
+from apps.learning.models import Language, Topic, TopicSection, require_translations
 
 
 class QuestionType(models.TextChoices):
@@ -137,6 +137,21 @@ class TopicProgress(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(fields=("user", "topic"), name="assessments_topic_progress_owner_unique"),
+        ]
+
+
+class TopicSectionProgress(models.Model):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="section_progress", editable=False,
+    )
+    section = models.ForeignKey(
+        TopicSection, on_delete=models.PROTECT, related_name="progress", editable=False,
+    )
+    read_at = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=("user", "section"), name="section_progress_owner_unique"),
         ]
 
 

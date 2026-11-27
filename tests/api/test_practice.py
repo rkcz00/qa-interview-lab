@@ -9,6 +9,7 @@ from django.db import models, transaction
 
 from apps.accounts.models import User
 from apps.assessments.models import Attempt, TopicProgress
+from apps.assessments.attempts import build_snapshot
 from apps.learning.models import Topic, TopicStatus
 from apps.learning.tests.test_content import bilingual_topic
 from apps.practice.models import PracticeSubmission, PracticeTask, PracticeTaskTranslation, SubmissionStatus, TopicPractice
@@ -103,7 +104,7 @@ def test_preview_is_readonly_public_localized_and_prerequisites_belong_to_curren
         assert payload["blocked_by"] == ["article_not_read", "test_not_submitted"]
         assert "no-store" in response.headers["Cache-Control"]
     assert not PracticeSubmission.objects.exists()
-    assert_error(post(client, start_url(topic), {"language": "ru"}), 403, "practice_locked")
+    assert_error(post(client, start_url(topic), {"language": "ru"}), 403, "section_read_required")
     post(client, f"/api/v1/topics/{topic.pk}/read/", {})
     assert data(client.get(preview_url(topic)))["blocked_by"] == ["test_not_submitted"]
     attempt = data(post(client, f"/api/v1/topics/{topic.pk}/attempts/", {"language": "ru"}), 201)
@@ -236,7 +237,7 @@ def test_ownership_is_enforced_before_query_payload_or_idempotency(started, role
         for url in (submit_url(identifier), delete_url(identifier)):
             assert_error(other.post(url, content="{", headers={**csrf_header(other), "Content-Type": "application/json"}), 404, "not_found")
         assert data(other.get(preview_url(topic)))["blocked_by"] == ["article_not_read", "test_not_submitted"]
-        assert_error(post(other, start_url(topic), {"language": "ru"}), 403, "practice_locked")
+        assert_error(post(other, start_url(topic), {"language": "ru"}), 403, "section_read_required")
     assert PracticeSubmission.objects.count() == 1
 
 
@@ -278,11 +279,13 @@ def test_complete_published_edit_allows_new_snapshot_and_preserves_old_one(start
 
 
 def test_submitted_test_alone_does_not_replace_read_and_historical_test_remains_valid(practice):
-    client, _, topic, task = practice
-    quiz = data(post(client, f"/api/v1/topics/{topic.pk}/attempts/", {"language": "ru"}), 201)
+    client, user, topic, task = practice
+    # Historical work remains submittable without inventing a fresh start before Read.
+    old = Attempt.objects.create(user=user, topic=topic, content_snapshot=build_snapshot(topic))
+    quiz = data(client.get(f"/api/v1/attempts/{old.pk}/"))
     post(client, f"/api/v1/attempts/{quiz['attempt_id']}/submit/", {"language": "ru", "answers": incorrect_answers(quiz)})
     assert data(client.get(preview_url(topic)))["blocked_by"] == ["article_not_read"]
-    assert_error(post(client, start_url(topic), {"language": "ru"}), 403, "practice_locked")
+    assert_error(post(client, start_url(topic), {"language": "ru"}), 403, "section_read_required")
     write(task, topic, source_text="print('text') # revised content")
     post(client, f"/api/v1/topics/{topic.pk}/read/", {})
     pending(post(client, start_url(topic), {"language": "en"}), status=201, language="en")

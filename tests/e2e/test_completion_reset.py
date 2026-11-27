@@ -28,7 +28,7 @@ def test_reset_rejects_held_read_clears_two_tabs_and_requires_explicit_reopening
         else:
             route.continue_()
 
-    page.route("**/api/v1/topics/" + topic_id + "/read/", intercept)
+    page.route("**/api/v1/topics/" + topic_id + "/sections/*/read/", intercept)
     topic_page(page, topic_id)
     page.locator(".article-end").scroll_into_view_if_needed()
     expect(page.locator(".reading-card .ui-loading")).to_have_text("Сохраняем отметку…")

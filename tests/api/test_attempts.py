@@ -57,6 +57,12 @@ def learner(api_client):
 
 
 def start(client, topic, language="ru"):
+    # Successful lifecycle tests explicitly satisfy the new server-side prerequisite.
+    # Gate-negative cases use a direct POST and never call this preparation helper.
+    reading = data(client.get(f"/api/v1/topics/{topic.pk}/reading/"))
+    for section in reading["sections"]:
+        if section["read_at"] is None:
+            data(post(client, f"/api/v1/topics/{topic.pk}/sections/{section['section_id']}/read/", {}))
     return data(post(client, start_url(topic.pk), {"language": language}), status=201)
 
 

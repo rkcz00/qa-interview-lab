@@ -13,7 +13,7 @@ export function practiceFailure(error: unknown) {
   if (error instanceof ApiError) {
     if (error.code === 'authentication_required') return 'authentication'
     if (error.status === 404) return 'not_found'
-    if (error.code === 'practice_locked') return 'locked'
+    if (error.code === 'practice_locked' || error.code === 'section_read_required') return 'locked'
     if (error.code === 'csrf_failed') return 'csrf'
     if (error.code === 'validation_error') return 'validation'
     if (error.code === 'practice_already_submitted') return 'conflict'

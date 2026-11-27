@@ -7,7 +7,8 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from rest_framework.exceptions import UnsupportedMediaType, ValidationError
 
-from apps.assessments.models import Attempt, AttemptStatus, TopicProgress
+from apps.assessments.models import Attempt, AttemptStatus
+from apps.assessments.reading import SectionReadRequired, require_topic_read
 from apps.assessments.progress_state import ProgressWriteError, progress_transaction, require_generation
 from apps.learning.models import Topic, TopicStatus
 from apps.learning.serializers import language_from_query
@@ -42,6 +43,8 @@ def practice_endpoint(method):
                 return error_response("unsupported_media_type", "Expected application/json.", 415)
             except ProgressWriteError as exc:
                 return error_response(exc.code, exc.message, 409)
+            except SectionReadRequired as exc:
+                return error_response(exc.code, exc.message, 403)
             except (InvalidAnswer, ValidationError):
                 return error_response("validation_error", "Invalid practice request.", 400)
             except Exception as exc:
@@ -69,7 +72,9 @@ def published_task(topic_id):
 
 def blocked_by(user_id, topic_id):
     reasons = []
-    if not TopicProgress.objects.filter(user_id=user_id, topic_id=topic_id).exists():
+    try:
+        require_topic_read(user_id, topic_id)
+    except SectionReadRequired:
         reasons.append("article_not_read")
     if not Attempt.objects.filter(user_id=user_id, topic_id=topic_id, status=AttemptStatus.SUBMITTED).exists():
         reasons.append("test_not_submitted")
@@ -103,6 +108,7 @@ def start(request, topic_id):
     task = published_task(topic.pk)
     require_generation(request, request.progress_state)
     data = request_data(request, StartPracticeSerializer)
+    require_topic_read(request.user.pk, topic.pk)
     if blocked_by(request.user.pk, topic.pk):
         return error_response("practice_locked", "Read the article and submit a test first.", 403)
     submission = PracticeSubmission.objects.create(user_id=request.user.pk, task=task, task_snapshot=build_snapshot(task, topic))

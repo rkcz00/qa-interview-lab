@@ -102,7 +102,10 @@ def test_read_and_test_languages_share_one_progress_in_both_orders(
     topic = bilingual_topic
     publish(topic)
     assert client.get(article_url(topic.pk), params={"language": article_language}).status_code == 200
-    pending = start(client, topic, test_language)
+    assert_error(post(client, start_url(topic.pk), {"language": test_language}), 403, "section_read_required")
+    # A pre-existing in-progress snapshot may predate the new start gate.
+    historical = Attempt.objects.create(user=user, topic=topic, content_snapshot=build_snapshot(topic))
+    pending = data(client.get(f"/api/v1/attempts/{historical.pk}/", params={"language": test_language}))
     assert data(client.get(PROGRESS_URL)) == []
     if read_first:
         marked = data(post(client, read_url(topic.pk), {}))

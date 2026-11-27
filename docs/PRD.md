@@ -4,7 +4,7 @@
 
 QIL-033: 23 ноября 2026 года утверждены [правила progress/reset/test flow](PROGRESS_SPEC.md) и [разделов Topic](TOPIC_SECTIONS_SPEC.md). Backend completion/reset реализован в QIL-034, UI — в QIL-035 с [отдельной приёмкой](COMPLETION_UI.md). Answer/Finish и строгий первый submit реализуются в QIL-038; [проверки](ANSWER_FINISH.md). Пользователь уточнил: Finish показывается только после всех подтверждений. Разделы реализуются в QIL-041; отдельная правка /login остаётся NOT_IMPLEMENTED. QIL-036 относится к CI, а не к sections. [Границы backend](COMPLETION_BACKEND.md).
 
-QIL-042: 27 ноября 2026 года утверждён [section-level Read и отдельный reader](TOPIC_SECTIONS_SPEC.md). Это документационный этап: TopicSectionProgress, новые read endpoints и Read-гейт Test/Practice start ещё NOT_IMPLEMENTED, backend/UI/приёмка запланированы в QIL-043/QIL-044/QIL-045. Эти целевые требования заменяют прежний единый reader и сохранение Read/mastery при добавлении раздела; остальные результаты QIL-041 не переписываются.
+QIL-042: 27 ноября 2026 года утверждён [section-level Read и отдельный reader](TOPIC_SECTIONS_SPEC.md). Backend реализован в QIL-043: TopicSectionProgress, новые read endpoints и Read-гейт Test/Practice start; [границы и безопасный переход](SECTION_PROGRESS_BACKEND.md). Отдельные reader-страницы и сквозная приёмка остаются QIL-044/QIL-045. Эти требования заменяют прежний единый reader и сохранение Read/mastery при добавлении раздела; остальные результаты QIL-041 не переписываются.
 
 Связанные документы: [README](../README.md), [архитектура](ARCHITECTURE.md), [QA-стратегия](QA_STRATEGY.md), [backlog](BACKLOG.md).
 

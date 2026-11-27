@@ -10,7 +10,7 @@ from playwright.sync_api import expect
 
 from tests.e2e.test_auth_ui import check, fill, identity, REGISTER, ME, form
 from tests.e2e.test_learning_ui import signed_in, topic_page
-from tests.e2e.test_assessment_ui import result, confirm_answers
+from tests.e2e.test_assessment_ui import result, confirm_answers, ensure_read
 
 
 SIZES = [{"width": 1280, "height": 900}, {"width": 390, "height": 844}]
@@ -99,6 +99,7 @@ def test_attempt_keyboard_answers_result_context_navigation_and_logout(auth_page
     page.set_viewport_size(size)
     signed_in(page)
     topic_id = learning_topics["first"]
+    ensure_read(page, topic_id, "en")
     topic_page(page, topic_id, "en")
     page.get_by_role("link", name="Пройти тест", exact=True).click()
     expect(page.get_by_role("radio", name="Русский", exact=True)).to_be_checked()

@@ -4,7 +4,7 @@
 
 QIL-033 фиксирует [архитектуру progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend completion/reset и UserProgressState реализованы в QIL-034, UI — в QIL-035 с [отдельной приёмкой](COMPLETION_UI.md). QIL-038 добавляет локальные подтверждения и проверку полноты первого submit; [реализация и приёмка](ANSWER_FINISH.md). QIL-041 добавляет единый reader разделов и сохраняет форму legacy Article GET; TFL-06/login остаётся NOT_IMPLEMENTED. QIL-036 относится только к CI. [Границы backend](COMPLETION_BACKEND.md).
 
-QIL-042, 27 ноября 2026: утверждён [section-level Read/отдельный reader](TOPIC_SECTIONS_SPEC.md). TopicSectionProgress и новые learner endpoints/гейт start — план QIL-043; UI — QIL-044, приёмка — QIL-045. В этом этапе изменяется только документация, код/БД/миграции не меняются. Целевые правила ниже имеют приоритет над прежними topic-level Read и неизменностью mastery при новом разделе.
+QIL-042 утвердила [section-level Read/отдельный reader](TOPIC_SECTIONS_SPEC.md). QIL-043 реализует TopicSectionProgress, новые learner endpoints/гейт start, reset и additive/data migration с проверенным provenance; [инструкция](SECTION_PROGRESS_BACKEND.md). Минимальная адаптация текущего длинного reader отдельно разрешена пользователем; отдельные страницы — QIL-044, сквозная приёмка — QIL-045. Новые правила имеют приоритет над прежними topic-level Read и неизменностью mastery при новом разделе.
 
 Связанные документы: [PRD](PRD.md), [QA-стратегия](QA_STRATEGY.md), [backlog](BACKLOG.md), [правила Codex](../AGENTS.md), [точный контракт Practice](PRACTICE_SPEC.md).
 
@@ -115,7 +115,7 @@ QIL-041 реализует TopicSection/TopicSectionTranslation с FK/UNIQUE/CHE
 
 Ответы содержат пары логических `question_id` и выбранных `choice_id`. Они проверяются относительно снимка, поэтому изменение исходных вопросов не ломает старые попытки. Learner API никогда не возвращает правильные ответы, `content_snapshot` или `submitted_answers` — ни до, ни после submit. До submit публичные поля вопросов формируются отдельным serializer по разрешённому списку; после submit выдаётся только агрегированный результат и метаданные истории по разделу 9.
 
-Ограничения базы защищают FK, уникальность и допустимые значения полей. Межстрочные правила, например число правильных вариантов вопроса, проверяются серверной операцией публикации. Внешние ключи попыток и прогресса защищают Topic от физического удаления при наличии пользовательских данных. Целевая TopicSectionProgress защищает использованный section через PROTECT; используется Draft/unpublish, включая каскадное удаление родителя. Admin не раскрывает список пользователей или ID их отметок при таком отказе.
+Ограничения базы защищают FK, уникальность и допустимые значения полей. Межстрочные правила, например число правильных вариантов вопроса, проверяются серверной операцией публикации. Внешние ключи попыток и прогресса защищают Topic от физического удаления при наличии пользовательских данных. TopicSectionProgress защищает использованный section через PROTECT; используется Draft/unpublish, включая каскадное удаление родителя. Admin не раскрывает список пользователей или ID их отметок при таком отказе.
 
 ## 6. Email, пароли и сессии
 
@@ -155,7 +155,7 @@ Content Admin — отдельная Django-группа. У обычной уч
 | `Topic`, `TopicTranslation`, `Question`, `QuestionTranslation`, `Choice`, `ChoiceTranslation`, `Term`, `TermTranslation` | Только стандартные `view`, `add`, `change`, `delete` для этих моделей |
 | `TopicPractice`, `PracticeTask`, `PracticeTaskTranslation` | Контентные permissions QIL-029; без PracticeSubmission |
 | `TopicSection`, `TopicSectionTranslation` | Стандартные контентные permissions в QIL-041, всего 13 моделей |
-| `User`, `Attempt`, `TopicProgress`, `TopicSectionProgress` (план), `PracticeSubmission`, `UserProgressState` | Нет permissions; запрещены списки, отдельные записи, изменение и административные actions |
+| `User`, `Attempt`, `TopicProgress`, `TopicSectionProgress`, `PracticeSubmission`, `UserProgressState` | Нет permissions; запрещены списки, отдельные записи, изменение и административные actions |
 | Группы, permissions, sessions и прочие модели | Нет permissions; роль не может расширить собственные права |
 
 Доступ к Admin по is_staff сам по себе не даёт модельных permissions. Запреты проверяются и по прямому URL. Публикация требует change и общей проверки полноты; delete не обходит защиту темы с историей. Тело статьи переносится из TopicTranslation в переводы sections; TopicProgress сохраняет историческую дату; источником текущего Read после QIL-043 становится TopicSectionProgress и общая серверная агрегация. UserProgressState — отдельный технический mutex/generation, а не редактируемые проценты.
@@ -164,7 +164,7 @@ Content Admin — отдельная Django-группа. У обычной уч
 
 ## 7. Языки и публикация
 
-Логические Topic, Question и Choice существуют независимо от перевода. `language` хранится только в таблицах переводов и языке отправки Attempt. У TopicProgress/целевой TopicSectionProgress языкового поля нет.
+Логические Topic, Question и Choice существуют независимо от перевода. `language` хранится только в таблицах переводов и языке отправки Attempt. У TopicProgress/TopicSectionProgress языкового поля нет.
 
 Языковые переключатели frontend держат два отдельных состояния: язык статьи и язык тестирования. Словарь следует языку статьи. Выбранные варианты хранятся по ID, а не по переведённому тексту. Смена языка текущей попытки запрашивает другой перевод того же снимка и сохраняет ответы.
 
@@ -203,7 +203,7 @@ Single-choice: один балл при совпадении выбранног�
 
 ### 8.3. Прогресс без дублирования
 
-После QIL-043 TopicSectionProgress хранит одну неизменяемую первую отметку на user/section. N — Published-разделы, r — отмеченные текущим пользователем; Read=(N>0 AND r=N). Legacy TopicProgress хранится для сохранности старой даты и не используется как обход агрегата. Best result, mastery и проценты не сохраняются редактируемыми копиями.
+В QIL-043 TopicSectionProgress хранит одну неизменяемую первую отметку на user/section. N — Published-разделы, r — отмеченные текущим пользователем; Read=(N>0 AND r=N). Legacy TopicProgress хранится для сохранности старой даты и не используется как обход агрегата. Best result, mastery и проценты не сохраняются редактируемыми копиями.
 
 В прежних Progress/CompletionProgress article_read_at=null при неполном Read; при полном — историческая TopicProgress.article_read_at, если есть, иначе максимум первых read_at учитываемых разделов. GET не создаёт legacy-строку. Старый progress список также включает темы с частичными section marks, включая Draft без контентных текстов; completion включает все Published-темы, в том числе не начатые.
 
@@ -215,7 +215,7 @@ Read/reset сериализуются общим User → UserProgressState → 
 
 ## 9. Минимальный API-контракт
 
-Контракт Learner API использует префикс `/api/v1`. Базовые endpoints реализованы в предыдущих задачах; новые reading/section-detail/section-read и Read-гейт QIL-042 ниже пока NOT_IMPLEMENTED. Content Admin работает с контентом через `/admin/`, а не через изменяющие learner endpoints.
+Контракт Learner API использует префикс `/api/v1`. Базовые endpoints реализованы в предыдущих задачах; новые reading/section-detail/section-read и Read-гейт реализованы в QIL-043. Content Admin работает с контентом через `/admin/`, а не через изменяющие learner endpoints.
 
 ### 9.1. Общие правила, авторизация и CSRF
 
@@ -263,8 +263,8 @@ Result содержит только три агрегата. Метаданны
 | `GET /topics/` | Пользователь | Query `language` | `200`, массив TopicSummary только Published-тем |
 | `GET /topics/{topic_id}/` | Пользователь | Query `language` | `200`, Article; для Draft — 404 |
 | `GET /topics/{topic_id}/terms/` | Пользователь | Query `language` | `200`, массив Term; для Draft — 404 |
-| `POST /topics/{topic_id}/read/` | Пользователь | `{}` | Цель QIL-043: N=1 →200 Progress через section Read; N>1 всегда 403 section_read_required; Draft →404 |
-| `POST /topics/{topic_id}/attempts/` | Пользователь | `language` | `201`, PendingAttempt; Draft →404, неполный Read →403 section_read_required после QIL-043, без Attempt |
+| `POST /topics/{topic_id}/read/` | Пользователь | `{}` | QIL-043: N=1 →200 Progress через section Read; N>1 всегда 403 section_read_required; Draft →404 |
+| `POST /topics/{topic_id}/attempts/` | Пользователь | `language` | `201`, PendingAttempt; Draft →404, неполный Read →403 section_read_required, без Attempt |
 | `GET /attempts/{attempt_id}/` | Владелец | Query `language` применяется до submit | `200`, PendingAttempt до submit или SubmittedAttempt после него |
 | `POST /attempts/{attempt_id}/submit/` | Владелец | `language`, массив `answers` | `200`, SubmittedAttempt; идентичный повтор даёт тот же результат |
 | `GET /attempts/` | Пользователь | Без тела | `200`, массив только своих SubmittedAttempt, новые первыми |
@@ -339,7 +339,7 @@ TopicPractice имеет OneToOne-связь с Topic и единственны�
 
 Изменения контентных сущностей используют существующий Topic.revision/expected_revision и блокировку Topic. Start согласован с этой же блокировкой и фиксирует версию нормализации/эталон/RU/EN. Submit/delete блокируют строку собственной PracticeSubmission. Проверка ответа выполняет только явные строковые преобразования и сравнение, не вызывает eval/exec/SQL-исполнение/сеть. Исторический verdict не пересчитывается при edit/unpublish.
 
-QIL-042 уточняет только новый start: полный агрегированный Read → затем любой submitted-тест; неполное чтение даёт 403 section_read_required, при полном чтении без теста остаётся practice_locked. Это целевое переопределение старого условия наличия TopicProgress в PRACTICE_SPEC; preview blocked_by остаётся article_not_read/test_not_submitted с новой семантикой Read. Owned GET/submit уже начатой работы по snapshot не получает этот гейт.
+QIL-042 уточняет только новый start: полный агрегированный Read → затем любой submitted-тест; неполное чтение даёт 403 section_read_required, при полном чтении без теста остаётся practice_locked. Это реализованное в QIL-043 переопределение старого условия наличия TopicProgress в PRACTICE_SPEC; preview blocked_by остаётся article_not_read/test_not_submitted с новой семантикой Read. Owned GET/submit уже начатой работы по snapshot не получает этот гейт.
 
 Практика не участвует в is_mastered и старом Progress; QIL-033 включает её в отдельный completion_progress, не меняя правило 80% или Result. Reset становится явным owner-only исключением из сохранности работ. Account deletion остаётся отдельной возможностью; FK User CASCADE сохраняется, автоматического retention нет. POST Practice также участвуют в новом generation/mutex-протоколе.
 

@@ -62,6 +62,52 @@ class ProgressSerializer(serializers.Serializer):
     mastered = serializers.BooleanField(read_only=True)
 
 
+class ReadingStateSerializer(serializers.Serializer):
+    total_sections = serializers.IntegerField(read_only=True)
+    read_sections = serializers.IntegerField(read_only=True)
+    is_read = serializers.BooleanField(read_only=True)
+    completion_contribution = serializers.FloatField(read_only=True)
+
+
+class SectionSummarySerializer(serializers.Serializer):
+    section_id = serializers.CharField(read_only=True)
+    position = serializers.IntegerField(read_only=True)
+    title = serializers.CharField(read_only=True)
+    read_at = serializers.DateTimeField(format="iso-8601", allow_null=True, read_only=True)
+
+
+class TopicReadingSerializer(serializers.Serializer):
+    topic_id = serializers.CharField(read_only=True)
+    title = serializers.CharField(read_only=True)
+    language = serializers.CharField(read_only=True)
+    progress_generation = serializers.CharField(read_only=True)
+    reading = ReadingStateSerializer(read_only=True)
+    sections = SectionSummarySerializer(many=True, read_only=True)
+
+
+class SectionBodySerializer(SectionSummarySerializer):
+    article_body = serializers.CharField(read_only=True)
+
+
+class SectionArticleSerializer(serializers.Serializer):
+    topic_id = serializers.CharField(read_only=True)
+    topic_title = serializers.CharField(read_only=True)
+    language = serializers.CharField(read_only=True)
+    progress_generation = serializers.CharField(read_only=True)
+    section = SectionBodySerializer(read_only=True)
+    previous_section_id = serializers.CharField(allow_null=True, read_only=True)
+    next_section_id = serializers.CharField(allow_null=True, read_only=True)
+    reading = ReadingStateSerializer(read_only=True)
+
+
+class SectionReadSerializer(serializers.Serializer):
+    topic_id = serializers.CharField(read_only=True)
+    section_id = serializers.CharField(read_only=True)
+    read_at = serializers.DateTimeField(format="iso-8601", read_only=True)
+    progress_generation = serializers.CharField(read_only=True)
+    reading = ReadingStateSerializer(read_only=True)
+
+
 class TestCompletionSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=("unattempted", "failed", "passed"), read_only=True)
     best_result = ResultSerializer(allow_null=True, read_only=True)

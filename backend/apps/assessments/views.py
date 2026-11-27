@@ -7,7 +7,7 @@ from django.utils import timezone
 from django.views.decorators.cache import never_cache
 from rest_framework.exceptions import UnsupportedMediaType, ValidationError
 
-from apps.learning.models import Topic, TopicStatus
+from apps.learning.models import Topic, TopicSection, TopicStatus
 from apps.learning.serializers import language_from_query
 from config.api import authentication_required, error_response, method_not_allowed, parse_json_payload, pk_from_path
 
@@ -15,6 +15,7 @@ from .attempts import IncompleteAnswers, build_snapshot, grade_initial_snapshot,
 from .completion import completion_progress
 from .models import Attempt, AttemptStatus, TopicProgress
 from .progress import progress_after_read, user_progress
+from .reading import SectionReadRequired, public_reading, reading_snapshot, require_topic_read, save_section_read
 from .progress_state import (
     ProgressWriteError, generation_from_request, progress_transaction, require_generation, reset_progress,
 )
@@ -29,6 +30,7 @@ from .serializers import (
     SubmitAttemptSerializer,
     InitialSubmitAttemptSerializer,
     SubmittedAttemptSerializer,
+    TopicReadingSerializer, SectionArticleSerializer, SectionReadSerializer,
 )
 
 
@@ -52,6 +54,8 @@ def _learner_endpoint(method, *, resource="Attempt"):
                 return error_response("unsupported_media_type", "Expected application/json.", 415)
             except ProgressWriteError as exc:
                 return error_response(exc.code, exc.message, 409)
+            except SectionReadRequired as exc:
+                return error_response(exc.code, exc.message, 403)
             except (InvalidAnswers, ValidationError):
                 return error_response("validation_error", f"Invalid {resource.lower()} request.", 400)
             except Exception as exc:
@@ -88,6 +92,7 @@ def start_attempt(request, topic_id):
     topic = get_object_or_404(topics, pk=pk_from_path(topic_id), status=TopicStatus.PUBLISHED)
     require_generation(request, request.progress_state)
     data = _request_data(request, StartAttemptSerializer)
+    require_topic_read(request.user.pk, topic.pk)
     attempt = Attempt.objects.create(user_id=request.user.pk, topic=topic, content_snapshot=build_snapshot(topic))
     payload = PendingAttemptSerializer(attempt, context={"language": data["language"]}).data
     return JsonResponse({"data": payload}, status=201)
@@ -155,8 +160,49 @@ def mark_article_read(request, topic_id):
     )
     require_generation(request, request.progress_state)
     _request_data(request, ReadTopicSerializer)
-    mark, _ = TopicProgress.objects.get_or_create(user_id=request.user.pk, topic=topic)
+    sections = list(topic.sections.filter(status=TopicStatus.PUBLISHED))
+    if not sections:
+        raise RuntimeError("Published topic has no sections")
+    if len(sections) != 1:
+        raise SectionReadRequired()
+    save_section_read(request.user.pk, sections[0])
+    mark = TopicProgress.objects.get(user_id=request.user.pk, topic=topic)
     return JsonResponse({"data": ProgressSerializer(progress_after_read(mark)).data})
+
+
+@_learner_endpoint("GET", resource="Reading")
+def topic_reading_detail(request, topic_id):
+    snapshot = reading_snapshot(request.user.pk, pk_from_path(topic_id))
+    payload = public_reading(snapshot, language_from_query(request.GET))
+    return JsonResponse({"data": TopicReadingSerializer(payload).data})
+
+
+@_learner_endpoint("GET", resource="Reading")
+def section_detail(request, topic_id, section_id):
+    snapshot = reading_snapshot(request.user.pk, pk_from_path(topic_id))
+    section_id = pk_from_path(section_id)
+    if not any(row["section_id"] == str(section_id) for row in snapshot["section_values"]):
+        raise Http404
+    payload = public_reading(snapshot, language_from_query(request.GET), section_id)
+    return JsonResponse({"data": SectionArticleSerializer(payload).data})
+
+
+@_learner_endpoint("POST", resource="Reading")
+@progress_transaction
+def mark_section_read(request, topic_id, section_id):
+    topic = get_object_or_404(Topic.objects.select_for_update(), pk=pk_from_path(topic_id), status=TopicStatus.PUBLISHED)
+    section = get_object_or_404(
+        TopicSection, pk=pk_from_path(section_id), topic_id=topic.pk, status=TopicStatus.PUBLISHED,
+    )
+    require_generation(request, request.progress_state)
+    _request_data(request, ReadTopicSerializer)
+    mark = save_section_read(request.user.pk, section)
+    snapshot = public_reading(reading_snapshot(request.user.pk, topic.pk), "ru")
+    payload = {
+        "topic_id": str(topic.pk), "section_id": str(section.pk), "read_at": mark.read_at,
+        "progress_generation": snapshot["progress_generation"], "reading": snapshot["reading"],
+    }
+    return JsonResponse({"data": SectionReadSerializer(payload).data})
 
 
 @_learner_endpoint("GET", resource="Progress")

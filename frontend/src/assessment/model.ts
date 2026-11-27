@@ -11,6 +11,7 @@ export function assessmentFailure(error: unknown) {
     if (error.status === 400 && error.code === 'validation_error') return 'validation'
     if (error.status === 400 && error.code === 'incomplete_answers') return 'incomplete'
     if (error.status === 409 && error.code === 'attempt_already_submitted') return 'conflict'
+    if (error.status === 403 && error.code === 'section_read_required') return 'reading'
   }
   return learningFailure(error)
 }
@@ -75,8 +76,8 @@ export class StartStore extends Observable<StartState> {
       if (generation !== this.#generation) return
       const failure = assessmentFailure(error)
       if (failure === 'authentication' || failure === 'not_found') this.publish({ kind: failure, language })
-      else if (failure === 'validation' || failure === 'csrf') {
-        this.publish({ kind: 'ready', title: this.#title, language, message: failure === 'csrf' ? text.csrf : text.validation })
+      else if (failure === 'validation' || failure === 'csrf' || failure === 'reading') {
+        this.publish({ kind: 'ready', title: this.#title, language, message: failure === 'reading' ? text.readFirst : failure === 'csrf' ? text.csrf : text.validation })
       } else this.publish({ kind: 'uncertain', language, message: text.startUncertain })
     }
   }

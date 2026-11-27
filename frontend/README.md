@@ -4,7 +4,7 @@
 
 `/topics/{id}?language=ru|en#section-{section_id}` — единый reader: все Published-разделы, оглавление, текущий раздел и переходы к предыдущему/следующему. Якоря сохраняются при reload и Back/Forward; язык материала сохраняется в URL и независим от теста. Смена языка сохраняет focus на LanguageSelector; переход к разделу фокусирует его h2.
 
-Метод `api.learning.sections()` получает строгий SectionsArticle через существующий typed wrapper; старый `article()` сохранён для совместимости. Пустой/неполный или нарушающий порядок ответ не отображается частично. Тексты выводятся без HTML/Markdown. Один end-marker находится только после последнего раздела: промежуточный конец не пишет Read. Pending markRead переживает смену языка, отказ GET и повторную загрузку; hidden/0×0/stale marker по-прежнему не учитываются. [Контракт, миграция, ограничения и проверки](../docs/TOPIC_SECTIONS_SPEC.md#7-реализация-и-проверки-qil-041).
+Метод `api.learning.sections()` получает строгий SectionsArticle через существующий typed wrapper; старый `article()` сохранён для совместимости. Пустой/неполный или нарушающий порядок ответ не отображается частично. Тексты выводятся без HTML/Markdown. QIL-043 по отдельному разрешению минимально адаптирует длинный reader: `learning.reading()` получает собственные отметки, у каждого раздела отдельный end-marker, `progress.markSectionRead()` записывает только его. Промежуточный раздел сохраняет частичный прогресс; Topic Read появляется после всех Published-разделов. Pending POST переживает смену языка, отказ GET и повторную загрузку; hidden/0×0/stale marker по-прежнему не учитываются. После ошибки POST нужен явный GET. Read-гейт Test/Practice объясняется по-русски. Отдельное оглавление/reader остаётся QIL-044. [Контракт и переход](../docs/SECTION_PROGRESS_BACKEND.md).
 
 ## Completion progress и reset — QIL-035
 
@@ -148,7 +148,10 @@ Unit-проверки дополнены правилами focus/navigation/log
 | `assessment.get(attemptId, language?)` | GET | `attempts/{attempt_id}/` | PendingAttempt или SubmittedAttempt |
 | `assessment.submit(attemptId, language, answers)` | POST | `attempts/{attempt_id}/submit/` | SubmittedAttempt |
 | `assessment.history()` | GET | `attempts/` | SubmittedAttempt[] |
-| `progress.markRead(topicId)` | POST | `topics/{topic_id}/read/` | Progress |
+| `learning.reading(topicId, language?)` | GET | `topics/{topic_id}/reading/` | TopicReading |
+| `learning.section(topicId, sectionId, language?)` | GET | `topics/{topic_id}/sections/{section_id}/` | SectionArticle |
+| `progress.markSectionRead(topicId, sectionId)` | POST | `topics/{topic_id}/sections/{section_id}/read/` | SectionRead |
+| `progress.markRead(topicId)` | POST | `topics/{topic_id}/read/` | Legacy Progress только при N=1; иначе 403 section_read_required |
 | `progress.current()` | GET | `progress/` | Progress[] |
 
 `language` принимает только `ru` или `en`. В GET он передаётся одноимённым query-параметром, при пропуске действует backend default `ru`. В start/submit язык обязателен в JSON. Язык статьи не хранится глобально в клиенте и не влияет на язык теста. Progress и history не принимают query-параметров языка.

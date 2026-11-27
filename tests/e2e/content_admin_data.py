@@ -21,7 +21,7 @@ def main():
     from django.contrib.auth.models import Group
     from django.db import connection, transaction
     from apps.accounts.models import User
-    from apps.assessments.models import Attempt, Choice, ChoiceTranslation, Question, QuestionTranslation, TopicProgress
+    from apps.assessments.models import Attempt, Choice, ChoiceTranslation, Question, QuestionTranslation, TopicProgress, TopicSectionProgress
     from apps.learning.models import Term, TermTranslation, Topic, TopicTranslation, TopicSection, TopicSectionTranslation
     from apps.practice.models import TopicPractice, PracticeTask, PracticeTaskTranslation
 
@@ -50,6 +50,7 @@ def main():
         if action == "cleanup":
             with transaction.atomic():
                 Attempt.objects.filter(topic=topic).delete()
+                TopicSectionProgress.objects.filter(section__topic=topic).delete()
                 TopicProgress.objects.filter(topic=topic).delete()
                 topic.delete()
             result = {"cleanup": "PASS"}

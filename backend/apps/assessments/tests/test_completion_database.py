@@ -8,7 +8,8 @@ import pytest
 
 from apps.accounts.models import User
 from apps.assessments.completion import completion_progress
-from apps.assessments.models import Attempt, TopicProgress, UserProgressState
+from apps.assessments.reading import save_section_read
+from apps.assessments.models import Attempt, TopicProgress, TopicSectionProgress, UserProgressState
 from apps.assessments.serializers import CompletionProgressSerializer
 from apps.learning.models import Topic
 from apps.learning.tests.test_content import bilingual_topic
@@ -66,6 +67,7 @@ def test_completion_uses_best_snapshot_and_retained_correct_without_changing_mas
     publish(bilingual_topic)
     mark = TopicProgress.objects.create(user=user, topic=bilingual_topic)
     first = store_historical_result(user, bilingual_topic, 4, 5)
+    save_section_read(user.pk, bilingual_topic.sections.get())
     store_historical_result(user, bilingual_topic, 1, 5, language="en")
     value = projected(user)["topics"][0]
     assert value["test"]["status"] == "passed" and value["test"]["best_result"]["correct_count"] == first.correct_count
@@ -90,6 +92,7 @@ def test_failed_completed_test_can_coexist_with_correct_practice_and_no_mastery(
     publish(bilingual_topic)
     TopicProgress.objects.create(user=user, topic=bilingual_topic)
     store_historical_result(user, bilingual_topic, 1, 2)
+    save_section_read(user.pk, bilingual_topic.sections.get())
     finished_practice(user, task, "correct")
     value = projected(user)["topics"][0]
     assert value["test"]["status"] == "failed" and value["practice"]["status"] == "passed"
@@ -126,6 +129,7 @@ def test_reset_rolls_back_deleted_rows_and_receipt_on_failure(bilingual_topic, m
     task = create_practice(bilingual_topic)
     publish(bilingual_topic)
     TopicProgress.objects.create(user=user, topic=bilingual_topic)
+    section_mark = TopicSectionProgress.objects.create(user=user, section=bilingual_topic.sections.get())
     store_historical_result(user, bilingual_topic, 1, 2)
     finished_practice(user, task, "correct")
     client = Client(enforce_csrf_checks=True)
@@ -142,13 +146,14 @@ def test_reset_rolls_back_deleted_rows_and_receipt_on_failure(bilingual_topic, m
     }, content_type="application/json", HTTP_X_CSRFTOKEN=token, HTTP_X_PROGRESS_GENERATION="1")
     assert response.status_code == 500 and response.json()["error"]["code"] == "internal_error"
     assert TopicProgress.objects.filter(user=user).count() == 1
+    assert TopicSectionProgress.objects.get(pk=section_mark.pk).read_at == section_mark.read_at
     assert Attempt.objects.filter(user=user).count() == 1
     assert PracticeSubmission.objects.filter(user=user).count() == 1
     assert not UserProgressState.objects.exists()
 
 
 @pytest.mark.django_db(transaction=True)
-def test_state_migration_preserves_existing_user_content_read_and_snapshots(bilingual_topic):
+def test_state_migration_preserves_existing_user_content_read_and_snapshots(bilingual_topic, monkeypatch, tmp_path):
     user = User.objects.create_user("completion-migration@example.invalid")
     task = create_practice(bilingual_topic)
     publish(bilingual_topic)
@@ -164,5 +169,7 @@ def test_state_migration_preserves_existing_user_content_read_and_snapshots(bili
         assert PracticeSubmission.objects.get(pk=work.pk).task_snapshot == work.task_snapshot
         assert not UserProgressState.objects.exists()
     finally:
+        from apps.assessments.tests.test_section_provenance import install_manifest
+        install_manifest(monkeypatch, tmp_path, {bilingual_topic.pk: None})
         executor = MigrationExecutor(connection)
         executor.migrate(executor.loader.graph.leaf_nodes())
