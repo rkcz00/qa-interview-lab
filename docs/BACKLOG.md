@@ -4,6 +4,8 @@
 
 QIL-033 фиксирует утверждённые 23 ноября 2026 года [правила progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend QIL-034 и Progress/reset UI QIL-035 реализованы; ручная приёмка QIL-035 подтверждена пользователем 24 ноября. QIL-036 стабилизирует CI. Пользователь назначил текущему Answer/Finish номер QIL-038 и уточнил скрытый Finish до всех подтверждений. Пользователь назначил sections свободный QIL-041. TFL-06/login остаётся отложенным; QIL-037 — TODO. Исторические статусы не переписываются как доказательство нового поведения.
 
+QIL-042, 27 ноября 2026: утверждён [section-level reading progress](TOPIC_SECTIONS_SPEC.md). Этот этап фиксирует только документацию; backend QIL-043, UI QIL-044 и новая приёмка QIL-045 остаются TODO/NOT_IMPLEMENTED. Read/mastery динамические, новый Test/Practice start требует всех Published-разделов, legacy multi-section POST read →403 section_read_required. Исторические проверки QIL-041 не считаются проверками нового контракта.
+
 Основание: [PRD](PRD.md), [архитектура](ARCHITECTURE.md), [QA-стратегия](QA_STRATEGY.md), [правила Codex](../AGENTS.md).
 
 ## 1. Как работать с backlog
@@ -306,9 +308,41 @@ QIL-033 фиксирует утверждённые 23 ноября 2026 год�
 
 - Статус: LOCAL_PASS. Номер QIL-041 назначен пользователем после QIL-040; QIL-036 остаётся CI-задачей. Модели/API/reader и безопасная миграция реализованы: две локальные прежние темы перенесены в два раздела/четыре перевода, хеши 21 прежней таблицы сохранены. Backend 488 + 46 подтестов и sections HTTPX 17, frontend 278 unit/type-check/build, три browser suites по 148 PASS с одним устаревшим ожиданием URL; после его исправления по 10 релевантных E2E PASS. Первоначальные падения не скрываются, точные новые CI/SHA подтверждаются отдельно после публикации. Зависимости: QIL-033/QIL-034, существующие QIL-010–QIL-012/QIL-027. [Фактические проверки](TOPIC_SECTIONS_SPEC.md#7-реализация-и-проверки-qil-041).
 - Объём: TopicSection/Translation, additive/data migration старого тела в один раздел, транзакционная публикация/порядок/revision, Content Admin 13 моделей, sections GET и сборка legacy Article, typed reader/оглавление/якоря/end-marker.
-- Инварианты: полный Published RU/EN, Draft скрыт, прежний один раздел выдаётся дословно, старые ID/Read-даты/snapshots/mastery сохранены. Новые редакции Read не сбрасывают. Отдельные SectionRead/страницы, тесты по разделам, новый контент/демо-loader не добавляются.
+- Исторические инварианты QIL-041: полный Published RU/EN, Draft скрыт, single Article дословный, старые ID/Read-даты/snapshots сохранены; тогда новые разделы не сбрасывали Read/mastery. Последующие динамические Read и отдельные страницы утверждены в QIL-042, реализуются отдельно в QIL-043/QIL-044. Тесты по разделам и новый контент не добавляются.
 - Приёмка: FR-03/FR-07/FR-11/FR-12/FR-16, SEC-01–SEC-08; migration/constraints/Admin concurrency, HTTPX/legacy compatibility, real Playwright, три движка и regression.
 - Затрагиваемые области: learning models/changes/admin/migrations/serializers/views, content permissions, frontend learning typed client/store/reader и тесты. Миграция не удаляет legacy article_body в этом milestone.
+
+### QIL-042 — Контракт section-level reading progress
+
+- Статус: DONE для фиксации утверждённых пользователем правил; только документация. Реализация новых правил NOT_IMPLEMENTED, SRP-тесты NOT_RUN до QIL-043/QIL-044. CI точного документационного SHA фиксируется в отчёте публикации и проверяет существующий продукт.
+- Зависимости: QIL-041 (структура разделов), QIL-034 (generation/reset). Результат: TOPIC_SECTIONS_SPEC/PROGRESS_SPEC и согласованные PRD/ARCHITECTURE/QA/BACKLOG/README.
+- Контракт: TopicSectionProgress(user, section, read_at), UNIQUE и PROTECT; Read=N>0/r=N; статья=30*r/N, activity=70*S/M; dynamic mastery=полный Read+submitted-тест >=80%. Legacy multi-section read всегда 403 section_read_required, тот же гейт у новых Test/Practice start. Старые snapshot-работы продолжаются.
+- Миграция: только доказанный существующий исходный раздел из learning 0003 с прежней датой; не все текущие разделы. Отсутствующий исходный раздел не создаётся; неоднозначное происхождение блокирует backfill с rollback. Старые данные сохраняются; новые таблицы/миграции/DB не создаются в QIL-042.
+- Приёмка: Markdown/anchors/JSON/формулы/DAG/diff/secret scan, только семь разрешённых документов; один commit `docs: specify section-level reading progress`, один обычный push без force, все шесть CI executions и три browser engines. Production, .env и семь пользовательских helpers не меняются.
+
+### QIL-043 — Backend прогресса чтения разделов
+
+- Статус: TODO / NOT_IMPLEMENTED. Зависимости: QIL-042, QIL-041, QIL-034, QIL-029. Отдельный запуск и Git-разрешения требуются.
+- Объём: TopicSectionProgress/constraints/PROTECT и безопасная additive/data migration; shared aggregate Read, дробные completion/mastery; reading/section-detail/section-read API, guarded legacy read; Read-гейт новых Test/Practice start; reset/late writes/ownership, без изменения scoring/snapshots/Answer/Finish.
+- Блокер до data migration: доказуемое сопоставление исходных мигрированных section IDs. Learning 0003 не хранит origin marker; минимальный ID/position/совпадение текста не считаются доказательством. При отсутствии надёжной истории или проверенного сопоставления backfill не запускается, причина сообщается пользователю.
+- Приёмка: SRP-01–SRP-09, unit/PostgreSQL/реальный HTTPX/TCP; old Article/SectionsArticle/Progress/Completion DTO shapes, первая дата, только один исходный backfill, concurrency/reset, полная backend/frontend regression. Backend/read-гейт включаются вместе с клиентом, понимающим новые ответы/403: нельзя оставить старый reader единственным способом чтения multi-section темы. Последовательность разработки 043→044 не является разрешением включить несовместимый backend отдельно; план совместимого промежуточного клиента/общего переключения уточняется перед QIL-043. Падающие обязательные E2E не помечаются PASS и не отключаются.
+- Миграция/переключение планируются при остановленных learner/content writes. Dev-БД не сбрасывается; снимки и пользовательские работы не переписываются. Если для безопасного промежуточного этапа требуется совместимое typed-протокольное расширение, оно входит в согласованный план QIL-043, но отдельный reader реализует QIL-044.
+
+### QIL-044 — Оглавление и отдельный section reader
+
+- Статус: TODO / NOT_IMPLEMENTED. Зависимости: QIL-043, QIL-035, QIL-041.
+- Объём: `/topics/{topic_id}` как оглавление и `/topics/{topic_id}/sections/{section_id}` как reader; новые typed методы/runtime decoders, собственные read states/counters, server-only проценты, previous/next и безопасный legacy hash. RU/EN в URL, independent test language, AppShell/keyboard/focus/mobile.
+- Инварианты: marker только текущего section; оглавление/словарь не пишут Read; один in-flight POST на section; RU/EN/ошибка перевода/A→B→A не сбрасывают pending. Hidden/0x0/stale/partial render запрещены; после ошибки POST явный GET без автоповтора, generation/session loss не восстанавливают старую запись.
+- Допуск нового теста/Practice до полного Read показывается понятным русским сообщением; окончательная проверка на backend. Legacy длинная статья не используется как обход, результаты старых owned работ доступны по прежним URL.
+- Приёмка: SRP-05/SRP-08/SRP-10–SRP-12, unit/type-check/build и реальный Playwright во всех трёх движках/двух viewport, backend regression и безопасный cleanup. Практика/Answer/Finish/scoring/reset-протокол не переделываются.
+
+### QIL-045 — Сквозная приёмка section progress
+
+- Статус: TODO / NOT_IMPLEMENTED. Зависимости: QIL-043, QIL-044, QIL-031, QIL-038.
+- Объём: SRP-01–SRP-12 и regression: migration→оглавление→частичный section Read→все разделы→Test→Practice→completion/mastery→новый section/unpublish→reset. Две роли/вкладки, snapshots, 403/404/409, desktop 1280×900/mobile 390×844.
+- Приёмка: реальная SPA/Django/временная PostgreSQL; Chromium full + Firefox/WebKit critical, unit/HTTPX/backend/checks/миграции/pip/build; собственные процессы/БД очищены; все шесть CI executions completed/success. Ручное одобрение фиксируется отдельно; новые учебные темы/deployment не добавляются.
+
+DAG QIL-042: 041/034 →042; 042/041/034/029 →043; 043/035/041 →044; 043/044/031/038 →045. Обратных зависимостей нет; прежняя QIL-037 остаётся отдельной приёмкой QIL-041, без автоматического расширения до SRP.
 
 ### QIL-037 — Сквозная приёмка нового учебного сценария
 
@@ -326,26 +360,26 @@ QIL-033 фиксирует утверждённые 23 ноября 2026 год�
 | --- | --- |
 | FR-01 | QIL-005, QIL-007, QIL-018 |
 | FR-02 | QIL-008, QIL-018 |
-| FR-03 | QIL-010, QIL-012, QIL-019 |
+| FR-03 | QIL-010, QIL-012, QIL-019, QIL-043, QIL-044, QIL-045 |
 | FR-04 | QIL-010, QIL-012, QIL-019 |
 | FR-05 | QIL-010, QIL-013, QIL-020 |
 | FR-06 | QIL-013, QIL-014, QIL-020 |
-| FR-07 | QIL-015, QIL-019 |
-| FR-08 | QIL-013, QIL-015, QIL-021 |
+| FR-07 | QIL-015, QIL-019; новый контракт QIL-042 → QIL-043/QIL-044/QIL-045 |
+| FR-08 | QIL-013, QIL-015, QIL-021, QIL-043, QIL-045 |
 | FR-09 | QIL-014, QIL-021 |
 | FR-10 | QIL-010, QIL-012, QIL-014, QIL-015, QIL-019, QIL-020 |
 | FR-11 | QIL-011 |
-| FR-12 | QIL-011, QIL-014, QIL-015 |
+| FR-12 | QIL-011, QIL-014, QIL-015, QIL-043, QIL-045 |
 | FR-13 | QIL-008, QIL-012, QIL-014, QIL-015, QIL-021 |
 | Уточнения FR-02/FR-05/FR-06 QIL-033 | QIL-038 (FR-05/06), отложенный TFL-06 (FR-02), QIL-037 |
 | Уточнения FR-03/FR-07/FR-11/FR-12 QIL-033 | QIL-034, QIL-041, QIL-037 |
-| FR-14 | QIL-034, QIL-035, QIL-037 |
-| FR-15 | QIL-034, QIL-035, QIL-037 |
-| FR-16 | QIL-041, QIL-037 |
+| FR-14 | QIL-034, QIL-035, QIL-037, QIL-043, QIL-044, QIL-045 |
+| FR-15 | QIL-034, QIL-035, QIL-037, QIL-043, QIL-045 |
+| FR-16 | QIL-041, QIL-037; section progress QIL-042/QIL-043/QIL-044/QIL-045 |
 | NFR-01 | QIL-003, QIL-007, QIL-008, QIL-014, QIL-019, QIL-022 |
 | NFR-02 | QIL-002, QIL-004, QIL-005, QIL-006, QIL-009, QIL-017, QIL-023 |
 | NFR-03 | QIL-016, QIL-018, QIL-019, QIL-020, QIL-022 |
 
 Тесты соответствующих требований предусмотрены в QA-стратегии; QIL-022 и QIL-024 проверяют сквозную готовность, а не откладывают тестирование отдельных функций до конца проекта.
 
-После QIL-041 рекомендуемая отдельная задача — QIL-037, сквозная приёмка sections → test → Practice → completion → reset. TFL-06/login остаётся отдельной небольшой правкой. Никакая следующая задача не начинается автоматически.
+После фиксации QIL-042 следующая рекомендуемая отдельная задача — QIL-043: backend section progress с проверкой происхождения мигрированного раздела; затем QIL-044 и приёмка QIL-045. QIL-037 сохраняет прежний scope QIL-041. TFL-06/login остаётся отдельной небольшой правкой. Никакая следующая задача не начинается автоматически.

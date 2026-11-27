@@ -6,6 +6,8 @@
 
 QIL-033 задаёт приёмку [progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend QIL-034 проверяет completion/reset/generation; QIL-035 — [Progress/reset UI](COMPLETION_UI.md). Текущий QIL-038 проверяет TFL-01–TFL-05 (Answer/Finish/strict submit); [результаты](ANSWER_FINISH.md). QIL-041 покрывает SEC; TFL-06/login остаётся NOT_RUN / NOT_IMPLEMENTED. Старый CI не доказывает новое поведение.
 
+QIL-042, 27 ноября 2026: утверждены [отдельные reader и TopicSectionProgress](TOPIC_SECTIONS_SPEC.md). Матрица SRP ниже — план QIL-043/QIL-044/QIL-045, пока NOT_RUN/NOT_IMPLEMENTED. Она заменяет прежние проверки одного final marker, свободного Test start и сохранения mastery при добавлении раздела; прежние результаты QIL-041 остаются историческими доказательствами только своей версии.
+
 ## 1. Цели и приоритеты
 
 Проверить основной сценарий подготовки к интервью и наиболее опасные ошибки: доступ к чужим данным, утечку ключей ответов, неверное оценивание, потерю прогресса и рассогласование переводов.
@@ -43,18 +45,18 @@ QIL-033 задаёт приёмку [progress/reset/test flow](PROGRESS_SPEC.md)
 | QA-01 | FR-01 | Валидный email; повтор в другом регистре/с внешними пробелами; невалидный email/пароль; гонка двух регистраций. Создан не более одного аккаунта; пароль — проверяемый хеш Django | Integration, API |
 | QA-02 | FR-02, FR-13 | Верный/неверный login, неактивный аккаунт, новый вход и logout; старая session после logout не работает | API, E2E |
 | QA-03 | FR-02, NFR-01 | Без CSRF/с неверным CSRF отклоняются register, login и изменяющие действия пользователя; после login токен обновлён. Штатные Set-Cookie и CSRF bootstrap разрешены, секретов в иных ответах и диагностике нет | API |
-| QA-04 | FR-03 | Published видна, Draft отсутствует в списке; статья и словарь Draft возвращают 404 по известному ID; длинная статья до видимости её конца не отмечается прочитанной; видимость конца автоматически сохраняет одну отметку с CSRF | API, E2E |
+| QA-04 | FR-03 | Published видна, Draft отсутствует в списке; статья и словарь Draft возвращают 404 по известному ID; отдельный section до видимости конца не отмечается; оглавление не пишет Read, section POST сохраняет только собственную отметку с CSRF | API, E2E |
 | QA-05 | FR-04 | Термины и определения на обоих языках; просмотр словаря не изменяет ни чтение, ни освоение | API, E2E |
 | QA-06 | FR-05, FR-06 | Оба типа, exact-set и перестановки; непустой неполный правильный набор даёт 0. QIL-038: пропуск/пустой ответ первого submit → 400 incomplete_answers; исторический scoring/повтор с пропусками сохранён | Unit, API, E2E |
 | QA-07 | FR-06, NFR-01 | Ни до, ни после submit Learner API не выдаёт правильные ответы, внутренний snapshot или submitted_answers, включая GET завершённой попытки, историю и ошибки. После submit result содержит ровно correct_count, total_count, percentage, без вопросов, вариантов и по-вопросных оценок | API |
 | QA-08 | FR-05, FR-06, FR-13 | Чужой choice_id, неизвестный question_id, дубли, несколько вариантов Single-choice, подставленные percentage/correct_count/user_id. Невалидный запрос даёт 400, результата и изменения чужих данных нет | API |
-| QA-09 | FR-07 | Read после конца последнего Published-раздела; повтор/RU/EN не меняют дату. Явный reset удаляет отметку, поздний старый POST не восстанавливает её | Integration, API, E2E |
+| QA-09 | FR-07 | Read каждого section после его конца; общий Read только N>0/r=N; повтор/RU/EN не меняют первую дату section. Явный reset удаляет отметку, поздний старый POST не восстанавливает её | Integration, API, E2E |
 | QA-10 | FR-08 | Нет отметки/нет успешной попытки/есть оба условия; ниже, ровно и выше 80%; худшая повторная попытка не сбрасывает освоение; неудачные попытки не суммируются | Unit, API |
 | QA-11 | FR-09 | Две новые попытки — две записи. Тот же attempt_id и нормализованный payload дают 200 с прежним результатом, без новой истории или изменения submitted_at; смена набора ответов или языка после submit даёт 409 attempt_already_submitted. Конкурентная отправка фиксирует один результат | Integration, API |
-| QA-12 | FR-09, FR-13 | Content Admin переводит Published в Draft и меняет контент: новые попытки, статья/словарь дают 404; история, прогресс и освоение от перехода не меняются. Начатая попытка завершается по исходному snapshot; наружу выдаются только агрегаты. История доступна после нового входа | Integration, API, E2E |
+| QA-12 | FR-09, FR-13 | Content Admin переводит Published в Draft и меняет контент: новые попытки, статья/словарь дают 404; сохранённые отметки/история/результаты не меняются; root unpublish при прежнем наборе sections сохраняет Read/mastery, новый Published-раздел может снять их. Начатая попытка завершается по исходному snapshot; наружу выдаются только агрегаты. История доступна после нового входа | Integration, API, E2E |
 | QA-13 | FR-10 | ru/ru, ru/en, en/ru, en/en; смена языка сохраняет topic_id/question_id/choice_id, текущие ответы и прогресс; переключение не создаёт новую попытку | API, E2E |
 | QA-14 | FR-11 | Пропущенный или пустой перевод, ноль вопросов или терминов и неверные ключи блокируют публикацию. Неполная правка Published даёт `400 incomplete_content` с откатом. Два POST из одной ревизии дают одну запись и `409 edit_conflict` для второго запроса | Integration, Admin HTTP |
-| QA-15 | FR-12 | Content Admin: 8 базовых + 3 Practice, после QIL-041 ещё 2 sections =13. Не superuser; нет доступа к User, Attempt, TopicProgress, PracticeSubmission, UserProgressState/permissions по прямым URL. Массовая публикация сохраняет проверки; тема с историей защищена | Integration, ручная |
+| QA-15 | FR-12 | Content Admin: 8 базовых + 3 Practice, после QIL-041 ещё 2 sections =13. Не superuser; нет доступа к User, Attempt, TopicProgress, TopicSectionProgress (QIL-043), PracticeSubmission, UserProgressState/permissions по прямым URL. Массовая публикация сохраняет проверки; тема с историей защищена | Integration, ручная |
 | QA-16 | FR-13 | B запрашивает список и ID попытки A, отправляет её ответы или повторяет её submit; чужих данных нет, состояние A неизменно. То же проверяется для staff, Content Admin и superuser в Learner API; ownership не обходится | API |
 | QA-17 | NFR-01 | Session ID отсутствует в JSON; штатные Set-Cookie/CSRF bootstrap разрешены. Пароли, хеши, session/CSRF-секреты не попадают в логи и артефакты. Текст с HTML/JavaScript не исполняется; настройки HTTPS/cookie/debug проверены перед публичным запуском | API, E2E, конфигурация |
 | QA-18 | NFR-02 | Чистая тестовая PostgreSQL и повторный запуск; jobs backend_api, frontend_unit, frontend_check_build, playwright_e2e присутствуют и обязательны для MVP. Провал или пропуск обязательной проверки не считается успешной приёмкой; безопасные отчёты доступны | Integration, CI |
@@ -83,7 +85,7 @@ QIL-033 задаёт приёмку [progress/reset/test flow](PROGRESS_SPEC.md)
 
 Проверяем `total_count = 0` как невалидное состояние теста. Нельзя допустить деления на ноль или трактовать пустой тест как успешный. При двух неуспешных попытках баллы не объединяются; проверяется успех хотя бы одной самостоятельной попытки.
 
-Порядок действий также параметризуется: сначала тест, потом «Прочитано» и наоборот. Словарь не участвует ни в одном условии.
+Для исторических snapshot/миграции проверяется успех теста до section Read; новый start в QIL-043 до полного чтения всегда 403 section_read_required. При добавлении раздела старый passed тест сохраняется, mastery=false до чтения нового раздела. Словарь не участвует ни в одном условии.
 
 ### 4.3. Auth UI — QIL-018
 
@@ -95,7 +97,7 @@ Fixtures закрывают browser contexts, завершают собстве�
 
 ### 4.4. Learning UI — QIL-019
 
-Unit-тесты покрывают маршруты, RU по умолчанию, язык материала, безопасные цели после login, порядок API, пустой каталог, 403/404/сетевые ошибки, запоздалые ответы и неизвестную отметку при сбое GET. Только явное действие пользователя вызывает `read`; двойной POST блокируется. Потеря ответа требует подтверждающего GET, без автоматического повторения записи.
+Unit-тесты покрывают маршруты, RU по умолчанию, язык материала, безопасные цели после login, порядок API, пустой каталог, 403/404/сетевые ошибки, запоздалые ответы и неизвестную отметку при сбое GET. Это исторический UI QIL-019; целевой autoRead каждого раздела описан в SRP. Видимость конца текущего section вызывает read, двойной in-flight POST блокируется. Потеря ответа требует подтверждающего GET, без автоматического повторения записи.
 
 Playwright использует реальную SPA/Django/изолированную PostgreSQL. `learning_data.py` ограничен случайной базой прогона; создаёт полный RU/EN-контент через существующие модели и test factory. Fixture разрешает менять/удалять только созданные им topic IDs. Проверяются Published/Draft/missing, порядок, статья/словарь RU/EN, reload/Back/Forward, login с переходом на главную, CSRF и автоматическая отметка при видимости конца статьи, общий прогресс RU/EN, отдельное состояние второго пользователя, снятие публикации перед POST, клавиатура и узкий viewport. HTML/JavaScript статьи выводится текстом. Сетевой сбой управляемо прерывается; серверные отказы и данные проходят настоящий API. Quiz/attempts/scoring UI не входят в эту задачу.
 
@@ -171,10 +173,10 @@ Browser выбирается собственным Pytest option `--qil-browser
 
 | ID | Критерии и независимые оракулы | Уровень |
 | --- | --- | --- |
-| PGR-01 | FR-14: 30/70, 30/35/35; все комбинации Read/pass/fail/unattempted; M=0 даёт 30*R; пустой каталог 0; 65 и 100 дают среднее 82.5 до округления | Unit |
+| PGR-01 | FR-14: 30/70, 30/35/35; все комбинации Read/pass/fail/unattempted; M=0 даёт article_progress; QIL-042 добавляет 30*r/N и N=0 без деления; пустой каталог 0; 65 и 100 дают среднее 82.5 до округления | Unit |
 | PGR-02 | Точный лучший тест/80%, включая долю ниже 80 при отображении 80.00; success→failure сохраняет passed; Practice any saved correct; язык/число попыток не меняют веса | Unit, PostgreSQL |
 | PGR-03 | Все Published, включая не начатые; Draft скрыта, practice=null при отсутствии публикации; точные DTO без ответов/keys/snapshots, generation не credential; B и staff не видят прогресс A | HTTPX |
-| PGR-04 | Delete последнего correct меняет только новый completion; edit/unpublish не пересчитывают результат/mastery, но текущие веса меняются; без Practice 100 при Read+тесте | PostgreSQL, HTTPX |
+| PGR-04 | Delete последнего correct меняет только новый completion; edit/unpublish не пересчитывают сохранённый результат; текущие section Read/mastery и веса зависят от набора Published-разделов; без Practice 100 при Read+тесте | PostgreSQL, HTTPX |
 | PGR-05 | FR-15: reset A удаляет все его Read/Attempt/PracticeSubmission, включая Draft/in_progress/history; B, account/session/content сохранены; старые ID дают 404; нет session/CSRF/confirmation → отказ без удаления | PostgreSQL, HTTPX |
 | PGR-06 | Rollback на сбое/overflow; повтор последнего reset с тем же UUID/header не удаляет новую работу; другой header того же UUID → reset_request_conflict; старый generation → progress_reset | PostgreSQL, HTTPX |
 | PGR-07 | Reset конкурентен с каждым read/Test start/submit/Practice start/submit/delete и другим reset: общий User-lock+generation; stale write не создаёт/не восстанавливает строк; lookup удалённого ID →404 прежде тела/header | PostgreSQL, HTTPX |
@@ -190,7 +192,7 @@ Browser выбирается собственным Pytest option `--qil-browser
 
 ### 4.15. Многочастная статья — QIL-033
 
-Контракт [TOPIC_SECTIONS_SPEC](TOPIC_SECTIONS_SPEC.md); QIL-041 реализует SEC-01–SEC-08. Миграция проверяется на исторических PostgreSQL-моделях, API/Admin — через реальный HTTPX/TCP, reader — Playwright desktop/mobile во всех трёх движках. Новая сквозная приёмка QIL-037 остаётся отдельной задачей. Итоги QIL-041 фиксируются в [отчёте](TOPIC_SECTIONS_SPEC.md#7-реализация-и-проверки-qil-041).
+Исторический контракт QIL-041 реализует SEC-01–SEC-08; его единый reader и неизменный Read после добавления section не являются целевой приёмкой QIL-042. Новые правила и SRP ниже имеют приоритет; [контракт](TOPIC_SECTIONS_SPEC.md). Миграция проверяется на исторических PostgreSQL-моделях, API/Admin — через реальный HTTPX/TCP, reader — Playwright desktop/mobile во всех трёх движках. Новая сквозная приёмка QIL-037 остаётся отдельной задачей. Итоги QIL-041 фиксируются в [отчёте](TOPIC_SECTIONS_SPEC.md#7-реализация-и-проверки-qil-041).
 
 | ID | Проверка | Уровень |
 | --- | --- | --- |
@@ -202,6 +204,29 @@ Browser выбирается собственным Pytest option `--qil-browser
 | SEC-06 | Редактура/добавление/reorder/unpublish не сбрасывают исторический Read/mastery; первый новый читатель использует текущие Published; reset блокирует старый marker | PostgreSQL, Playwright |
 | SEC-07 | Единый reader/оглавление/якоря, прямой URL/reload/Back/Forward, независимый язык теста, keyboard/focus/длинные RU/EN без overflow на desktop/mobile во всех движках | Playwright |
 | SEC-08 | Snapshot/test/Practice регрессия, старый Article клиент и новый reader; нет контентной записи из GET и нет частичных/секретных DTO; cleanup своей БД/процессов | HTTPX, regression |
+
+### 4.16. Section-level reading progress — QIL-042
+
+Контракт утверждён; реализация/новые тесты NOT_IMPLEMENTED/NOT_RUN. Зависимости и DAG — [backlog](BACKLOG.md#qil-042--контракт-section-level-reading-progress). Исторические SEC/PGR не заменяют новые SRP-оракулы. Для QIL-043/QIL-044/QIL-045:
+
+| ID | Сценарий и точный ожидаемый результат | Уровень |
+| --- | --- | --- |
+| SRP-01 | TopicSectionProgress UNIQUE(user, section), User CASCADE/section PROTECT, неизменная первая UTC-дата, общий RU/EN. Два одновременных POST →одна строка/одна дата; B не читает/не меняет A | PostgreSQL, HTTPX |
+| SRP-02 | N/r: 0/0 без Read/mastery; 2/1 даёт 15; 3/1 даёт 10; 7/1 ROUND_HALF_UP=4.29. Activity 70/M, M=0 без начисления; среднее 4.285714… и 0 →2.14, не 2.15; best submitted и точный порог 80 не меняются | Unit |
+| SRP-03 | Legacy Read переносится только на доказанный существующий section из learning 0003 с исходной датой, не на поздние разделы; при двух Published r=1. Нет исходного раздела →нет выдуманной отметки; неизвестное происхождение →rollback/блокер. IDs/legacy даты/generation/receipt/attempts/snapshots неизменны | Migration, PostgreSQL |
+| SRP-04 | Published без разделов/полного RU/EN →400 incomplete_content, atomic rollback; expected_revision stale →409 edit_conflict. Edit/reorder сохраняют read_at; новый Published ID снимает aggregate Read/mastery, сохраняет marks/results; unpublish/republish меняют N без удаления | Admin HTTP, PostgreSQL |
+| SRP-05 | TopicReading без article_body; SectionArticle только выбранный раздел и Published previous/next по position/id; SectionRead exact DTO. RU/default/EN, query validation, нет fallback; generation/reading принадлежат текущей session; GET не пишет | HTTPX/TCP |
+| SRP-06 | Auth/CSRF missing/mismatch →403 без записи; invalid/Draft/mismatched topic-section →404 до body/generation; bad query/body/header →400; stale generation →409 progress_reset; 405/415/500 safe envelope. Нет revision/user_id/progress row ID/snapshot/keys/answers в JSON | HTTPX/TCP |
+| SRP-07 | Legacy read N=1 делегирует section и возвращает прежний Progress/дату; N>1 всегда 403 section_read_required, даже при r=N; новый и старый POST не дают массовую отметку. Article GET дословный single/ordered multi и прежний SectionsArticle DTO сохранены | HTTPX/TCP |
+| SRP-08 | Test/Practice start до всех section marks →403 section_read_required без work row, включая legacy TopicProgress/чужие marks. Practice при r=N без submitted-теста →practice_locked; любой свой submitted подходит. Старые owned GET/submit по snapshot после нового section/unpublish разрешены; 200/409 идемпотентность сохранена | PostgreSQL, HTTPX/TCP |
+| SRP-09 | Reset удаляет собственные TopicSectionProgress + TopicProgress + Attempt + PracticeSubmission транзакционно, B/account/content остаются. Section IDs не удаляются; late read →409, old work IDs →404. Оба порядка гонки read/reset; повтор reset не удаляет новую отметку | PostgreSQL, HTTPX/TCP |
+| SRP-10 | Оглавление/словарь не вызывают read; текущий end-marker отмечает только этот section. Active/полное пересечение/ненулевая геометрия/CSS; hidden/0x0/stale/частичный render →0 POST; visible return измеряет свежий DOM | Frontend unit, Playwright |
+| SRP-11 | Held POST + RU/EN + ошибка перевода + A→B→A →один in-flight POST, результат остаётся у A, общая первая дата. Stale GET не затирает успех; ошибка POST требует явного GET без автоповтора. Reset/session loss не оживляют marker/старый ответ | Frontend unit, Playwright |
+| SRP-12 | Прямой section URL, безопасный legacy hash, language/reload/Back/Forward, previous/next, aria-current, heading/LanguageSelector focus, keyboard/mobile toggle; Chromium full + Firefox/WebKit critical, 1280×900/390×844, реальные frontend/backend/временная PostgreSQL без mocks critical path, cleanup и regression Auth/Test/Practice/Progress | Playwright |
+
+Content Admin не видит/не открывает TopicSectionProgress и не получает пользователей через PROTECT-страницу или массовый delete. Проверки выполняются прямыми Admin/learner HTTP-запросами второй роли, не только наличием permissions. Не создаются новые учебные темы в dev-БД.
+
+Документационная приёмка QIL-042: Markdown/внутренние anchors, все fenced JSON примеры, независимые дробные формулы, DAG/уникальные номера задач, diff/secret scan и ровно согласованные документы. После разрешённого одного commit/push — все шесть CI executions completed/success для нового SHA. Старый продуктовый suite подтверждает regression текущего кода, не реализацию SRP.
 
 ## 5. Тестовые данные и изоляция
 
@@ -220,7 +245,7 @@ API/E2E не очищают пользовательский Docker volume и н
 
 HTTPX работает с реально поднятым Django по HTTP. Проверка через mock transport не считается проверкой реального HTTP-контракта. Клиент сохраняет session/CSRF cookies и после login обновляет CSRF-токен.
 
-Нужно проверять статус, тело и отсутствие нежелательных изменений БД: 400 validation_error для структуры и incomplete_answers для неполного первого submit; 403 для session/CSRF; 404 для чужого/Draft/удалённого ID; 409 attempt_already_submitted для изменённого завершённого payload, progress_reset для stale generation и reset_request_conflict для несовместимого повтора UUID. Lookup/порядок отказов и rollback проверяются по новым спецификациям.
+Нужно проверять статус, тело и отсутствие нежелательных изменений БД: QIL-042 добавляет 403 section_read_required для нового Test/Practice start без всех section marks и legacy read при N>1; 400 validation_error для структуры и incomplete_answers для неполного первого submit; 403 для session/CSRF; 404 для чужого/Draft/удалённого ID; 409 attempt_already_submitted для изменённого завершённого payload, progress_reset для stale generation и reset_request_conflict для несовместимого повтора UUID. Lookup/порядок отказов и rollback проверяются по новым спецификациям.
 
 Проверки отсутствия утечки до и после submit опираются на формы данных раздела 9 архитектуры и смысл данных. Одного поиска `is_correct` недостаточно: ключ может попасть в JSON под другим именем, вложенным списком или ошибкой. Тестовый Result имеет ровно `correct_count`, `total_count`, `percentage`; метаданные истории проверяются отдельно. Поля тестовых вопросов допустимы только до submit; внутренний snapshot и сохранённые ответы пользователя не возвращаются никогда. Новый PracticeResult содержит только verdict, но expected_answer/его производные/snapshot/submitted_answer запрещены на всех этапах по PQA-16. Bootstrap CSRF и Set-Cookie используются только по назначению и не считаются утечкой.
 
@@ -228,7 +253,7 @@ HTTPX работает с реально поднятым Django по HTTP. Пр
 
 ## 7. E2E и ручная приёмка
 
-Основной E2E: регистрация → вход → тема → статья → «Прочитано» → выбор языка теста → оба типа вопросов → отправка → результат → выход → повторный вход → сохранённый прогресс/история.
+Основной целевой E2E QIL-042: регистрация → вход → оглавление → отдельные section reader/Read всех Published-разделов → выбор языка теста → Answer/Finish → результат → Practice → completion → выход/вход → сохранённые отметки. Backend-история остаётся owner-only, UI её не возвращает.
 
 Четыре комбинации языков проверяются параметризованно; смена языка внутри попытки проверяется отдельно. Дополнительные обязательные сценарии: неуспешный тест, успешная повторная попытка, просмотр словаря без изменения прогресса и отсутствие доступа B к данным A. Для снятой с публикации темы проверяются запрет чтения/новых попыток, сохранение истории/освоения и завершение ранее начатой попытки по snapshot.
 
