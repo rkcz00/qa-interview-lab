@@ -6,7 +6,7 @@
 
 QIL-033 задаёт приёмку [progress/reset/test flow](PROGRESS_SPEC.md) и [sections](TOPIC_SECTIONS_SPEC.md). Backend QIL-034 проверяет completion/reset/generation; QIL-035 — [Progress/reset UI](COMPLETION_UI.md). Текущий QIL-038 проверяет TFL-01–TFL-05 (Answer/Finish/strict submit); [результаты](ANSWER_FINISH.md). QIL-041 покрывает SEC; TFL-06/login остаётся NOT_RUN / NOT_IMPLEMENTED. Старый CI не доказывает новое поведение.
 
-QIL-042 утвердила [отдельный reader и TopicSectionProgress](TOPIC_SECTIONS_SPEC.md). QIL-043 покрывает серверные SRP-01–SRP-09 и совместимость текущего reader; [переход, тесты и ограничения](SECTION_PROGRESS_BACKEND.md). Отдельные reader-страницы SRP-10–SRP-12 остаются QIL-044/QIL-045. Новые оракулы заменяют прежние проверки одного final marker, свободного Test start и сохранения mastery при добавлении раздела; результаты QIL-041 остаются историческими.
+QIL-042 утвердила [отдельный reader и TopicSectionProgress](TOPIC_SECTIONS_SPEC.md). QIL-043 покрывает серверные SRP-01–SRP-09 и совместимость текущего reader; [переход, тесты и ограничения](SECTION_PROGRESS_BACKEND.md). QIL-044 добавляет SRP-10–SRP-12 для отдельных reader-страниц, shared pending, explicit GET/retry, keyboard/focus и legacy hash; [фактические проверки](SECTION_READER_UI.md). Полная сквозная приёмка QIL-045 остаётся отдельной задачей. Новые оракулы заменяют прежние проверки одного final marker, свободного Test start и сохранения mastery при добавлении раздела; результаты QIL-041 остаются историческими.
 
 ## 1. Цели и приоритеты
 

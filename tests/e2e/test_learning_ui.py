@@ -3,6 +3,7 @@ import re
 from playwright.sync_api import expect
 
 from tests.e2e.test_auth_ui import check, fill, post, seed, LOGIN
+from tests.e2e.reader_helpers import open_reader
 
 
 def signed_in(page):
@@ -12,12 +13,7 @@ def signed_in(page):
 
 
 def topic_page(page, topic_id, language="ru"):
-    route = "/topics/" + topic_id + ("?language=en" if language == "en" else "")
-    check(page.request.get(route, headers={"Cache-Control": "no-cache"}).status == 200, "Direct Learning SPA route must return HTTP 200")
-    response = page.goto(route)
-    check(response is not None and response.status in (200, 304), "Browser Learning navigation must load or revalidate the page")
-    expect(page.get_by_role("heading", name="Основы тестирования" if language == "ru" else "Testing foundations", exact=True)).to_be_visible()
-    expect(page.locator(".article-body")).to_be_visible()
+    open_reader(page, topic_id, language)
 
 
 def read_article(page):
@@ -122,11 +118,14 @@ def test_draft_and_missing_topics_have_the_same_safe_not_found(auth_page, learni
     page = auth_page
     signed_in(page)
     for topic_id in (learning_topics["draft"], "0"):
-        with page.expect_response(lambda response: "/api/v1/topics/" + topic_id + "/sections/?" in response.url) as response:
+        with page.expect_response(lambda response: "/api/v1/topics/" + topic_id + "/reading/?" in response.url) as response:
             page.goto("/topics/" + topic_id)
         check(response.value.status == 404, "Draft and missing must use backend 404")
         legacy = page.context.request.get("/api/v1/topics/" + topic_id + "/")
-        check(legacy.status == 404 and legacy.json() == response.value.json(), "Legacy Article must preserve the same safe 404")
+        check(response.value.json() == {"error": {"code": "not_found", "message": "Requested resource not found."}},
+              "Reading metadata must preserve its exact safe 404 for Draft and missing")
+        check(legacy.status == 404 and legacy.json() == {"error": {"code": "not_found", "message": "Topic not found."}},
+              "Legacy Article must preserve its own exact safe 404")
         expect(page.get_by_role("heading", name="Тема не найдена", exact=True)).to_be_visible()
         expect(page.locator(".article-body")).to_have_count(0)
         expect(page.get_by_text("Невидимый черновик", exact=True)).to_have_count(0)
@@ -150,19 +149,22 @@ def test_read_failure_stays_unknown_and_real_csrf_refusal_can_be_rechecked(auth_
     auth_app.learning_data("long_article", [topic_id])
     reading_pattern = "**/api/v1/topics/" + topic_id + "/reading/**"
     page.route(reading_pattern, lambda route: route.abort("failed"))
-    topic_page(page, topic_id)
-    expect(page.locator("main").get_by_role("alert")).to_contain_text("Не удалось подтвердить отметку чтения.")
+    section = page.context.request.get("/api/v1/topics/" + topic_id + "/reading/").json()["data"]["sections"][0]["section_id"]
+    page.goto("/topics/" + topic_id + "/sections/" + section)
+    expect(page.locator("main").get_by_role("alert")).to_contain_text("Не удалось загрузить материалы.")
+    expect(page.locator(".article-end")).to_have_count(0)
     def without_csrf(route):
         route.continue_(headers={name: value for name, value in route.request.headers.items() if name.lower() != "x-csrftoken"})
     pattern = "**/api/v1/topics/" + topic_id + "/sections/*/read/"
     page.route(pattern, without_csrf)
     page.unroute(reading_pattern)
-    page.get_by_role("button", name="Проверить отметку ещё раз", exact=True).click()
+    page.get_by_role("button", name="Повторить загрузку", exact=True).click()
     page.locator(".article-end").scroll_into_view_if_needed()
     expect(page.locator("main").get_by_role("alert")).to_contain_text("Не удалось подтвердить запрос.")
     check(page.context.request.get("/api/v1/progress/").json() == {"data": []}, "CSRF refusal must not save a mark")
     page.unroute(pattern)
     page.get_by_role("button", name="Проверить отметку ещё раз", exact=True).click()
+    page.get_by_role("button", name="Повторить сохранение", exact=True).click()
     read_article(page)
 
 
@@ -188,7 +190,7 @@ def test_unpublishing_before_read_clears_content_without_saving(auth_page, auth_
     topic_page(page, topic_id)
     auth_app.learning_data("draft", [topic_id])
     page.locator(".article-end").scroll_into_view_if_needed()
-    expect(page.get_by_role("heading", name="Тема не найдена", exact=True)).to_be_visible()
+    expect(page.get_by_role("heading", name="Раздел не найден", exact=True)).to_be_visible()
     expect(page.locator(".article-body")).to_have_count(0)
     check(auth_app.learning_data("info", [topic_id])["read_count"] == 0, "Draft must not receive a mark")
 

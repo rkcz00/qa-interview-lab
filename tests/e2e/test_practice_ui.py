@@ -7,11 +7,11 @@ from playwright.sync_api import expect
 from tests.e2e.test_auth_ui import check
 from tests.e2e.test_learning_ui import signed_in, read_article
 from tests.e2e.test_assessment_ui import request_post, incorrect_answers, confirm_answers
+from tests.e2e.reader_helpers import open_reader
 
 
 def article(page, topic_id, language="ru"):
-    page.goto("/topics/" + topic_id + ("?language=en" if language == "en" else ""))
-    expect(page.locator(".article-body")).to_be_visible()
+    open_reader(page, topic_id, language)
     read_article(page)
 
 

@@ -1,11 +1,11 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { Language } from './api/types.ts'
 import { NavigationLink } from './auth/NavigationLink.tsx'
 import { ProtectedGate } from './auth/ProtectedGate.tsx'
 import { resolveRoute } from './auth/routing.ts'
 import type { Destination } from './auth/routing.ts'
 import { ru } from './auth/texts.ts'
-import { authDestination, isLearningRoute, learningDestination, learningLocation, sectionFromHash } from './learning/routing.ts'
+import { authDestination, isLearningRoute, learningDestination, learningLocation } from './learning/routing.ts'
 import { learningRu } from './learning/texts.ts'
 import { assessmentLocation, isAssessmentRoute } from './assessment/routing.ts'
 import { assessmentRu } from './assessment/texts.ts'
@@ -17,6 +17,10 @@ import { Notice } from './ui/Notice.tsx'
 import { isPracticeRoute, practiceLocation } from './practice/routing.ts'
 import { practiceRu } from './practice/texts.ts'
 import { allowHistoryNavigation } from './ui/navigation.ts'
+import { api } from './api/index.ts'
+import { SectionReads } from './learning/reading.ts'
+import { ReadingContext } from './learning/ReadingContext.ts'
+import { notifyProgressChanged } from './ui/OverviewContext.tsx'
 
 const AuthApplication = lazy(() => import('./auth/AuthApplication.tsx'))
 const LearningApplication = lazy(() => import('./learning/LearningApplication.tsx'))
@@ -27,6 +31,8 @@ const PracticeApplication = lazy(() => import('./practice/PracticeApplication.ts
 export default function App() {
   const [address, setAddress] = useState(window.location.pathname + window.location.search + window.location.hash)
   const [registeredEmail, setRegisteredEmail] = useState<string>()
+  const [reads] = useState(() => new SectionReads(api, notifyProgressChanged))
+  const readingState = useSyncExternalStore(reads.subscribe, reads.getSnapshot)
   const articleLanguages = useRef(new Map<string, Language>())
   const hashAt = address.indexOf('#')
   const pageAddress = hashAt < 0 ? address : address.slice(0, hashAt)
@@ -49,6 +55,12 @@ export default function App() {
   const requireLogin = useCallback((_target?: Destination) => { setRegisteredEmail(undefined); move('/login', true) }, [move])
   const onAuthenticated = useCallback(() => { setRegisteredEmail(undefined); move(authDestination(), true) }, [move])
   const onRegistered = useCallback((email: string) => { setRegisteredEmail(email); move('/login', true) }, [move])
+  useEffect(() => {
+    window.addEventListener('qil-reading-invalidated', reads.clear)
+    return () => { window.removeEventListener('qil-reading-invalidated', reads.clear); reads.clear() }
+  }, [reads])
+  useEffect(() => { if (route === '/login' || route === '/register') reads.clear() }, [route, reads])
+  useEffect(() => { if (readingState.expired) requireLogin() }, [readingState.expired, requireLogin])
   useEffect(() => {
     const changed = () => {
       if (!allowHistoryNavigation()) return
@@ -76,8 +88,8 @@ export default function App() {
       <AssessmentApplication key={pathname} location={assessment} navigate={navigate} requireLogin={requireLogin} articleLink={articleLink} articleLanguage={articleLanguage} /> :
       <AppShell navigate={navigate} canLogout><h1 ref={staticHeading} tabIndex={-1}>{assessmentRu.title}</h1><Notice>{assessmentRu.invalidRoute}</Notice></AppShell> :
     route === '/' || isLearningRoute(route) ? learning ?
-      <LearningApplication key={pathname} location={learning} sectionId={sectionFromHash(hash)} navigate={navigate} requireLogin={requireLogin} /> :
+      <LearningApplication location={learning} hash={hash} navigate={navigate} requireLogin={requireLogin} /> :
       <AppShell navigate={navigate} canLogout><h1 ref={staticHeading} tabIndex={-1}>{learningRu.topic}</h1><Notice>{learningRu.invalidLanguage}</Notice></AppShell> :
       <AppShell navigate={navigate} canLogout><h1 ref={staticHeading} tabIndex={-1}>{ru.notFound}</h1><NavigationLink to="/" navigate={navigate}>{ru.home}</NavigationLink></AppShell>
-  return <ProtectedGate requireLogin={requireLogin}><Suspense fallback={fallback}>{page}</Suspense></ProtectedGate>
+  return <ReadingContext value={reads}><ProtectedGate requireLogin={requireLogin}><Suspense fallback={fallback}>{page}</Suspense></ProtectedGate></ReadingContext>
 }

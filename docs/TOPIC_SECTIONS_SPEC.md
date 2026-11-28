@@ -1,6 +1,6 @@
 # Разделы Topic и прогресс чтения — QIL-042
 
-Статус: контракт QIL-042 утверждён 27 ноября 2026 года. QIL-043 реализует TopicSectionProgress, новые endpoints, ограничения start, reset и проверку provenance; [границы backend и миграции](SECTION_PROGRESS_BACKEND.md). По отдельному разрешению текущий длинный reader совместим с section POST, но отдельные страницы QIL-044 и их сквозная приёмка QIL-045 ещё NOT_IMPLEMENTED. Реализованная версия QIL-041 и её проверки сохранены отдельно в разделе 7; они не доказывают новое поведение.
+Статус: контракт QIL-042 утверждён 27 ноября 2026 года. QIL-043 реализует TopicSectionProgress, новые endpoints, ограничения start, reset и проверку provenance; [границы backend и миграции](SECTION_PROGRESS_BACKEND.md). Совместимый длинный reader заменён в QIL-044 оглавлением и отдельным reader каждого раздела; [реализация и проверки UI](SECTION_READER_UI.md). Сквозная приёмка QIL-045 остаётся NOT_IMPLEMENTED. Реализованная версия QIL-041 и её проверки сохранены отдельно в разделе 7; они не доказывают новое поведение.
 
 Основания: [PRD](PRD.md), [архитектура](ARCHITECTURE.md), [прогресс и test flow](PROGRESS_SPEC.md), [QA](QA_STRATEGY.md), [backlog](BACKLOG.md). Этот контракт заменяет прежние правила единого reader, topic-level Read и неизменности mastery при добавлении раздела. Уточнение допуска к новому Practice start имеет приоритет над прежними `TopicProgress.article_read_at`/`practice_locked` для непрочитанной статьи в [PRACTICE_SPEC](PRACTICE_SPEC.md#5-доступ-snapshot-и-конкурентность): остальные Practice JSON, snapshot, submit/delete и ownership не меняются.
 
@@ -172,7 +172,7 @@ QIL-043 проверяет миграцию только на временных
 
 ## 6. Приёмка и зависимости
 
-Матрица SRP-01–SRP-12 в [QA-стратегии](QA_STRATEGY.md#416-section-level-reading-progress--qil-042) — проверки backend QIL-043 и последующих UI QIL-044/приёмки QIL-045; отдельные reader-страницы пока NOT_IMPLEMENTED. Старые SEC-05–SEC-07 описывают историческую QIL-041; они не разрешают topic-level обход после перехода.
+Матрица SRP-01–SRP-12 в [QA-стратегии](QA_STRATEGY.md#416-section-level-reading-progress--qil-042) — проверки backend QIL-043 и UI QIL-044; сквозная приёмка QIL-045 остаётся отдельной задачей. Старые SEC-05–SEC-07 описывают историческую QIL-041; они не разрешают topic-level обход после перехода.
 
 DAG нового инкремента: QIL-041/QIL-034 → QIL-042; QIL-042 + QIL-041/QIL-034/QIL-029 → QIL-043 (backend, migration, HTTPX, typed protocol при необходимости); QIL-043 + QIL-035/QIL-041 → QIL-044 (отдельный reader/клиент/UI); QIL-043/QIL-044/QIL-031/QIL-038 → QIL-045 (сквозная приёмка). QIL-037 сохраняет прежний объём приёмки QIL-041, а не заменяет будущие SRP-тесты. Задачи не запускаются автоматически.
 
@@ -180,7 +180,7 @@ DAG нового инкремента: QIL-041/QIL-034 → QIL-042; QIL-042 + QI
 
 ## 7. Реализация и проверки QIL-041
 
-Исторический отчёт реализованного единого reader. Последующие требования QIL-042 выше ещё не реализованы; старые PASS не являются их приёмкой.
+Исторический отчёт реализованного единого reader. Последующие требования QIL-042 реализуются в QIL-043/QIL-044; старые PASS не являются их приёмкой.
 
 Модели и миграция находятся в learning; sections GET и legacy Article используют один согласованный снимок под блокировкой Topic. Создание, изменение и удаление разделов/переводов требуют expected_revision; пакетные операции используют edit_topics с одной ревизией на итоговое дерево. TopicTranslation.article_body сохраняется read-only и не участвует в выдаче. Публикация раздела проверяет RU/EN даже у Draft-темы; последний Published-раздел нельзя скрыть у Published Topic.
 

@@ -26,6 +26,7 @@ export interface ApiClientOptions {
   fetch?: typeof globalThis.fetch
   timeoutMs?: number
   onProgressReset?: (reason: 'reset' | 'session') => void
+  onProgressScopeInvalidated?: () => void
 }
 
 function configurationError(): never {
@@ -83,6 +84,7 @@ export function createApiClient(options: ApiClientOptions) {
     progressGeneration = undefined
     generationFlight = undefined
     progressBlocked = block
+    options.onProgressScopeInvalidated?.()
     if (block && (!wasBlocked || reason === 'session')) options.onProgressReset?.(reason)
   }
   function progressChannel() {
@@ -235,7 +237,7 @@ export function createApiClient(options: ApiClientOptions) {
       history: () => request('attempts/', 200, decode.arrayOf(decode.submittedAttempt), undefined, undefined, undefined, progressEpoch),
     },
     progress: {
-      markSectionRead: (topicId: string, sectionId: string) => post(`topics/${pathId(topicId)}/sections/${pathId(sectionId)}/read/`, {}, 200, decode.sectionRead, true),
+      markSectionRead: (topicId: string, sectionId: string, expectedGeneration?: string) => post(`topics/${pathId(topicId)}/sections/${pathId(sectionId)}/read/`, {}, 200, decode.sectionRead, true, expectedGeneration),
       markRead: (topicId: string) => post(`topics/${pathId(topicId)}/read/`, {}, 200, decode.progress, true),
       current: async () => {
         const epoch = progressEpoch

@@ -99,12 +99,14 @@ def test_content_admin_demo_publication_and_learner_snapshot(auth_app, auth_brow
     data = json.loads(DEMO.read_text(encoding="utf-8"))
     for model in CONTENT:
         expect(admin.locator('#content-main a[href="' + admin_path(model) + '"]').first).to_be_visible()
-    forbidden = {"accounts/user": 403, "auth/group": 403, "assessments/attempt": 404, "assessments/topicprogress": 404,
-                 "assessments/userprogressstate": 404, "practice/practicesubmission": 404}
-    for model, status in forbidden.items():
+    forbidden = {"accounts/user": (403, editor["user_id"]), "auth/group": (403, editor["group_id"]),
+                 "assessments/attempt": (404, "1"), "assessments/topicprogress": (404, "1"),
+                 "assessments/topicsectionprogress": (404, "1"), "assessments/userprogressstate": (404, "1"),
+                 "practice/practicesubmission": (404, "1")}
+    for model, (status, object_id) in forbidden.items():
         path = "/admin/" + model + "/"
         expect(admin.locator('a[href="' + path + '"]')).to_have_count(0)
-        for suffix in ("", "add/", "1/change/", "1/delete/", "1/history/"):
+        for suffix in ("", "add/", object_id + "/change/", object_id + "/delete/", object_id + "/history/"):
             check(admin.context.request.get(path + suffix).status == status, "Content Admin opened a forbidden Admin section")
 
     topic_id = None
@@ -184,6 +186,7 @@ def test_content_admin_demo_publication_and_learner_snapshot(auth_app, auth_brow
         signed_in(learner)
         learner.goto("/topics")
         learner.locator(".topic-list").get_by_role("link", name=data["translations"]["ru"]["title"], exact=True).click()
+        learner.locator(".section-navigation ol a").first.click()
         expect(learner.locator(".article-body")).to_have_text(data["translations"]["ru"]["article_body"])
         expect(learner.locator(".glossary dt")).to_have_text([term["translations"]["ru"]["name"] for term in data["terms"]])
         learner.get_by_role("radio", name="English", exact=True).check()

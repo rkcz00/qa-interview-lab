@@ -2,7 +2,6 @@ import json
 import os
 from pathlib import Path
 import re
-import time
 from urllib.parse import urlsplit
 
 from playwright.sync_api import expect
@@ -10,6 +9,7 @@ import pytest
 
 from tests.e2e.test_auth_ui import check, fill, post, seed, LOGIN
 from tests.e2e.test_learning_ui import signed_in, topic_page
+from tests.e2e.reader_helpers import open_reader, read_current
 
 
 def request_post(context, path, payload, *, generation="1"):
@@ -47,18 +47,10 @@ def ensure_read(page, topic_id, language="ru"):
     check(response.status == 200, "Reading metadata must be available")
     if response.json()["data"]["reading"]["is_read"]:
         return
-    page.goto("/topics/" + topic_id + ("?language=en" if language == "en" else ""))
-    expect(page.locator(".article-body").first).to_be_visible()
-    for marker in page.locator(".article-end").all():
-        section_id = marker.get_attribute("data-section-id")
-        marker.scroll_into_view_if_needed()
-        deadline = time.monotonic() + 10
-        while True:
-            current = page.context.request.get("/api/v1/topics/" + topic_id + "/reading/").json()["data"]
-            if any(row["section_id"] == section_id and row["read_at"] is not None for row in current["sections"]):
-                break
-            check(time.monotonic() < deadline, "Visible section end must be saved by the real reader")
-            page.wait_for_timeout(25)
+    for section in response.json()["data"]["sections"]:
+        if section["read_at"] is None:
+            open_reader(page, topic_id, language, section["section_id"])
+            read_current(page, topic_id, section["section_id"])
     expect(page.locator(".reading-card .ui-notice--success")).to_be_visible()
 
 
@@ -116,7 +108,13 @@ def test_article_and_test_languages_are_independent(auth_page, auth_app, learnin
     expect(page.locator(".question-card h2")).to_have_text(test_language + " question 10")
     check(page.locator("html").get_attribute("lang") == "ru", "Test language must not change the UI language")
     page.get_by_role("link", name="К статье", exact=True).click()
+    expect(page.locator("main h1")).to_have_attribute("lang", article_language)
+    expect(page.locator(".article-body")).to_have_count(0)
+    page.locator(".section-navigation ol a").first.click()
     expect(page.locator(".article-body")).to_have_attribute("lang", article_language)
+    page.go_back()
+    expect(page.locator("main h1")).to_have_attribute("lang", article_language)
+    expect(page.locator(".article-body")).to_have_count(0)
     page.go_back()
     expect(page.locator(".question-card h2")).to_have_text(test_language + " question 10")
     check(auth_app.learning_data("info", [topic_id])["attempt_count"] == 1, "Back must restore the attempt without creating a new one")

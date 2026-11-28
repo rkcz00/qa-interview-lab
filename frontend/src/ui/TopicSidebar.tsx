@@ -6,8 +6,10 @@ import { progressRu } from '../progress/texts.ts'
 import { useOverview } from './OverviewContext.tsx'
 import { Button } from './Button.tsx'
 import { LoadingState } from './LoadingState.tsx'
+import type { Language } from '../api/types.ts'
+import { learningDestination } from '../learning/routing.ts'
 
-export function TopicSidebar({ navigate, topicId }: { navigate: Navigate; topicId?: string | null }) {
+export function TopicSidebar({ navigate, topicId, materialLanguage = 'ru' }: { navigate: Navigate; topicId?: string | null; materialLanguage?: Language }) {
   const { state, reload } = useOverview()
   const [expanded, setExpanded] = useState(false)
   return <aside className="topic-sidebar" aria-label="Темы и общий прогресс">
@@ -21,7 +23,7 @@ export function TopicSidebar({ navigate, topicId }: { navigate: Navigate; topicI
       <nav id="topic-menu" className={`topic-menu ${expanded ? 'is-open' : ''}`} aria-label="Выбор темы">
         {state.view.navigationTopics.length === 0 ? <p className="help-text">{progressRu.empty}</p> : <ol>
           {state.view.navigationTopics.map(topic => <li key={topic.topic_id}>
-            <NavigationLink to={`/topics/${encodeURIComponent(topic.topic_id)}`} navigate={navigate}
+            <NavigationLink to={learningDestination({ topicId: topic.topic_id, language: materialLanguage })} navigate={navigate}
               current={topicId === topic.topic_id ? (window.location.pathname === `/topics/${topic.topic_id}` ? 'page' : 'location') : undefined}>{topic.title}</NavigationLink>
           </li>)}
         </ol>}

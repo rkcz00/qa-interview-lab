@@ -53,8 +53,8 @@ test('partial or unordered sections cannot become a successfully rendered articl
 
 test('section anchors are internal, keep the material language and ignore unsafe hashes', () => {
   assert.equal(sectionFromHash('#section-105'), '105')
-  assert.equal(learningDestination({ topicId: '12', language: 'en' }, '105'), '/topics/12?language=en#section-105')
-  assert.equal(learningDestination({ topicId: '12', language: 'ru' }, '101'), '/topics/12#section-101')
+  assert.equal(learningDestination({ topicId: '12', language: 'en' }, '105'), '/topics/12/sections/105?language=en')
+  assert.equal(learningDestination({ topicId: '12', language: 'ru' }, '101'), '/topics/12/sections/101')
   for (const hash of ['', '#section-0', '#section--1', '#section-1/elsewhere', '#https://outside.invalid', '#section-1?next=outside']) {
     assert.equal(sectionFromHash(hash), null)
     assert.equal(learningDestination({ topicId: '12', language: 'en' }, hash), '/topics/12?language=en')

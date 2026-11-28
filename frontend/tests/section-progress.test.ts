@@ -4,6 +4,7 @@ import { createApiClient, ApiError } from '../src/api/client.ts'
 import { ContractError, topicReading, sectionArticle, sectionRead } from '../src/api/decoders.ts'
 import type { SectionRead, TopicReading } from '../src/api/types.ts'
 import { LearningStore } from '../src/learning/model.ts'
+import { SectionReads } from '../src/learning/reading.ts'
 import type { LearningApi } from '../src/learning/model.ts'
 import { StartStore } from '../src/assessment/model.ts'
 
@@ -71,15 +72,15 @@ test('reading GETs and section POST use exact paths, credentials, CSRF and gener
   assert.ok(calls.every(call => call.init?.credentials === 'include'))
   assert.equal(calls.filter(call => call.init?.method === 'POST').length, 1)
 })
-test('legacy reader marks only the requested section and preserves pending during a language switch', async () => {
+test('separate reader marks only its selected section and preserves pending during a language switch', async () => {
   const calls: string[] = []
   let finish!: (value: SectionRead) => void
   const api: LearningApi = {
     learning: {
       catalog: async () => [],
-      sections: async (_id, language = 'ru') => ({ topic_id: '12', title: 'Тема', language,
-        sections: initial.sections.map(section => ({ section_id: section.section_id, position: section.position, title: section.title, article_body: 'Body' })) }),
-      terms: async () => [], reading: async () => initial,
+      section: async (_id, sectionId, language = 'ru') => ({ ...detail, language,
+        section: { ...initial.sections.find(section => section.section_id === sectionId)!, article_body: 'Body' } }),
+      terms: async () => [], reading: async (_id, language = 'ru') => ({ ...initial, language }),
     },
     progress: { markSectionRead: async (_id, sectionId) => {
       calls.push(sectionId)
@@ -87,12 +88,14 @@ test('legacy reader marks only the requested section and preserves pending durin
       return { ...first, section_id: sectionId, reading: { total_sections: 2, read_sections: 2, is_read: true, completion_contribution: 30 } }
     } },
   }
-  const store = new LearningStore(api, { topicId: '12', language: 'ru' })
+  const reads = new SectionReads(api); reads.bindOwner('learner-1')
+  const store = new LearningStore(api, { topicId: '12', language: 'ru' }, reads)
   await store.load()
   await store.markRead() // No implicit whole-topic operation for multiple sections.
   assert.deepEqual(calls, [])
+  await store.load({ topicId: '12', sectionId: '101', language: 'ru' })
   const pending = store.markRead('101')
-  await store.load({ topicId: '12', language: 'en' })
+  await store.load({ topicId: '12', sectionId: '101', language: 'en' })
   await Promise.all([store.markRead('101'), store.markRead('102'), store.refreshRead()])
   assert.deepEqual(calls, ['101'])
   finish(first)
@@ -104,6 +107,7 @@ test('legacy reader marks only the requested section and preserves pending durin
     assert.deepEqual(partial.sections, { '101': at, '102': null })
   }
   await store.markRead('101')
+  await store.load({ topicId: '12', sectionId: '102', language: 'en' })
   await store.markRead('102')
   assert.deepEqual(calls, ['101', '102'])
   const complete = store.getSnapshot().read

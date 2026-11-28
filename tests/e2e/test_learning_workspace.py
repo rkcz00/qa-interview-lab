@@ -8,6 +8,7 @@ from tests.e2e.test_auth_ui import check, fill, seed
 from tests.e2e.test_learning_ui import signed_in, topic_page
 from tests.e2e.test_assessment_ui import begin, choose_correct, request_post, result, confirm_answers, read_all_sections
 from tests.e2e.test_progress_ui import complete
+from tests.e2e.reader_helpers import open_reader
 
 
 SIZES = [{"width": 1280, "height": 900}, {"width": 390, "height": 844}]
@@ -132,7 +133,7 @@ def test_translation_failure_and_retry_keep_the_original_read_post(auth_page, au
     topic_page(page, topic_id, initial_language)
     page.locator('.article-end').scroll_into_view_if_needed()
     expect(page.locator('.reading-card .ui-loading')).to_have_text('Сохраняем отметку…')
-    translation_pattern = '**/api/v1/topics/' + topic_id + '/sections/?*'
+    translation_pattern = '**/api/v1/topics/' + topic_id + '/sections/*/?*'
     page.route(translation_pattern, lambda route: route.abort('failed'))
     next_language = 'en' if initial_language == 'ru' else 'ru'
     page.get_by_role('radio', name='English' if next_language == 'en' else 'Русский', exact=True).check()
@@ -223,8 +224,7 @@ def test_sidebar_updates_after_automatic_read_and_submit_without_reload_or_focus
     first, second = learning_topics['first'], learning_topics['second']
     complete(page.context, first)
     auth_app.learning_data('long_article', [second])
-    page.goto('/topics/' + second)
-    expect(page.locator('.article-body')).to_be_visible()
+    open_reader(page, second)
     expect(page.locator('aside .overall-percentage')).to_have_text('50%')
     selector = page.get_by_role('radio', name='Русский', exact=True)
     selector.focus()

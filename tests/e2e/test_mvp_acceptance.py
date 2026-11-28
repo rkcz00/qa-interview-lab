@@ -72,6 +72,7 @@ def test_mvp_learner_journey(auth_page, auth_app, learning_topics, article_langu
     expect(page.locator(".topic-list").get_by_role("link")).to_have_text(["Основы тестирования", "Автоматизация"])
     page.locator(".topic-list").get_by_role("link", name="Основы тестирования", exact=True).click()
     expect(page.locator(".glossary dt")).to_have_text(["Риск", "Оракул", "Качество"])
+    page.locator(".section-navigation ol a").first.click()
     page.get_by_role("radio", name="English", exact=True).check()
     expect(page.locator(".article-body")).to_have_attribute("lang", "en")
     expect(page.locator(".glossary dt")).to_have_text(["Risk", "Oracle", "Quality"])

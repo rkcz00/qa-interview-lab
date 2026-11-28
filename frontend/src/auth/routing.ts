@@ -10,6 +10,6 @@ export function resolveRoute(pathname: string): Route | null {
   if (pathname === '/progress') return '/progress'
   if (/^\/topics\/[^/?#]+\/practice$/u.test(pathname) || /^\/practice-submissions\/[^/?#]+$/u.test(pathname)) return pathname as PracticeRoute
   if (/^\/topics\/[^/?#]+\/test$/u.test(pathname) || /^\/attempts\/[^/?#]+$/u.test(pathname)) return pathname as AssessmentRoute
-  if (pathname === '/topics' || /^\/topics\/[^/?#]+$/u.test(pathname)) return pathname as LearningRoute
+  if (pathname === '/topics' || /^\/topics\/[^/?#]+(?:\/sections\/[^/?#]+)?$/u.test(pathname)) return pathname as LearningRoute
   return routes.find(route => route === pathname) ?? null
 }

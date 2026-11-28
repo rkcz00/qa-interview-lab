@@ -8,6 +8,7 @@ from playwright.sync_api import expect
 from tests.e2e.test_auth_ui import check
 from tests.e2e.test_learning_ui import signed_in
 from tests.e2e.test_assessment_ui import request_post
+from tests.e2e.reader_helpers import open_reader
 
 
 pytestmark = pytest.mark.cross_browser
@@ -15,13 +16,14 @@ SIZES = [{"width": 1280, "height": 900}, {"width": 390, "height": 844}]
 
 
 def open_sections(page, topic_id, language="ru", section_id=None):
-    path = "/topics/" + topic_id + ("?language=en" if language == "en" else "")
-    page.goto(path + ("#section-" + section_id if section_id else ""))
-    expect(page.locator(".reader-section")).to_have_count(2)
-    expect(page.locator(".article-end")).to_have_count(2)
+    open_reader(page, topic_id, language, section_id)
+    expect(page.locator(".section-navigation ol a")).to_have_count(2)
+    expect(page.locator(".article-end")).to_have_count(1)
 
 
 def read_section(page, topic_id, section_id):
+    if "/sections/" + section_id not in page.url:
+        open_reader(page, topic_id, "en" if "language=en" in page.url else "ru", section_id)
     page.locator('.article-end[data-section-id="' + section_id + '"]').scroll_into_view_if_needed()
     deadline = time.monotonic() + 10
     while True:
@@ -43,11 +45,12 @@ def test_sections_anchors_ru_en_reload_history_and_keyboard(auth_page, auth_app,
     def record(request):
         if request.method == "POST" and "/topics/" + topic_id + "/sections/" in request.url and request.url.endswith("/read/"):
             reads.append(1)
-        if request.method == "GET" and "/topics/" + topic_id + "/sections/" in request.url:
+        if request.method == "GET" and "/api/v1/topics/" + topic_id + "/sections/" in request.url:
             gets.append(1)
     page.on("request", record)
     open_sections(page, topic_id, section_id=ids[0])
-    expect(page.locator(".reader-section h2")).to_have_text(["Раздел 1", "Раздел 2"])
+    expect(page.locator(".section-navigation ol a")).to_have_text(["Раздел 1", "Раздел 2"])
+    expect(page.locator("main h1")).to_have_text("Раздел 1")
     expect(page.locator("#section-" + ids[0])).to_be_focused()
     expect(page.get_by_text("Hidden draft section", exact=True)).to_have_count(0)
     read_section(page, topic_id, ids[0])
@@ -63,14 +66,15 @@ def test_sections_anchors_ru_en_reload_history_and_keyboard(auth_page, auth_app,
     next_link = page.get_by_role("link", name="Следующий раздел", exact=True)
     next_link.focus()
     next_link.press("Enter")
-    expect(page).to_have_url(re.compile(r"#section-" + ids[1] + "$"))
+    expect(page).to_have_url(re.compile(r"/sections/" + ids[1] + "$"))
     expect(page.locator("#section-" + ids[1])).to_be_focused()
-    expect(page.locator('.section-navigation a[aria-current="location"]')).to_have_text("Раздел 2")
-    check(len(gets) == 1 and len(reads) == 1, "Anchor navigation must not reload content or duplicate the section mark")
+    expect(page.locator('.section-navigation a[aria-current="page"]')).to_have_text("Раздел 2")
+    check(len(gets) == 2 and len(reads) == 1, "Section navigation fetches only its selected body and never duplicates a mark")
     page.get_by_role("radio", name="English", exact=True).check()
-    expect(page.locator(".reader-section h2")).to_have_text(["Section 1", "Section 2"])
+    expect(page.locator(".section-navigation ol a")).to_have_text(["Section 1", "Section 2"])
+    expect(page.locator("main h1")).to_have_text("Section 2")
     expect(page.get_by_role("radio", name="English", exact=True)).to_be_focused()
-    expect(page).to_have_url(re.compile(r"\?language=en#section-" + ids[1] + "$"))
+    expect(page).to_have_url(re.compile(r"/sections/" + ids[1] + r"\?language=en$"))
     page.reload()
     expect(page.locator("#section-" + ids[1])).to_be_focused()
     page.get_by_role("link", name="Предыдущий раздел", exact=True).click()
@@ -96,9 +100,11 @@ def test_last_section_read_survives_translation_failure_and_one_pending_post(aut
     open_sections(page, topic_id, language)
     first = read_section(page, topic_id, ids[0])
     check(not held and first["reading"]["read_sections"] == 1, "First section has an independent mark")
-    page.locator(".article-end").last.scroll_into_view_if_needed()
+    page.get_by_role("link", name="Следующий раздел", exact=True).click()
+    expect(page.locator("main h1")).to_have_text("Section 2" if language == "en" else "Раздел 2")
+    page.locator(".article-end").scroll_into_view_if_needed()
     expect(page.locator(".reading-card .ui-loading")).to_have_text("Сохраняем отметку…")
-    pattern = "**/api/v1/topics/" + topic_id + "/sections/?*"
+    pattern = "**/api/v1/topics/" + topic_id + "/sections/*/?*"
     page.route(pattern, lambda route: route.abort("failed"))
     other = "en" if language == "ru" else "ru"
     page.get_by_role("radio", name="English" if other == "en" else "Русский", exact=True).check()
@@ -106,7 +112,7 @@ def test_last_section_read_survives_translation_failure_and_one_pending_post(aut
     expect(page.locator(".article-end")).to_have_count(0)
     page.unroute(pattern)
     page.get_by_role("button", name="Повторить загрузку", exact=True).click()
-    expect(page.locator(".reader-section")).to_have_count(2)
+    expect(page.locator(".reader-section")).to_have_count(1)
     page.locator(".article-end").last.scroll_into_view_if_needed()
     page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
     check(len(held) == 1, "Reloading a translation must preserve the sole pending POST")
@@ -138,7 +144,7 @@ def test_sections_unpublish_hides_new_reader_but_keeps_attempt_and_progress(auth
     progress = page.context.request.get("/api/v1/progress/").json()
     auth_app.learning_data("draft", [topic_id])
     page.reload()
-    expect(page.locator("main h1")).to_have_text("Тема не найдена")
+    expect(page.locator("main h1")).to_have_text("Раздел не найден")
     for suffix in ("/sections/", "/"):
         response = page.context.request.get("/api/v1/topics/" + topic_id + suffix)
         check(response.status == 404 and response.json()["error"]["code"] == "not_found", "Unpublished sections must be hidden")

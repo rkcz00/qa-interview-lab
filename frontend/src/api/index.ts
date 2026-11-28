@@ -7,6 +7,7 @@ export type * from './types.ts'
 export const api = createApiClient({
   baseUrl: import.meta.env.VITE_API_BASE_URL ?? '/api/v1/',
   origin: window.location.origin,
+  onProgressScopeInvalidated: () => window.dispatchEvent(new Event('qil-reading-invalidated')),
   onProgressReset: reason => {
     // A changed session always discards the previous owner's display.
     if (reason === 'session') { window.location.replace('/login'); return }

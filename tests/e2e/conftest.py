@@ -70,11 +70,13 @@ def auth_app():
             DJANGO_ALLOWED_HOSTS="127.0.0.1,localhost", DJANGO_SECRET_KEY=secrets.token_urlsafe(48),
             POSTGRES_DB=database, POSTGRES_TEST_DB="unused_" + uuid4().hex,
             POSTGRES_HOST=host, PYTHONDONTWRITEBYTECODE="1")
-        migrated = subprocess.run([sys.executable, "-B", str(ROOT / "backend/manage.py"), "migrate", "--noinput"],
+        migrated = subprocess.run([sys.executable, "-B", str(ROOT / "tests/e2e/migrate_verified.py"), database],
             cwd=ROOT, env=backend_env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             timeout=60)
         if migrated.returncode:
             pytest.fail("Auth E2E disposable database migration failed", pytrace=False)
+        if json.loads(migrated.stdout) != {"migration": "PASS", "provenance": "PASS", "fixture_cleanup": "PASS"}:
+            pytest.fail("Auth E2E verified provenance fixture did not pass", pytrace=False)
         owned_topics = set()
 
         def learning_data(action, topic_ids=()):

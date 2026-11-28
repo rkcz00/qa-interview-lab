@@ -12,17 +12,19 @@ import { Notice } from './Notice.tsx'
 import { LoadingState } from './LoadingState.tsx'
 import { OverviewContext } from './OverviewContext.tsx'
 import { TopicSidebar } from './TopicSidebar.tsx'
+import type { Language } from '../api/types.ts'
 
 interface Props {
   navigate: Navigate
   canLogout: boolean
   className?: string
   topicId?: string | null
+  materialLanguage?: Language
   children: ReactNode
   beforeLogout?: () => boolean
 }
 
-export function AppShell({ navigate, canLogout, className = '', topicId, children, beforeLogout }: Props) {
+export function AppShell({ navigate, canLogout, className = '', topicId, materialLanguage, children, beforeLogout }: Props) {
   const [logout] = useState(() => new LogoutStore(api.auth))
   const state = useSyncExternalStore(logout.subscribe, logout.getSnapshot)
   const [overview] = useState(() => new ProgressStore(api))
@@ -61,7 +63,7 @@ export function AppShell({ navigate, canLogout, className = '', topicId, childre
         </nav>
       </header>
       <div className={canLogout ? 'app-layout' : 'app-layout is-checking'}>
-        {canLogout && <TopicSidebar navigate={navigate} topicId={topicId} />}
+        {canLogout && <TopicSidebar navigate={navigate} topicId={topicId} materialLanguage={materialLanguage} />}
         <main className={`app-content learning-shell ${className}`.trim()}>
           {state.kind === 'pending' && <LoadingState message={ru.signingOut} />}
           {state.kind === 'error' && <Notice tabIndex={-1} ref={errorBox}>{state.message}</Notice>}
